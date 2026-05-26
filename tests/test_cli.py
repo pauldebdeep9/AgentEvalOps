@@ -121,4 +121,3 @@ def test_run_command_prints_pass_rate() -> None:
     result = runner.invoke(app, ["run", "--config", str(_CONFIG)])
     assert "Rate    :" in result.output
     assert "%" in result.output
-

@@ -22,10 +22,36 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install package with dev dependencies
-        run: pip install -e ".[dev]"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
 
       - name: Lint with ruff
         run: ruff check src/ tests/
 
-      - name: Run tests
-        run: pytest
+      - name: Type-check with mypy
+        run: mypy src
+
+      - name: Run tests with coverage
+        run: pytest --cov=agentevalops --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
+
+      - name: Smoke — run
+        run: agentevalops run --config configs/toy_smoke.yaml --output runs/ci-smoke
+
+      - name: Smoke — validate-bundle
+        run: agentevalops validate-bundle --bundle runs/ci-smoke
+
+      - name: Smoke — replay
+        run: agentevalops replay --bundle runs/ci-smoke
+
+      - name: Clean up generated run
+        if: always()
+        run: rm -rf runs/ci-smoke

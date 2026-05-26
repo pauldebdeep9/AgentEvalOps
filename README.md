@@ -4,6 +4,27 @@ Local-first agent evaluation platform. Run evaluation loops against toy benchmar
 
 ---
 
+## Current capabilities
+
+- Local toy benchmark scenarios (smoke, failure, policy violation, trace limit, mixed)
+- Deterministic mock agent runner — no model API required
+- Deterministic evaluator, scorer, and policy checker
+- Replayable result bundles with manifest and SHA-256 validation
+- CLI: `run`, `validate-bundle`, `replay`, `version`, `doctor`
+
+## Not implemented yet
+
+- AWS / Bedrock / cloud backends
+- LangGraph, OpenAI Agents SDK, or any real agent runner
+- LLM-judge evaluators
+- SWE-bench or any external benchmark
+- FastAPI dashboard or web UI
+- Runtime tool execution or sandboxing
+
+See [ROADMAP.md](ROADMAP.md) for planned delivery order.
+
+---
+
 ## Install for development
 
 ```bash
@@ -220,7 +241,23 @@ benchmark_scenario: smoke   # smoke | failure | policy_violation | trace_limit |
 
 ---
 
-## Lint, type-check, and test
+## Development commands
+
+A `Makefile` provides common tasks:
+
+```bash
+make install    # pip install -e ".[dev]"
+make lint       # ruff check src/ tests/
+make typecheck  # mypy src
+make test       # pytest
+make test-cov   # pytest --cov=agentevalops --cov-report=term-missing
+make check      # lint + typecheck + test
+make smoke      # run + validate-bundle + replay + cleanup
+make build      # python -m build
+make clean      # remove caches, dist/, build/
+```
+
+Or run the tools directly:
 
 ```bash
 ruff check src/ tests/
@@ -267,15 +304,9 @@ git-ignored. Do not commit generated run artifacts.
 
 ---
 
-## What is intentionally not implemented yet
+---
 
-- AWS / Bedrock / cloud backends
-- LangGraph, OpenAI Agents SDK, or any real agent runner
-- LLM-judge evaluators
-- SWE-bench or any external benchmark
-- FastAPI dashboard or web UI
-- Runtime tool execution or sandboxing
-- Multi-run comparison or regression tracking
-- Plugin or extension framework
+## Contributing and changelog
 
-See [ROADMAP.md](ROADMAP.md) for the planned delivery order.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, coding style, and scope
+discipline. See [CHANGELOG.md](CHANGELOG.md) for what has changed in each WBS.
