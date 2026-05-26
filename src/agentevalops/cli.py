@@ -129,6 +129,35 @@ def replay(
         raise typer.Exit(code=1)
 
 
+@app.command("validate-bundle")
+def validate_bundle(
+    bundle: Path = typer.Option(
+        ...,
+        "--bundle",
+        "-b",
+        help="Path to a result bundle directory.",
+    ),
+) -> None:
+    """Validate the integrity of a saved result bundle."""
+    from agentevalops.bundles.validator import validate_bundle as _validate
+
+    if not bundle.exists():
+        typer.echo(f"Bundle path not found: {bundle}", err=True)
+        raise typer.Exit(code=1)
+
+    result = _validate(bundle)
+    typer.echo(f"Bundle:        {bundle.resolve()}")
+    typer.echo(f"Files checked: {result.checked_files}")
+    status = "PASS" if result.valid else "FAIL"
+    typer.echo(f"Status:        {status}")
+    for warning in result.warnings:
+        typer.echo(f"  W {warning}")
+    for error in result.errors:
+        typer.echo(f"  ! {error}", err=True)
+    if not result.valid:
+        raise typer.Exit(code=1)
+
+
 def _print_summary(summary: object) -> None:
     """Print a concise one-block run summary to stdout."""
     from agentevalops.orchestration.local import RunSummary
@@ -158,6 +187,11 @@ def _print_replay_summary(rs: ReplaySummary) -> None:
     typer.echo("Replay summary")
     typer.echo(f"Bundle:        {rs.bundle_path}")
     typer.echo(f"Run ID:        {rs.run_id}")
+    if rs.bundle_format_version is not None:
+        typer.echo(f"Format:        {rs.bundle_format_version}")
+    if rs.manifest_valid is not None:
+        mstatus = "PASS" if rs.manifest_valid else "FAIL"
+        typer.echo(f"Manifest:      {mstatus}")
     typer.echo(f"Trace events:  {rs.trace_event_count}")
     typer.echo(f"Evaluations:   {rs.evaluation_count}")
     if rs.policy_verdict is not None:

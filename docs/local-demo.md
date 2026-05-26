@@ -133,8 +133,39 @@ runs/toy-smoke/
 ├── evaluations.json   per-task EvaluationResult list
 ├── policy.json        PolicySpec + PolicyVerdict
 ├── summary.json       RunSummary (pass rate, score, totals)
-└── report.md          human-readable Markdown report
+├── report.md          human-readable Markdown report
+└── manifest.json      bundle format version, file sizes, SHA-256 checksums
 ```
+
+`manifest.json` is written **last** so its checksums cover all content files.
+It contains:
+
+- `bundle_format_version` — format version of the bundle layout
+- `generated_at` — ISO-8601 timestamp
+- `required_files` — list of expected content files
+- `files` — per-file `size_bytes` and `sha256` (SHA-256 hex digest)
+- `run` — high-level run metadata (run_id, config_name, benchmark, scenario)
+- `writer` — package name and version that produced the bundle
+
+SHA-256 checksums are for tamper detection and accidental corruption
+detection.  This is **not** cryptographic signing; there is no key management,
+remote attestation, or governance service.
+
+### Validating a bundle
+
+```bash
+agentevalops validate-bundle --bundle runs/toy-smoke
+```
+
+`validate-bundle` checks:
+- all required files are present
+- `manifest.json` parses and has a supported `bundle_format_version`
+- every manifest-listed file exists, matches expected size, and SHA-256
+- all JSON files parse cleanly
+- `traces.jsonl` parses line-by-line
+- `trace_event_count` in `summary.json` agrees with the number of trace lines
+
+Exit code 0 = all checks passed. Exit code 1 = one or more failures.
 
 ---
 
@@ -144,15 +175,21 @@ runs/toy-smoke/
 agentevalops replay --bundle runs/toy-smoke
 ```
 
-Replay reads the bundle, reconstructs the objects in memory, and checks:
+Replay reads the bundle, runs bundle validation (manifest + checksums), and
+then checks internal consistency:
 
 - `traces.jsonl` parses without errors
 - `evaluations.json` count matches `summary.json` → `total_tasks`
 - `policy.json` verdict is a known string (`pass` / `fail` / `warn`)
 - `metadata.json` `sealed` field is `true`
 - `summary.json` task result count matches metadata
+- manifest checksums all pass
 
-Replay exits 0 if all checks pass, 1 otherwise.
+Replay exits 0 if all checks pass, 1 otherwise.  It shows:
+- bundle format version (from manifest)
+- manifest validation status
+- trace event count, evaluation count, policy verdict
+- replay status
 
 ### What replay does NOT do
 
@@ -161,7 +198,7 @@ Replay exits 0 if all checks pass, 1 otherwise.
 - It does not compare two runs.
 - It does not check whether evaluation scores are "correct".
 
-Replay is a consistency verifier, not a correctness verifier.
+Replay is a consistency and integrity verifier, not a correctness verifier.
 
 ---
 

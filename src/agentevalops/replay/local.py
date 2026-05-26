@@ -11,7 +11,9 @@ from __future__ import annotations
 import dataclasses
 from pathlib import Path
 
+from agentevalops.bundles.constants import MANIFEST_FILENAME
 from agentevalops.bundles.reader import LoadedBundle
+from agentevalops.bundles.validator import validate_bundle
 
 
 @dataclasses.dataclass
@@ -36,6 +38,13 @@ class ReplaySummary:
     failures:
         Human-readable descriptions of every failed check (empty if
         ``checks_passed`` is ``True``).
+    bundle_format_version:
+        The ``bundle_format_version`` from ``manifest.json``, or ``None``
+        when the bundle has no manifest.
+    manifest_valid:
+        ``True`` when a manifest was present and its checksums all passed,
+        ``False`` when checksum/size failures were detected, or ``None`` when
+        no manifest was available.
     """
 
     run_id: str
@@ -45,6 +54,8 @@ class ReplaySummary:
     policy_verdict: str | None
     checks_passed: bool
     failures: list[str]
+    bundle_format_version: str | None = None
+    manifest_valid: bool | None = None
 
 
 class LocalReplayVerifier:
@@ -65,6 +76,27 @@ class LocalReplayVerifier:
     def verify(self) -> ReplaySummary:
         """Run all consistency checks and return a ``ReplaySummary``."""
         failures: list[str] = []
+
+        # ---- manifest validation (non-fatal; surfaced as diagnostics) ----
+        bundle_format_version: str | None = None
+        manifest_valid: bool | None = None
+
+        manifest = self._bundle.manifest
+        if manifest is not None:
+            bundle_format_version = manifest.get(
+                "bundle_format_version"
+            ) or None
+            # Run full validator to check checksums
+            val_result = validate_bundle(self._bundle.bundle_path)
+            manifest_valid = val_result.valid
+            if not val_result.valid:
+                for err in val_result.errors:
+                    failures.append(f"[manifest] {err}")
+        else:
+            # No manifest — pre-WBS-8 bundle; note but don’t fail.
+            manifest_path = self._bundle.bundle_path / MANIFEST_FILENAME
+            if not manifest_path.exists():
+                pass  # acceptable for legacy bundles read with strict=False
 
         # ---- run_id presence & cross-check --------------------------
         meta_run_id = str(self._bundle.metadata.get("run_id", ""))
@@ -129,4 +161,6 @@ class LocalReplayVerifier:
             policy_verdict=policy_verdict,
             checks_passed=len(failures) == 0,
             failures=failures,
+            bundle_format_version=bundle_format_version,
+            manifest_valid=manifest_valid,
         )

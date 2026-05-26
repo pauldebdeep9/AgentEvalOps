@@ -9,6 +9,10 @@ Bundle layout (all files in *output_dir*):
     policy.json       — PolicyVerdict (or null if no policy check was run)
     summary.json      — RunSummary (counts, cost, tokens, task results)
     report.md         — human-readable markdown report
+    manifest.json     — bundle format version, file sizes, SHA-256 checksums
+
+The manifest is always written *last* so that its checksums cover all
+content files.  ``manifest.json`` is not checksummed inside itself.
 """
 
 from __future__ import annotations
@@ -19,6 +23,8 @@ from pathlib import Path
 from typing import Any
 
 from agentevalops import __version__
+from agentevalops.bundles.constants import REQUIRED_BUNDLE_FILES
+from agentevalops.bundles.manifest import write_manifest
 from agentevalops.bundles.serializers import to_jsonable
 from agentevalops.core.errors import BundleError
 from agentevalops.core.schemas import (
@@ -30,16 +36,9 @@ from agentevalops.core.schemas import (
 from agentevalops.orchestration.local import RunSummary
 from agentevalops.reports.markdown import render_report
 
-#: Canonical set of files that constitute a result bundle.
-BUNDLE_FILES: tuple[str, ...] = (
-    "metadata.json",
-    "config.json",
-    "traces.jsonl",
-    "evaluations.json",
-    "policy.json",
-    "summary.json",
-    "report.md",
-)
+#: Re-exported for backward compatibility with code that imports BUNDLE_FILES
+#: from this module.  New code should import from bundles.constants directly.
+BUNDLE_FILES: tuple[str, ...] = REQUIRED_BUNDLE_FILES
 
 
 class BundleWriter:
@@ -67,7 +66,7 @@ class BundleWriter:
         policy_spec: PolicySpec | None = None,
         config_name: str = "",
     ) -> Path:
-        """Write all seven bundle files; return the output directory path."""
+        """Write all bundle files including manifest; return output dir."""
         self._prepare_dir()
         self._write_metadata(run_config, summary)
         self._write_config(run_config, policy_spec, config_name)
@@ -76,6 +75,8 @@ class BundleWriter:
         self._write_policy(summary)
         self._write_summary(summary)
         self._write_report(run_config, summary, all_events, config_name)
+        # Manifest is written last so checksums cover all content files.
+        write_manifest(self._dir)
         return self._dir
 
     # ------------------------------------------------------------------
@@ -93,7 +94,7 @@ class BundleWriter:
                     f"bundle files: {', '.join(existing)}. "
                     "Pass overwrite=True to overwrite."
                 )
-        self._dir.mkdir(parents=True, exist_ok=True)
+        self._dir.mkdir(parents=True, exist_ok=True)  # noqa: E501
 
     def _write_json(self, filename: str, data: Any) -> None:
         path = self._dir / filename

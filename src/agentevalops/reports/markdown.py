@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime, timezone
 
+from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION, REQUIRED_BUNDLE_FILES
 from agentevalops.core.schemas import RunConfig, TraceEvent
 from agentevalops.orchestration.local import RunSummary
 
@@ -100,6 +101,22 @@ def render_report(
             lines.append(f"| {kind_val} | {count} |")
     else:
         lines.append("No trace events recorded.")
+    lines.append("")
+
+    # ---- bundle audit ----------------------------------------------------
+    lines.append("## Bundle Audit")
+    lines.append("")
+    lines.append(f"- Bundle format version: `{BUNDLE_FORMAT_VERSION}`")
+    lines.append("- Manifest: present (written after content files)")
+    lines.append(f"- Files written: {len(REQUIRED_BUNDLE_FILES) + 1}")
+    lines.append(
+        "  (" + ", ".join(REQUIRED_BUNDLE_FILES) + ", manifest.json)"
+    )
+    lines.append(f"- Trace event count: {len(all_events)}")
+    lines.append(
+        "- Checksums: SHA-256 per file "
+        "(see manifest.json; not cryptographic signing)"
+    )
     lines.append("")
 
     return "\n".join(lines)

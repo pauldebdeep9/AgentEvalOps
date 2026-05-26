@@ -84,6 +84,7 @@ def _make_valid_bundle(tmp_path: Path) -> Path:
         passed_tasks=1,
         total_cost_usd=0.0,
         total_tokens=5,
+        trace_event_count=len(events),
     )
     bundle_dir = tmp_path / "bundle"
     BundleWriter(bundle_dir).write(

@@ -1,9 +1,16 @@
 """BundleReader — load and validate a local result bundle from disk.
 
-A bundle directory must contain exactly the seven files produced by
-``BundleWriter``.  ``BundleReader`` checks file presence, parses each file,
-and returns a ``LoadedBundle`` dataclass.  Any structural problem raises
-``BundleError`` with a clear message; no content is silently ignored.
+A bundle directory must contain the content files produced by ``BundleWriter``
+plus a ``manifest.json`` written last.  ``BundleReader`` checks file presence,
+parses each file, and returns a ``LoadedBundle`` dataclass.  Any structural
+problem raises ``BundleError`` with a clear message; no content is silently
+ignored.
+
+Backward compatibility
+----------------------
+Bundles written before WBS 8 do not contain ``manifest.json``.  Pass
+``strict=False`` to ``BundleReader`` to tolerate missing manifests (the
+``manifest`` field on ``LoadedBundle`` will be ``None``).
 """
 
 from __future__ import annotations
@@ -13,8 +20,11 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from agentevalops.bundles.writer import BUNDLE_FILES
+from agentevalops.bundles.constants import MANIFEST_FILENAME, REQUIRED_BUNDLE_FILES
 from agentevalops.core.errors import BundleError
+
+# Backward-compat alias used by tests that imported BUNDLE_FILES from writer.
+BUNDLE_FILES = REQUIRED_BUNDLE_FILES
 
 
 @dataclasses.dataclass
@@ -41,6 +51,9 @@ class LoadedBundle:
         bundle was written without a policy verdict.
     summary:
         Parsed contents of ``summary.json`` (always a dict).
+    manifest:
+        Parsed contents of ``manifest.json``, or ``None`` when the bundle was
+        written before WBS 8 and strict mode is disabled.
     """
 
     bundle_path: Path
@@ -50,6 +63,7 @@ class LoadedBundle:
     evaluations: list[Any]
     policy: dict[str, Any] | None
     summary: dict[str, Any]
+    manifest: dict[str, Any] | None = None
 
 
 class BundleReader:
@@ -59,6 +73,10 @@ class BundleReader:
     ----------
     bundle_path:
         Path to the bundle directory (created by ``BundleWriter``).
+    strict:
+        When ``True`` (default), ``manifest.json`` is required and a
+        ``BundleError`` is raised if it is absent.  Set to ``False`` to
+        tolerate pre-WBS-8 bundles that have no manifest.
 
     Raises
     ------
@@ -67,8 +85,9 @@ class BundleReader:
         if any file contains malformed content.
     """
 
-    def __init__(self, bundle_path: Path) -> None:
+    def __init__(self, bundle_path: Path, *, strict: bool = True) -> None:
         self._path = bundle_path
+        self._strict = strict
 
     def read(self) -> LoadedBundle:
         """Parse and return the full bundle.  Raises ``BundleError`` on any
@@ -86,6 +105,8 @@ class BundleReader:
         # report.md existence already confirmed by _validate_files_present;
         # its content is not parsed — structural presence is sufficient.
 
+        manifest = self._read_manifest()
+
         return LoadedBundle(
             bundle_path=self._path,
             metadata=metadata,
@@ -94,6 +115,7 @@ class BundleReader:
             evaluations=evaluations,
             policy=policy,
             summary=summary,
+            manifest=manifest,
         )
 
     # ------------------------------------------------------------------
@@ -119,6 +141,18 @@ class BundleReader:
                 f"Bundle '{self._path}' is missing required files: "
                 + ", ".join(missing)
             )
+
+    def _read_manifest(self) -> dict[str, Any] | None:
+        """Return parsed manifest dict, or None / raise depending on strict."""
+        path = self._path / MANIFEST_FILENAME
+        if not path.exists():
+            if self._strict:
+                raise BundleError(
+                    f"Bundle '{self._path}' is missing '{MANIFEST_FILENAME}'. "
+                    "Use BundleReader(path, strict=False) for pre-WBS-8 bundles."
+                )
+            return None
+        return self._read_json_dict(MANIFEST_FILENAME)
 
     # ------------------------------------------------------------------
     # Low-level parse helpers

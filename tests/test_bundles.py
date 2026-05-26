@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from agentevalops.bundles.constants import MANIFEST_FILENAME
 from agentevalops.bundles.serializers import to_jsonable
 from agentevalops.bundles.writer import BUNDLE_FILES, BundleWriter
 from agentevalops.core.errors import BundleError
@@ -90,6 +91,7 @@ def _make_bundle_inputs() -> (
         passed_tasks=1,
         total_cost_usd=0.0,
         total_tokens=5,
+        trace_event_count=2,
     )
     return run_config, summary, [event, event2], policy_spec
 
@@ -115,6 +117,11 @@ def test_all_seven_bundle_files_created(tmp_path: Path) -> None:
     bundle_dir = _write_bundle(tmp_path)
     for filename in BUNDLE_FILES:
         assert (bundle_dir / filename).exists(), f"Missing: {filename}"
+
+
+def test_manifest_json_created(tmp_path: Path) -> None:
+    bundle_dir = _write_bundle(tmp_path)
+    assert (bundle_dir / MANIFEST_FILENAME).exists()
 
 
 def test_write_returns_output_directory(tmp_path: Path) -> None:

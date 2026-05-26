@@ -70,6 +70,55 @@ The bundle directory contains:
 | `policy.json` | `PolicySpec` + `PolicyVerdict` |
 | `summary.json` | Aggregated `RunSummary` |
 | `report.md` | Human-readable Markdown report |
+| `manifest.json` | Bundle format version, file sizes, SHA-256 checksums |
+
+`manifest.json` is written **last** so its checksums cover all content files.
+
+---
+
+## Result bundle anatomy
+
+Every bundle written by `BundleWriter` produces eight files.
+
+### Content files (checksummed in manifest)
+
+| File | Description |
+|------|-------------|
+| `metadata.json` | Run metadata: schema version, run ID, platform version, task count, timestamp |
+| `config.json` | Resolved `RunConfig` + `PolicySpec` that produced the run |
+| `traces.jsonl` | One JSON object per `TraceEvent`, newline-delimited |
+| `evaluations.json` | List of per-task `EvaluationResult` objects |
+| `policy.json` | Post-run `PolicyVerdict` (or JSON `null` if no policy was specified) |
+| `summary.json` | Aggregated `RunSummary`: task counts, cost, tokens, per-task results |
+| `report.md` | Human-readable Markdown report (same data as summary) |
+
+### Manifest file
+
+| File | Description |
+|------|-------------|
+| `manifest.json` | Bundle format version, `generated_at` timestamp, `required_files` list, per-file `size_bytes` and `sha256`, high-level `run` fields, writer name/version |
+
+`manifest.json` is not checksummed inside itself (documented convention for
+this bundle format). SHA-256 checksums are used for tamper detection and
+accidental corruption detection — this is **not** cryptographic signing and
+provides no remote attestation or governance guarantee.
+
+### Validate and replay
+
+```bash
+agentevalops run --config configs/toy_smoke.yaml --output runs/toy-smoke
+agentevalops validate-bundle --bundle runs/toy-smoke
+agentevalops replay --bundle runs/toy-smoke
+```
+
+`validate-bundle` checks: required file presence, manifest parse,
+`bundle_format_version`, file sizes, SHA-256 checksums, JSON parseability of
+all JSON files, line-by-line parse of `traces.jsonl`, and
+`trace_event_count` cross-check against `summary.json`.
+
+`replay` checks internal consistency (run_id cross-match, non-empty traces
+and evaluations, task count cross-check) and surfaces manifest validation
+status in its output.
 
 ---
 
