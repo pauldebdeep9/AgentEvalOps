@@ -5,7 +5,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## Unreleased
+## [0.1.0] — Unreleased
 
 ### Added
 
@@ -38,3 +38,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `.pre-commit-config.yaml`; `CONTRIBUTING.md`; `CHANGELOG.md`; release
   checklist; GitHub PR and issue templates; `SECURITY.md`; `CODE_OF_CONDUCT.md`;
   pyproject.toml classifiers/keywords/coverage config; pytest-cov support.
+- **WBS 10** — v0.1 release candidate readiness: Apache-2.0 `LICENSE`; version
+  bumped to `0.1.0`; pyproject.toml license metadata and classifier; README
+  public-readiness pass; CHANGELOG, CONTRIBUTING, SECURITY, release-checklist
+  finalized; `.gitignore` extended; `__init__.py` docstring corrected.
+
+### Not included in v0.1
+
+- AWS / Bedrock backend.
+- SWE-bench adapter.
+- LLM-as-judge evaluator.
+- Model-provider runners (LangGraph, Ollama, OpenAI Agents SDK).
+- FastAPI dashboard or web UI.
+- Remote artifact storage.

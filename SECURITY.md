@@ -1,5 +1,14 @@
 # Security policy
 
+## Supported versions
+
+| Version | Supported |
+|---|---|
+| 0.1.x | Yes (once tagged) |
+| 0.0.x dev | No |
+
+---
+
 ## Scope
 
 AgentEvalOps is a **local-first evaluation framework** with no network

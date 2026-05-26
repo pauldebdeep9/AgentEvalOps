@@ -132,3 +132,33 @@ If your change requires any of these, open a feature request first.
 2. Run `make check` and `make smoke`.
 3. Open a PR using the pull request template.
 4. Ensure no generated `runs/`, `dist/`, or `build/` files are staged.
+
+---
+
+## Updating the bundle format
+
+The bundle format is declared in `BundleWriter` and validated by
+`BundleValidator`. Both classes share a `BUNDLE_FORMAT_VERSION` constant.
+
+Before changing the format:
+
+1. Check whether existing fixture bundles in `tests/` need updating.
+2. Bump `BUNDLE_FORMAT_VERSION` if the change is not backward-compatible.
+3. Update `BundleValidator`'s required-file list if files are added or removed.
+4. Update `README.md` bundle anatomy table and `docs/local-demo.md` if the
+   file set changes.
+5. Add or update tests in `tests/test_bundle_manifest.py` and
+   `tests/test_bundle_validator.py`.
+
+---
+
+## When to update docs and tests
+
+- **New CLI command**: update `README.md` Quickstart, `docs/local-demo.md`,
+  and add a test in `tests/test_cli.py`.
+- **New toy scenario**: follow the steps in "Adding a new toy scenario" above;
+  also update `README.md` scenario reference table and `docs/local-demo.md`.
+- **New config key**: update `README.md` config reference, `CONTRIBUTING.md`
+  scope note if relevant, and add coverage in `tests/test_config_loader.py`.
+- **Changed public API** (schemas, protocols): mypy strict will catch callers;
+  update affected tests and docs.

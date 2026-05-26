@@ -1,22 +1,27 @@
 # AgentEvalOps
 
-Local-first agent evaluation platform. Run evaluation loops against toy benchmarks, write structured result bundles, and replay bundles for structural verification — all offline, no model API required.
+**v0.1.0** · Local-first agent evaluation platform · Apache-2.0
+
+Run evaluation loops against toy benchmarks, write structured result bundles, and replay bundles for structural verification — all offline, no model API required.
 
 ---
 
 ## Current capabilities
 
-- Local toy benchmark scenarios (smoke, failure, policy violation, trace limit, mixed)
-- Deterministic mock agent runner — no model API required
-- Deterministic evaluator, scorer, and policy checker
-- Replayable result bundles with manifest and SHA-256 validation
-- CLI: `run`, `validate-bundle`, `replay`, `version`, `doctor`
+AgentEvalOps v0.1 provides a local-first evaluation skeleton for tool-using agents:
 
-## Not implemented yet
+- Deterministic mock agent runner — no model API required
+- Toy benchmark scenarios (smoke, failure, policy violation, trace limit, mixed)
+- Deterministic evaluator, scorer, and policy checker
+- Replayable result bundles with `manifest.json` and SHA-256 checksums
+- `validate-bundle` and `replay` CLI commands
+- CI-backed quality gates (ruff, mypy, pytest, multi-Python matrix)
+
+## Not implemented in v0.1
 
 - AWS / Bedrock / cloud backends
 - LangGraph, OpenAI Agents SDK, or any real agent runner
-- LLM-judge evaluators
+- LLM-as-judge evaluators
 - SWE-bench or any external benchmark
 - FastAPI dashboard or web UI
 - Runtime tool execution or sandboxing
@@ -304,9 +309,13 @@ git-ignored. Do not commit generated run artifacts.
 
 ---
 
----
-
 ## Contributing and changelog
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, coding style, and scope
 discipline. See [CHANGELOG.md](CHANGELOG.md) for what has changed in each WBS.
+
+---
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).

@@ -20,7 +20,7 @@ config.yaml
     → DeterministicEvaluator (exact/substring match + trace checks)
     → SimpleScorer           (pass rate, aggregate score)
     → BasicPolicyChecker     (post-run cost/trace/tool checks)
-    → BundleWriter           (optional: writes 7 files to disk)
+    → BundleWriter           (optional: writes 8 files to disk, including manifest.json)
     → report.md              (generated as part of the bundle)
 ```
 

@@ -1,3 +1,3 @@
-"""AgentEvalOps — local-first, AWS-ready agent evaluation platform."""
+"""AgentEvalOps — local-first agent evaluation platform."""
 
-__version__ = "0.1.0.dev0"
+__version__ = "0.1.0"

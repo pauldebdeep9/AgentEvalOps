@@ -2,6 +2,8 @@
 
 Follow these steps before tagging a release.
 
+> **Next target:** `v0.1.0`
+
 ---
 
 ## 1. Verify working tree
@@ -31,17 +33,29 @@ version = "X.Y.Z"
 
 Both values must match.
 
+> For v0.1.0: version is already `0.1.0` in both files.
+
 ---
 
 ## 3. Update CHANGELOG.md
 
-- Rename `## Unreleased` to `## X.Y.Z — YYYY-MM-DD`.
+- Rename `## [X.Y.Z] — Unreleased` to `## [X.Y.Z] — YYYY-MM-DD`.
 - Add a new empty `## Unreleased` section above it.
 - Summarise what changed in plain language.
 
 ---
 
-## 4. Run quality gates
+## 4. Run pre-commit
+
+```bash
+pre-commit run --all-files
+```
+
+Fix any auto-applied changes, then re-run until clean.
+
+---
+
+## 5. Run quality gates
 
 ```bash
 make check
@@ -51,7 +65,7 @@ This runs ruff, mypy, and pytest. All must pass.
 
 ---
 
-## 5. Run smoke test
+## 6. Run smoke test
 
 ```bash
 make smoke
@@ -61,7 +75,7 @@ All three CLI commands must exit 0: `run`, `validate-bundle`, `replay`.
 
 ---
 
-## 6. Build the package
+## 7. Build and validate the package
 
 ```bash
 make build
@@ -73,7 +87,17 @@ without warnings.
 
 ---
 
-## 7. Commit and tag
+## 8. Inspect before committing
+
+- [ ] `README.md` current capabilities and quickstart are accurate
+- [ ] `CHANGELOG.md` date is set
+- [ ] `LICENSE` present
+- [ ] Version in `pyproject.toml` and `__init__.py` match
+- [ ] No `dist/`, `build/`, `runs/`, or `.coverage` files staged
+
+---
+
+## 9. Commit and tag
 
 ```bash
 git add src/agentevalops/__init__.py pyproject.toml CHANGELOG.md
@@ -84,7 +108,7 @@ git push origin master --tags
 
 ---
 
-## 8. Publish (when explicitly configured)
+## 10. Publish (when explicitly configured)
 
 PyPI publishing is **not yet configured**. Do not run `twine upload` until
 a trusted-publishing or API-token workflow is in place.
@@ -97,7 +121,7 @@ python -m twine upload dist/*
 
 ---
 
-## 9. Post-release
+## 11. Post-release
 
 - Open a new PR that starts the next `## Unreleased` section.
 - Remove old `dist/` and `build/` outputs locally (`make clean`).
