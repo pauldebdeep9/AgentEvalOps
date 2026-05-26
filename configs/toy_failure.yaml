@@ -1,0 +1,35 @@
+# AgentEvalOps — toy failure scenario
+#
+# Demonstrates: evaluation failure without the agent crashing.
+#
+# What happens:
+#   - benchmark_scenario: failure  →  tasks whose mock_answer does not match
+#     the evaluation criterion (exact-match or substring-match).
+#   - The agent runs normally (success=True, termination_reason=COMPLETED),
+#     but DeterministicEvaluator marks both tasks as FAIL because the returned
+#     answer does not satisfy the task's acceptance criterion.
+#   - Policy passes because cost stays at $0.00 (well below the $1.00 limit).
+#   - CLI exits 0; bundle is written if --output is provided.
+#   - Replay on the written bundle still passes (structural consistency).
+#
+# This is different from a runner-level crash (AGENT_ERROR).  Evaluation
+# failure and agent failure are distinct concepts in AgentEvalOps.
+#
+# Run:
+#   agentevalops run --config configs/toy_failure.yaml --output runs/toy-failure
+
+run_id: "toy-failure-001"
+agent_id: "mock-agent-v1"
+backend_id: "local"
+max_concurrent_tasks: 1
+resource_limits:
+  max_tokens: 1000
+  max_wall_seconds: 30.0
+  max_cost_usd: 1.0
+
+benchmark_id: "toy"
+benchmark_scenario: failure
+
+policy:
+  policy_id: "default"
+  max_cost_usd: 1.0

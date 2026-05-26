@@ -1,0 +1,32 @@
+# AgentEvalOps — toy trace limit scenario
+#
+# Demonstrates: evaluation passes but policy verdict is FAIL due to trace size.
+#
+# What happens:
+#   - benchmark_scenario: smoke  →  2 tasks that pass evaluation
+#   - MockAgentRunner (default mode) emits 3 events per task
+#   - 2 tasks × 3 events = 6 total trace events
+#   - policy.max_trace_events: 5  →  6 > 5 → policy FAIL
+#   - DeterministicEvaluator passes both tasks (answers match)
+#   - CLI exits 0; bundle is written if --output is provided
+#   - Replay on the written bundle still passes (structural consistency)
+#
+# Run:
+#   agentevalops run --config configs/toy_trace_limit.yaml --output runs/trace-limit
+
+run_id: "toy-trace-limit-001"
+agent_id: "mock-agent-v1"
+backend_id: "local"
+max_concurrent_tasks: 1
+resource_limits:
+  max_tokens: 1000
+  max_wall_seconds: 30.0
+  max_cost_usd: 1.0
+
+benchmark_id: "toy"
+benchmark_scenario: trace_limit
+
+policy:
+  policy_id: "trace-limit"
+  # 5-event ceiling is breached by 6 actual events (2 tasks × 3) → FAIL
+  max_trace_events: 5

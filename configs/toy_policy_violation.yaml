@@ -1,0 +1,35 @@
+# AgentEvalOps — toy policy violation scenario
+#
+# Demonstrates: evaluation passes but policy verdict is FAIL due to cost.
+#
+# What happens:
+#   - benchmark_scenario: smoke  →  2 exact-match tasks that pass evaluation
+#   - mock_cost_per_task_usd: 0.5  →  each task reports $0.50 cost
+#   - 2 tasks × $0.50 = $1.00 total cost
+#   - policy.max_cost_usd: 0.25  →  $1.00 > $0.25 → policy FAIL
+#   - DeterministicEvaluator still passes both tasks (answers match)
+#   - CLI exits 0; bundle is written if --output is provided
+#   - Replay on the written bundle still passes (structural consistency)
+#
+# Run:
+#   agentevalops run --config configs/toy_policy_violation.yaml --output runs/policy-violation
+
+run_id: "toy-policy-violation-001"
+agent_id: "mock-agent-v1"
+backend_id: "local"
+max_concurrent_tasks: 1
+resource_limits:
+  max_tokens: 1000
+  max_wall_seconds: 30.0
+  max_cost_usd: 10.0
+
+benchmark_id: "toy"
+benchmark_scenario: policy_violation
+
+# Each task reports $0.50 cost — two tasks total $1.00.
+mock_cost_per_task_usd: 0.5
+
+policy:
+  policy_id: "cost-ceiling"
+  # $0.25 ceiling is breached by $1.00 total cost → FAIL
+  max_cost_usd: 0.25

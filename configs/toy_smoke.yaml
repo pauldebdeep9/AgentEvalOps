@@ -1,0 +1,18 @@
+# AgentEvalOps — toy smoke-test run configuration
+# Used by: agentevalops run --config configs/toy_smoke.yaml
+
+run_id: "toy-smoke-001"
+agent_id: "mock-agent-v1"
+backend_id: "local"
+max_concurrent_tasks: 1
+resource_limits:
+  max_tokens: 1000
+  max_wall_seconds: 30.0
+  max_cost_usd: 1.0
+
+benchmark_id: "toy"
+benchmark_scenario: smoke
+
+policy:
+  policy_id: "default"
+  max_cost_usd: 1.0

@@ -1,0 +1,37 @@
+# AgentEvalOps — toy mixed scenario
+#
+# Demonstrates: a run with both passing and failing evaluations.
+#
+# What happens:
+#   - benchmark_scenario: mixed  →  3 tasks
+#       * toy-001:        exact-match passes (MockAgentRunner returns "hello world")
+#       * toy-fail-001:   exact-match fails  (MockAgentRunner returns "wrong answer")
+#       * toy-substr-001: substring-match passes (answer contains "planet")
+#   - DeterministicEvaluator: 2 pass, 1 fail
+#   - pass_rate ≈ 67%
+#   - Policy passes ($0.00 cost well below $1.00 limit)
+#   - CLI exits 0; bundle is written if --output is provided
+#   - Replay on the written bundle still passes (structural consistency)
+#
+# Useful for:
+#   - Testing aggregate scorer behaviour
+#   - Demonstrating that partial success is a valid outcome
+#
+# Run:
+#   agentevalops run --config configs/toy_mixed.yaml --output runs/toy-mixed
+
+run_id: "toy-mixed-001"
+agent_id: "mock-agent-v1"
+backend_id: "local"
+max_concurrent_tasks: 1
+resource_limits:
+  max_tokens: 1000
+  max_wall_seconds: 30.0
+  max_cost_usd: 1.0
+
+benchmark_id: "toy"
+benchmark_scenario: mixed
+
+policy:
+  policy_id: "default"
+  max_cost_usd: 1.0
