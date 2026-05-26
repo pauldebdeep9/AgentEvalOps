@@ -239,3 +239,16 @@ def test_replay_remains_read_only(tmp_path: Path) -> None:
     runner.invoke(app, ["replay", "--bundle", str(bundle_dir)])
     files_after = set(bundle_dir.iterdir())
     assert files_before == files_after
+
+
+def test_validate_bundle_is_read_only(tmp_path: Path) -> None:
+    """validate-bundle must not create or modify any files in the bundle."""
+    bundle_dir = _make_bundle(tmp_path)
+    snapshots_before = {
+        f.name: f.read_bytes() for f in sorted(bundle_dir.iterdir())
+    }
+    runner.invoke(app, ["validate-bundle", "--bundle", str(bundle_dir)])
+    snapshots_after = {
+        f.name: f.read_bytes() for f in sorted(bundle_dir.iterdir())
+    }
+    assert snapshots_before == snapshots_after

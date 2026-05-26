@@ -194,6 +194,15 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
                 )
             checked_files += 1
 
+    # Ensure every required file that exists has a manifest entry (otherwise
+    # a tampered file could escape checksum verification).
+    for filename in REQUIRED_BUNDLE_FILES:
+        if (bundle_path / filename).exists() and filename not in files_section:
+            errors.append(
+                f"Manifest 'files' section is missing an entry for "
+                f"required file '{filename}'"
+            )
+
     # ------------------------------------------------------------------ #
     # 8. JSON files parse
     # ------------------------------------------------------------------ #

@@ -109,8 +109,8 @@ def generate_manifest(bundle_dir: Path) -> dict[str, Any]:
         "bundle_format_version": BUNDLE_FORMAT_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "manifest_filename": MANIFEST_FILENAME,
-        "required_files": list(REQUIRED_BUNDLE_FILES),
-        "files": files,
+        "required_files": sorted(REQUIRED_BUNDLE_FILES),
+        "files": dict(sorted(files.items())),
         "run": _extract_run_fields(bundle_dir),
         "writer": {
             "name": "agentevalops",
@@ -135,7 +135,7 @@ def write_manifest(bundle_dir: Path) -> Path:
     manifest = generate_manifest(bundle_dir)
     out_path = bundle_dir / MANIFEST_FILENAME
     out_path.write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(manifest, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return out_path

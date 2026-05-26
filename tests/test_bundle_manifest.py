@@ -334,3 +334,39 @@ def test_write_manifest_returns_path(tmp_path: Path) -> None:
     out = write_manifest(bundle_dir)
     assert out == bundle_dir / MANIFEST_FILENAME
     assert out.exists()
+
+
+# ---------------------------------------------------------------------------
+# Deterministic / sorted output
+# ---------------------------------------------------------------------------
+
+
+def test_manifest_files_are_sorted_by_filename(tmp_path: Path) -> None:
+    bundle_dir = _make_bundle(tmp_path)
+    manifest = json.loads(
+        (bundle_dir / MANIFEST_FILENAME).read_text(encoding="utf-8")
+    )
+    file_keys = list(manifest["files"].keys())
+    assert file_keys == sorted(file_keys), (
+        f"manifest 'files' keys are not sorted: {file_keys}"
+    )
+
+
+def test_manifest_required_files_are_sorted(tmp_path: Path) -> None:
+    bundle_dir = _make_bundle(tmp_path)
+    manifest = json.loads(
+        (bundle_dir / MANIFEST_FILENAME).read_text(encoding="utf-8")
+    )
+    rf = manifest["required_files"]
+    assert rf == sorted(rf), f"required_files not sorted: {rf}"
+
+
+def test_manifest_json_keys_are_sorted(tmp_path: Path) -> None:
+    """Top-level JSON keys must be in sorted order (sort_keys=True)."""
+    bundle_dir = _make_bundle(tmp_path)
+    text = (bundle_dir / MANIFEST_FILENAME).read_text(encoding="utf-8")
+    manifest = json.loads(text)
+    top_keys = list(manifest.keys())
+    assert top_keys == sorted(top_keys), (
+        f"Top-level manifest keys are not sorted: {top_keys}"
+    )

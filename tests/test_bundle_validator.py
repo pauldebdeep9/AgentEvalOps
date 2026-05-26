@@ -311,6 +311,23 @@ def test_manifest_as_array_fails(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Manifest missing a required file entry
+# ---------------------------------------------------------------------------
+
+
+def test_manifest_missing_file_entry_fails(tmp_path: Path) -> None:
+    """Remove traces.jsonl from manifest['files']: validation must fail."""
+    bundle_dir = _make_bundle(tmp_path)
+    manifest_path = bundle_dir / MANIFEST_FILENAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["files"]["traces.jsonl"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    result = validate_bundle(bundle_dir)
+    assert result.valid is False
+    assert any("traces.jsonl" in e for e in result.errors)
+
+
+# ---------------------------------------------------------------------------
 # Validation does not mutate bundle
 # ---------------------------------------------------------------------------
 
