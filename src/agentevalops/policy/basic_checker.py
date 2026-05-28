@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from agentevalops.core.schemas import (
+    TOOL_NAME_PAYLOAD_KEY,
     AgentOutput,
     PolicySpec,
     PolicyVerdict,
@@ -53,7 +54,7 @@ class BasicPolicyChecker:
             for event in trace:
                 if event.kind != TraceEventKind.AGENT_TOOL_CALL:
                     continue
-                tool_id: str = event.payload.get("tool", "")
+                tool_id: str = event.payload.get(TOOL_NAME_PAYLOAD_KEY, "")
                 if tool_id in policy.deny_tool_ids:
                     citations.append(event.step_index)
                     notes_parts.append(

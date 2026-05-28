@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from agentevalops.core.schemas import (
+    TOOL_NAME_PAYLOAD_KEY,
     AgentOutput,
     PolicySpec,
     TerminationReason,
@@ -31,7 +32,7 @@ def _tool_call_event(step: int, tool: str) -> TraceEvent:
         run_id=RunId("r1"),
         step_index=step,
         kind=TraceEventKind.AGENT_TOOL_CALL,
-        payload={"tool": tool},
+        payload={TOOL_NAME_PAYLOAD_KEY: tool},
     )
 
 

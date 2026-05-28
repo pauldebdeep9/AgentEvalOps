@@ -18,6 +18,15 @@ from typing import Any
 from agentevalops.core.types import AgentId, BackendId, RunId, TaskId
 
 # ---------------------------------------------------------------------------
+# Shared payload key constants
+# ---------------------------------------------------------------------------
+
+#: Canonical key for the tool name in AGENT_TOOL_CALL event payloads.
+#: Both the producer (MockAgentRunner) and consumer (BasicPolicyChecker,
+#: DeterministicEvaluator) must use this key so they can never drift apart.
+TOOL_NAME_PAYLOAD_KEY: str = "tool_name"
+
+# ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
