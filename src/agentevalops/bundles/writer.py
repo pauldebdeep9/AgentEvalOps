@@ -99,7 +99,7 @@ class BundleWriter:
                     f"bundle files: {', '.join(existing)}. "
                     "Pass overwrite=True to overwrite."
                 )
-        self._dir.mkdir(parents=True, exist_ok=True)  # noqa: E501
+        self._dir.mkdir(parents=True, exist_ok=True)
 
     def _write_json(self, filename: str, data: Any) -> None:
         path = self._dir / filename

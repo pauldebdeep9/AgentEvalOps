@@ -31,7 +31,13 @@ class InMemoryTraceStore:
         self._events[run_id].append(event)
 
     def stream(self, run_id: RunId) -> AsyncIterator[TraceEvent]:
-        """Yield all events for a run in append order."""
+        """Yield all events for a run in append order.
+
+        .. note::
+            This method snapshots the event list at call time.  Events
+            appended *after* ``stream()`` is called will not appear in
+            the returned iterator.
+        """
         stored = list(self._events.get(run_id, []))
 
         async def _gen() -> AsyncGenerator[TraceEvent, None]:

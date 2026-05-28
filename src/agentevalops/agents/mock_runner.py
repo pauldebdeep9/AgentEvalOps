@@ -17,8 +17,7 @@ from agentevalops.core.types import AgentId, RunId
 class MockAgentRunner:
     """Deterministic runner that never calls any model or external API.
 
-    In the default (happy-path) mode it emits between three and four events
-    per task:
+    In the default (happy-path) mode it emits three or four events per task:
 
     1. ``AGENT_PLAN``          — records the plan text.
     2. ``AGENT_TOOL_CALL``     — *optional*; emitted only when the task
@@ -28,7 +27,10 @@ class MockAgentRunner:
     4. ``AGENT_TERMINAL``      — signals completion; payload carries the
        fields needed to reconstruct ``AgentOutput``.
 
-    Failure-mode (``should_fail=True``) emits two events per task:
+    So the happy path yields exactly **3 events** normally, or **4 events**
+    when ``emit_fake_tool_call`` is set in the task metadata.
+
+    Failure-mode (``should_fail=True``) emits exactly **2 events** per task:
 
     1. ``AGENT_PLAN``      — planning step begins.
     2. ``AGENT_TERMINAL``  — signals ``AGENT_ERROR`` / ``success=False``.
