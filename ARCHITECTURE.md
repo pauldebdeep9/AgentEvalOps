@@ -478,6 +478,19 @@ It calls `BenchmarkAdapter.list_tasks()` to enumerate tasks, applying any filter
 
 It then calls `BenchmarkAdapter.grade()` to get the deterministic score, runs all configured `Evaluator`s in parallel against the trace, and runs all configured `PolicyChecker`s against the completed trace and `AgentResult`. `PolicyChecker`s evaluate post-run compliance against a `PolicySpec`; they do not affect execution. All results are written to `scores.json`. It calls `BenchmarkAdapter.teardown()` regardless of outcome.
 
+> **Note (current `LocalOrchestrator` implementation):** The current
+> `LocalOrchestrator` routes per-task scoring through `Evaluator`
+> (concretely `DeterministicEvaluator`) rather than calling
+> `BenchmarkAdapter.grade()` directly.  `BenchmarkAdapter.grade()` is the
+> benchmark's own upstream-blessed deterministic grading — for example,
+> running an external test-suite — and is intentionally reserved for a
+> future phase when such upstream verification is needed.  `Evaluator` is
+> the platform's flexible scoring layer and is appropriate for the toy
+> benchmark and any scenario where the platform supplies the criteria.
+> When a real benchmark (e.g. SWE-bench) is integrated, both will run:
+> `BenchmarkAdapter.grade()` for the official pass/fail and `Evaluator`s
+> for additional dimensions.
+
 After all tasks complete, it runs the configured `Scorer`s to produce a `RunSummary`, then runs the configured `ReportGenerator`s to produce the human-readable artifacts. Finally it finalizes the `TraceStore`, writes `metadata.json`, and the bundle is sealed.
 
 The whole loop is async. Concurrency is bounded at the task level by a semaphore whose size comes from `RunConfig.max_concurrent_tasks`. The default is 1 (run tasks serially) because most failure modes show up with concurrency, and we want the unsurprising default. Production AWS runs use higher values.

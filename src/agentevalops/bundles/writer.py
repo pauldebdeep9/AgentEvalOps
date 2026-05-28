@@ -71,7 +71,10 @@ class BundleWriter:
         """Write all bundle files including manifest; return output dir."""
         self._prepare_dir()
         self._write_metadata(run_config, summary)
-        self._write_config(run_config, policy_spec, config_name, benchmark_id, benchmark_scenario)
+        self._write_config(
+            run_config, policy_spec, config_name,
+            benchmark_id, benchmark_scenario,
+        )
         self._write_traces(all_events)
         self._write_evaluations(summary)
         self._write_policy(summary)

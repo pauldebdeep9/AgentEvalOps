@@ -196,6 +196,10 @@ class LocalOrchestrator:
                 terminal = event
 
         output = _output_from_terminal(terminal)
+        # Scoring is routed through the Evaluator (DeterministicEvaluator by
+        # default), not BenchmarkAdapter.grade().  grade() is the benchmark's
+        # own official grading and is reserved for future use when an upstream
+        # benchmark's deterministic test suite needs to run post-hoc.
         evaluation = await self._evaluator.evaluate(task, output, events)
 
         return (
