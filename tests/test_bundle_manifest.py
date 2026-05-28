@@ -370,3 +370,107 @@ def test_manifest_json_keys_are_sorted(tmp_path: Path) -> None:
     assert top_keys == sorted(top_keys), (
         f"Top-level manifest keys are not sorted: {top_keys}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Fix 2: benchmark_id and benchmark_scenario in manifest run section
+# ---------------------------------------------------------------------------
+
+
+def _make_bundle_with_benchmark(tmp_path: Path) -> Path:
+    """Like _make_bundle but also passes benchmark_id and benchmark_scenario."""
+    run_id = RunId("manifest-bench-001")
+    run_config = RunConfig(
+        run_id=run_id,
+        agent_id=AgentId("mock"),
+        backend_id=BACKEND_LOCAL,
+        resource_limits=ResourceLimits(),
+    )
+    event = TraceEvent(
+        run_id=run_id,
+        step_index=0,
+        kind=TraceEventKind.AGENT_PLAN,
+        payload={"plan": "test"},
+    )
+    output = AgentOutput(
+        success=True,
+        termination_reason=TerminationReason.COMPLETED,
+        total_tokens=5,
+    )
+    evaluation = EvaluationResult(
+        evaluator_id="ev",
+        evaluator_kind="deterministic",
+        score=1.0,
+        passed=True,
+        notes="ok",
+    )
+    policy_verdict = PolicyVerdict(
+        checker_id="basic-v1",
+        policy_id="p1",
+        verdict=Verdict.PASS,
+        citations=[],
+        notes="passed",
+    )
+    task_result = TaskRunResult(
+        task_id=TaskId("t-1"),
+        output=output,
+        evaluation=evaluation,
+        event_count=1,
+    )
+    summary = RunSummary(
+        run_id=run_id,
+        task_results=[task_result],
+        policy_verdict=policy_verdict,
+        total_tasks=1,
+        passed_tasks=1,
+        total_cost_usd=0.0,
+        total_tokens=5,
+        trace_event_count=1,
+    )
+    policy_spec = PolicySpec(policy_id="p1")
+    bundle_dir = tmp_path / "bundle-bench"
+    BundleWriter(bundle_dir).write(
+        run_config=run_config,
+        summary=summary,
+        all_events=[event],
+        policy_spec=policy_spec,
+        config_name="configs/toy_smoke.yaml",
+        benchmark_id="toy",
+        benchmark_scenario="smoke",
+    )
+    return bundle_dir
+
+
+def test_manifest_run_contains_benchmark_when_provided(
+    tmp_path: Path,
+) -> None:
+    """manifest[run][benchmark] is present when benchmark_id is written."""
+    bundle_dir = _make_bundle_with_benchmark(tmp_path)
+    manifest = json.loads(
+        (bundle_dir / MANIFEST_FILENAME).read_text(encoding="utf-8")
+    )
+    assert manifest["run"].get("benchmark") == "toy"
+
+
+def test_manifest_run_contains_scenario_when_provided(
+    tmp_path: Path,
+) -> None:
+    """manifest[run][scenario] is present when benchmark_scenario is written."""
+    bundle_dir = _make_bundle_with_benchmark(tmp_path)
+    manifest = json.loads(
+        (bundle_dir / MANIFEST_FILENAME).read_text(encoding="utf-8")
+    )
+    assert manifest["run"].get("scenario") == "smoke"
+
+
+def test_manifest_run_benchmark_absent_when_not_written(
+    tmp_path: Path,
+) -> None:
+    """manifest[run][benchmark] is absent when no benchmark_id is passed."""
+    bundle_dir = _make_bundle(tmp_path)
+    manifest = json.loads(
+        (bundle_dir / MANIFEST_FILENAME).read_text(encoding="utf-8")
+    )
+    assert "benchmark" not in manifest["run"]
+    assert "scenario" not in manifest["run"]
+

@@ -65,11 +65,13 @@ class BundleWriter:
         all_events: list[TraceEvent],
         policy_spec: PolicySpec | None = None,
         config_name: str = "",
+        benchmark_id: str = "",
+        benchmark_scenario: str = "",
     ) -> Path:
         """Write all bundle files including manifest; return output dir."""
         self._prepare_dir()
         self._write_metadata(run_config, summary)
-        self._write_config(run_config, policy_spec, config_name)
+        self._write_config(run_config, policy_spec, config_name, benchmark_id, benchmark_scenario)
         self._write_traces(all_events)
         self._write_evaluations(summary)
         self._write_policy(summary)
@@ -121,12 +123,18 @@ class BundleWriter:
         run_config: RunConfig,
         policy_spec: PolicySpec | None,
         config_name: str,
+        benchmark_id: str = "",
+        benchmark_scenario: str = "",
     ) -> None:
         data: dict[str, Any] = {
             "config_name": config_name,
             "run_config": run_config,
             "policy_spec": policy_spec,
         }
+        if benchmark_id:
+            data["benchmark_id"] = benchmark_id
+        if benchmark_scenario:
+            data["benchmark_scenario"] = benchmark_scenario
         self._write_json("config.json", data)
 
     def _write_traces(self, events: list[TraceEvent]) -> None:

@@ -94,6 +94,8 @@ def run(
             all_events=all_events,
             policy_spec=loaded.policy_spec,
             config_name=str(config),
+            benchmark_id=loaded.benchmark_id,
+            benchmark_scenario=loaded.benchmark_scenario,
         )
         typer.echo(f"Bundle written to: {output.resolve()}")
 

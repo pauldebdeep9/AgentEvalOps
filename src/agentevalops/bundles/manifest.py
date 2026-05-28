@@ -65,14 +65,12 @@ def _extract_run_fields(bundle_dir: Path) -> dict[str, Any]:
                 config_name = cfg.get("config_name")
                 if config_name is not None:
                     run["config_name"] = config_name
-                rc = cfg.get("run_config")
-                if isinstance(rc, dict):
-                    benchmark_id = rc.get("benchmark_id")
-                    if benchmark_id is not None:
-                        run["benchmark"] = benchmark_id
-                    scenario = rc.get("benchmark_scenario")
-                    if scenario is not None:
-                        run["scenario"] = scenario
+                benchmark_id = cfg.get("benchmark_id")
+                if benchmark_id is not None:
+                    run["benchmark"] = benchmark_id
+                scenario = cfg.get("benchmark_scenario")
+                if scenario is not None:
+                    run["scenario"] = scenario
         except (json.JSONDecodeError, OSError):
             pass
 
