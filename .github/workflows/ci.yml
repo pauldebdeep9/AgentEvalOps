@@ -33,7 +33,7 @@ jobs:
         run: mypy src
 
       - name: Run tests with coverage
-        run: pytest --cov=agentevalops --cov-report=xml --cov-report=term-missing
+        run: pytest --cov=agentevalops --cov-report=xml --cov-report=term-missing --cov-fail-under=94
 
       - name: Upload coverage report
         if: matrix.python-version == '3.11'
