@@ -49,6 +49,13 @@ llm = [
     "langgraph==1.0.10",
     "langchain-anthropic==1.0.0",
 ]
+# OpenTelemetry instrumentation (ROADMAP W9). Optional + imported lazily so
+# core stays importable and CI (which does not install this extra) is
+# unaffected. Ranges for now; pin exactly when span export is implemented.
+otel = [
+    "opentelemetry-api>=1.27,<2",
+    "opentelemetry-sdk>=1.27,<2",
+]
 
 [project.scripts]
 agentevalops = "agentevalops.cli:main"
@@ -91,6 +98,12 @@ strict = true
 # client (agent_factory), so the untyped surface stays small and contained.
 [[tool.mypy.overrides]]
 module = ["anthropic.*"]
+ignore_missing_imports = true
+
+# opentelemetry is an optional extra imported lazily (see observability/); it is
+# not installed in CI, so let mypy tolerate the missing stubs for W9 wiring.
+[[tool.mypy.overrides]]
+module = ["opentelemetry.*"]
 ignore_missing_imports = true
 
 [tool.coverage.run]
