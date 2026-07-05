@@ -5,7 +5,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.1.0] — Unreleased
+## [0.1.0] — 2026-07-05
 
 ### Added
 
@@ -42,6 +42,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   bumped to `0.1.0`; pyproject.toml license metadata and classifier; README
   public-readiness pass; CHANGELOG, CONTRIBUTING, SECURITY, release-checklist
   finalized; `.gitignore` extended; `__init__.py` docstring corrected.
+- **WBS 11** — Orchestrator concurrency + release hardening: bounded task
+  concurrency via `asyncio.Semaphore(max_concurrent_tasks)` with
+  deterministic result ordering regardless of concurrency; best-effort
+  trace-store finalize on `KeyboardInterrupt`/task cancellation; disk-backed
+  `LocalTraceStore` (flush+fsync per event) so `run --output` survives a
+  hard process kill, not just an in-process interrupt; `agentevalops report
+  --run-id` CLI command; interrupted-bundle recovery test coverage
+  (`strict=False` reads an unsealed bundle).
 
 ### Not included in v0.1
 
