@@ -35,6 +35,10 @@ from agentevalops.core.types import AgentId, BackendId, RunId
 
 _SUPPORTED_BACKENDS: frozenset[str] = frozenset({"local", "aws"})
 _SUPPORTED_BENCHMARKS: frozenset[str] = frozenset({"toy"})
+#: Agent runners selectable from a config's ``runner_id``.  ``"mock"`` is the
+#: default and the only runner required for the v0.1 demo path; ``"langgraph"``
+#: is the real Claude-backed runner (ROADMAP W8), registered separately.
+_SUPPORTED_RUNNERS: frozenset[str] = frozenset({"mock", "langgraph"})
 
 # ---------------------------------------------------------------------------
 # Public types
@@ -68,6 +72,13 @@ class LoadedRunConfig:
         Named scenario within the toy benchmark (``"smoke"``, ``"failure"``,
         ``"policy_violation"``, ``"trace_limit"``, ``"mixed"``).
         Defaults to ``"smoke"``.
+    runner_id:
+        Which registered agent runner to use (``"mock"`` by default, or
+        ``"langgraph"`` for the real Claude-backed runner).  The CLI resolves
+        this against the component registry.
+    model:
+        Model identifier passed to model-backed runners (e.g. the LangGraph
+        runner).  ``None`` for the mock runner, which ignores it.
     """
 
     path: Path
@@ -78,6 +89,8 @@ class LoadedRunConfig:
     mock_fail: bool = False
     mock_cost_per_task_usd: float = 0.0
     benchmark_scenario: str = "smoke"
+    runner_id: str = "mock"
+    model: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +281,19 @@ def load_run_config(path: Path) -> LoadedRunConfig:
             f"Supported values: {sorted(SUPPORTED_SCENARIOS)}"
         )
 
+    # ------------------------------------------------------------------
+    # runner selection (mock by default; langgraph for the real runner)
+    # ------------------------------------------------------------------
+    runner_id = str(raw.get("runner_id", "mock"))
+    if runner_id not in _SUPPORTED_RUNNERS:
+        raise ConfigurationError(
+            f"Unsupported runner_id '{runner_id}'. "
+            f"Supported values: {sorted(_SUPPORTED_RUNNERS)}"
+        )
+
+    model_raw = raw.get("model")
+    model = str(model_raw) if model_raw is not None else None
+
     return LoadedRunConfig(
         path=path,
         raw=raw,
@@ -277,4 +303,6 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         mock_fail=mock_fail,
         mock_cost_per_task_usd=mock_cost_raw,
         benchmark_scenario=benchmark_scenario,
+        runner_id=runner_id,
+        model=model,
     )

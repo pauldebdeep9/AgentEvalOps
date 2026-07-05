@@ -238,6 +238,43 @@ def test_zero_max_trace_events_raises(tmp_path: Path) -> None:
         load_run_config(p)
 
 
+# ---------------------------------------------------------------------------
+# runner_id + model (ROADMAP W8 wiring)
+# ---------------------------------------------------------------------------
+
+
+def test_runner_id_defaults_to_mock() -> None:
+    result = load_run_config(_SMOKE)
+    assert result.runner_id == "mock"
+    assert result.model is None
+
+
+def test_langgraph_runner_id_accepted(tmp_path: Path) -> None:
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\n"
+        'runner_id: langgraph\nmodel: "claude-haiku-4-5-20251001"\n',
+    )
+    result = load_run_config(p)
+    assert result.runner_id == "langgraph"
+    assert result.model == "claude-haiku-4-5-20251001"
+
+
+def test_unsupported_runner_id_raises(tmp_path: Path) -> None:
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\nrunner_id: gpt5\n",
+    )
+    with pytest.raises(ConfigurationError, match="runner_id"):
+        load_run_config(p)
+
+
+def test_example_langgraph_config_loads() -> None:
+    result = load_run_config(Path("configs/toy_langgraph.yaml"))
+    assert result.runner_id == "langgraph"
+    assert result.model is not None
+
+
 def test_negative_max_trace_events_raises(tmp_path: Path) -> None:
     yaml_text = (
         "run_id: r1\nbenchmark_id: toy\n"

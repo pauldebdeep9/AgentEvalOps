@@ -1,0 +1,42 @@
+# AgentEvalOps — real LangGraph + Claude runner (ROADMAP W8)
+#
+# Opt-in config that selects the real Claude-backed runner instead of the mock.
+# This path is NOT exercised in CI and requires additional setup:
+#
+#   1. Install the optional LLM extra (added in W8):
+#        pip install -e ".[llm]"
+#   2. Export an Anthropic API key (never commit it):
+#        export ANTHROPIC_API_KEY=sk-ant-...
+#   3. Run:
+#        agentevalops run --config configs/toy_langgraph.yaml --output runs/lg
+#
+# Until the LangGraphRunner is registered (W8), `runner_id: langgraph` fails
+# fast with: "No runner registered under name 'langgraph'. Known: ['mock']".
+# That is expected — this file is the skeleton the W8 session builds against.
+
+run_id: "toy-langgraph-001"
+agent_id: "langgraph-claude"
+backend_id: "local"
+max_concurrent_tasks: 1
+
+# Selects the real runner. Default (omitted) would be "mock".
+runner_id: "langgraph"
+
+# Model id passed to the runner. W8 should confirm the current id and pricing
+# via the /claude-api skill before finalizing; a cost-efficient default is
+# appropriate for an eval runner.
+model: "claude-haiku-4-5-20251001"
+
+# Real-LLM runs cost money and use real tokens, so give the limits headroom
+# relative to the mock configs but keep them bounded for a toy run.
+resource_limits:
+  max_tokens: 20000
+  max_wall_seconds: 120.0
+  max_cost_usd: 1.0
+
+benchmark_id: "toy"
+benchmark_scenario: smoke
+
+policy:
+  policy_id: "default"
+  max_cost_usd: 1.0

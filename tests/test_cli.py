@@ -301,6 +301,23 @@ def test_report_bundle_without_report_md_exits_nonzero(
     assert "no report.md" in result.output
 
 
+def test_run_langgraph_runner_unregistered_exits_cleanly(
+    tmp_path: pathlib.Path,
+) -> None:
+    # Until the LangGraphRunner is registered (W8), selecting it must fail
+    # fast with a clear config error rather than crashing.
+    cfg = tmp_path / "lg.yaml"
+    cfg.write_text(
+        "run_id: r1\nbenchmark_id: toy\nrunner_id: langgraph\n"
+        'model: "claude-haiku-4-5-20251001"\n',
+        encoding="utf-8",
+    )
+    result = runner.invoke(app, ["run", "--config", str(cfg)])
+    assert result.exit_code != 0
+    assert "Configuration error" in result.output
+    assert "langgraph" in result.output
+
+
 def test_report_skips_dir_with_unreadable_metadata(
     tmp_path: pathlib.Path,
 ) -> None:

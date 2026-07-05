@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import typer
 
 if TYPE_CHECKING:
+    from agentevalops.config.loader import LoadedRunConfig
     from agentevalops.replay.local import ReplaySummary
 
 from agentevalops import __version__
@@ -61,7 +62,6 @@ def run(
         KIND_BENCHMARK,
         KIND_EVALUATOR,
         KIND_POLICY,
-        KIND_RUNNER,
         default_registry,
     )
     from agentevalops.stores.local import LocalTraceStore
@@ -74,9 +74,14 @@ def run(
         raise typer.Exit(code=1)
 
     benchmark_cls = default_registry.get(KIND_BENCHMARK, loaded.benchmark_id)
-    runner_cls = default_registry.get(KIND_RUNNER, "mock")
     evaluator_cls = default_registry.get(KIND_EVALUATOR, "deterministic")
     policy_cls = default_registry.get(KIND_POLICY, "basic")
+
+    try:
+        runner = _build_runner(loaded)
+    except ConfigurationError as exc:
+        typer.echo(f"Configuration error: {exc}", err=True)
+        raise typer.Exit(code=1)
 
     if output is not None:
         existing = [
@@ -98,10 +103,7 @@ def run(
     orchestrator = LocalOrchestrator(
         run_config=loaded.run_config,
         benchmark=benchmark_cls(scenario=loaded.benchmark_scenario),
-        runner=runner_cls(
-            should_fail=loaded.mock_fail,
-            cost_per_task_usd=loaded.mock_cost_per_task_usd,
-        ),
+        runner=runner,
         trace_store=store,
         evaluator=evaluator_cls(),
         policy_checker=policy_cls(),
@@ -140,6 +142,32 @@ def run(
             benchmark_scenario=loaded.benchmark_scenario,
         )
         typer.echo(f"Bundle written to: {output.resolve()}")
+
+
+def _build_runner(loaded: LoadedRunConfig) -> Any:
+    """Construct the agent runner selected by the config's ``runner_id``.
+
+    ``"mock"`` (the default) takes the demo/test knobs.  Model-backed runners
+    such as ``"langgraph"`` take a ``model`` and read their provider
+    credentials from the environment.
+
+    Raises
+    ------
+    ConfigurationError
+        If the selected runner is not registered — e.g. ``langgraph`` before
+        its optional dependencies are installed and it registers itself.
+        ``UnknownComponentError`` is a ``ConfigurationError`` subclass, so the
+        caller's existing config-error handling surfaces a clear message.
+    """
+    from agentevalops.registry import KIND_RUNNER, default_registry
+
+    runner_cls = default_registry.get(KIND_RUNNER, loaded.runner_id)
+    if loaded.runner_id == "mock":
+        return runner_cls(
+            should_fail=loaded.mock_fail,
+            cost_per_task_usd=loaded.mock_cost_per_task_usd,
+        )
+    return runner_cls(model=loaded.model)
 
 
 def _bundle_run_id(bundle: Path) -> str | None:
