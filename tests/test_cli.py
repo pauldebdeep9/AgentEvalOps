@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pathlib
 
+import pytest
 from typer.testing import CliRunner
 
 from agentevalops import __version__
@@ -105,6 +106,97 @@ def test_run_command_without_output_no_bundle_message(
     result = runner.invoke(app, ["run", "--config", str(_CONFIG)])
     assert result.exit_code == 0, result.output
     assert "Bundle written to:" not in result.output
+
+
+def test_run_command_rejects_output_dir_with_existing_bundle(
+    tmp_path: pathlib.Path,
+) -> None:
+    output_dir = tmp_path / "already-a-bundle"
+    output_dir.mkdir()
+    (output_dir / "metadata.json").write_text("{}", encoding="utf-8")
+    result = runner.invoke(
+        app,
+        ["run", "--config", str(_CONFIG), "--output", str(output_dir)],
+    )
+    assert result.exit_code != 0
+    assert "already contains bundle files" in result.output
+
+
+def test_run_command_interrupt_persists_partial_trace(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A KeyboardInterrupt mid-run must not lose already-streamed events.
+
+    LocalTraceStore flushes+fsyncs each event to <output>/traces.jsonl as it
+    happens, so even though no bundle is produced (no metadata.json etc.),
+    the partial trace file survives on disk.
+    """
+    from agentevalops.core.schemas import TraceEvent
+    from agentevalops.core.types import RunId
+    from agentevalops.stores import local as local_store_module
+
+    output_dir = tmp_path / "interrupted-bundle"
+    original_append = local_store_module.LocalTraceStore.append
+    call_count = {"n": 0}
+
+    async def _flaky_append(
+        self: local_store_module.LocalTraceStore,
+        run_id: RunId,
+        event: TraceEvent,
+    ) -> None:
+        await original_append(self, run_id, event)
+        call_count["n"] += 1
+        # Only the first call raises: toy_smoke.yaml has 2 tasks, and raising
+        # from every sibling's append would cause asyncio to report each
+        # cancelled sibling's own KeyboardInterrupt as "never retrieved" --
+        # noise unrelated to what this test is verifying (durability).
+        if call_count["n"] == 1:
+            raise KeyboardInterrupt("simulated Ctrl-C")
+
+    monkeypatch.setattr(
+        local_store_module.LocalTraceStore, "append", _flaky_append
+    )
+
+    result = runner.invoke(
+        app,
+        ["run", "--config", str(_CONFIG), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 130
+    assert "Run interrupted" in result.output
+    traces_path = output_dir / "traces.jsonl"
+    assert traces_path.exists()
+    assert traces_path.read_text(encoding="utf-8").strip() != ""
+    assert not (output_dir / "metadata.json").exists()
+
+
+def test_run_command_interrupt_without_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Interrupt without --output: still exits 130 with a plain message
+    (no LocalTraceStore/output path is involved -- uses InMemoryTraceStore).
+    """
+    from agentevalops.stores import memory as memory_store_module
+
+    call_count = {"n": 0}
+
+    async def _flaky_append(self: object, run_id: object, event: object) -> None:
+        call_count["n"] += 1
+        # Only the first call raises; toy_smoke.yaml has 2 tasks, and every
+        # sibling raising independently would print asyncio's own "never
+        # retrieved" noise into the captured output, breaking the exact
+        # match below on unrelated grounds.
+        if call_count["n"] == 1:
+            raise KeyboardInterrupt("simulated Ctrl-C")
+
+    monkeypatch.setattr(
+        memory_store_module.InMemoryTraceStore, "append", _flaky_append
+    )
+
+    result = runner.invoke(app, ["run", "--config", str(_CONFIG)])
+
+    assert result.exit_code == 130
+    assert result.output.strip() == "Run interrupted."
 
 
 # ---------------------------------------------------------------------------

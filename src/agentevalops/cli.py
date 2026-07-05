@@ -52,6 +52,7 @@ def run(
     """Run an evaluation from a YAML config file."""
     import asyncio
 
+    from agentevalops.bundles.constants import REQUIRED_BUNDLE_FILES
     from agentevalops.config.loader import load_run_config
     from agentevalops.core.errors import ConfigurationError
     from agentevalops.orchestration.local import LocalOrchestrator, RunSummary
@@ -62,6 +63,7 @@ def run(
         KIND_RUNNER,
         default_registry,
     )
+    from agentevalops.stores.local import LocalTraceStore
     from agentevalops.stores.memory import InMemoryTraceStore
 
     try:
@@ -75,7 +77,23 @@ def run(
     evaluator_cls = default_registry.get(KIND_EVALUATOR, "deterministic")
     policy_cls = default_registry.get(KIND_POLICY, "basic")
 
-    store = InMemoryTraceStore()
+    if output is not None:
+        existing = [
+            f for f in REQUIRED_BUNDLE_FILES if (output / f).exists()
+        ]
+        if existing:
+            typer.echo(
+                f"Output directory '{output}' already contains bundle "
+                f"files: {', '.join(existing)}.",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        # Streams traces to <output>/traces.jsonl as they happen, so a hard
+        # kill mid-run still leaves a readable (unsealed) partial trace.
+        store: InMemoryTraceStore | LocalTraceStore = LocalTraceStore(output)
+    else:
+        store = InMemoryTraceStore()
+
     orchestrator = LocalOrchestrator(
         run_config=loaded.run_config,
         benchmark=benchmark_cls(scenario=loaded.benchmark_scenario),
@@ -89,14 +107,29 @@ def run(
         policy_spec=loaded.policy_spec,
     )
 
-    summary: RunSummary = asyncio.run(orchestrator.run())
+    try:
+        summary: RunSummary = asyncio.run(orchestrator.run())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        if output is not None:
+            typer.echo(
+                "Run interrupted. Partial trace events were durably "
+                f"written to: {(output / 'traces.jsonl').resolve()}",
+                err=True,
+            )
+        else:
+            typer.echo("Run interrupted.", err=True)
+        raise typer.Exit(code=130)
+
     _print_summary(summary)
 
     if output is not None:
         from agentevalops.bundles.writer import BundleWriter
 
         all_events = store.events(loaded.run_config.run_id)
-        BundleWriter(output).write(
+        # overwrite=True: `output` was already validated above to be free of
+        # bundle files before the run started; the only file that may exist
+        # now is traces.jsonl, written live by LocalTraceStore during the run.
+        BundleWriter(output, overwrite=True).write(
             run_config=loaded.run_config,
             summary=summary,
             all_events=all_events,
