@@ -39,6 +39,16 @@ dev = [
     "build>=1.0",
     "pre-commit>=3.0",
 ]
+# Model-backed runner dependencies (Risk #2: upstream churn — pins are exact).
+# NOT installed in CI; the langgraph runner imports these lazily so core stays
+# importable without them.  The runner's current implementation uses the
+# `anthropic` SDK directly (see agents/langgraph_runner.py fallback note); the
+# langgraph / langchain-anthropic pins are declared for a future LangGraph port.
+llm = [
+    "anthropic==0.75.0",
+    "langgraph==1.0.10",
+    "langchain-anthropic==1.0.0",
+]
 
 [project.scripts]
 agentevalops = "agentevalops.cli:main"
@@ -61,6 +71,9 @@ select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "live: opt-in tests that hit the real Anthropic API (require ANTHROPIC_API_KEY and the 'llm' extra; skipped by default and never run in CI).",
+]
 
 [tool.mypy]
 python_version = "3.10"

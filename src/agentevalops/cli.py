@@ -55,7 +55,7 @@ def run(
 
     from agentevalops.bundles.constants import REQUIRED_BUNDLE_FILES
     from agentevalops.config.loader import load_run_config
-    from agentevalops.core.errors import ConfigurationError
+    from agentevalops.core.errors import ConfigurationError, InfrastructureError
     from agentevalops.core.schemas import RunSummary
     from agentevalops.orchestration.local import LocalOrchestrator
     from agentevalops.registry import (
@@ -122,6 +122,14 @@ def run(
         else:
             typer.echo("Run interrupted.", err=True)
         raise typer.Exit(code=130)
+    except ConfigurationError as exc:
+        # Model-backed runners validate credentials lazily at run time (e.g.
+        # a missing ANTHROPIC_API_KEY), so surface it as a clean exit.
+        typer.echo(f"Configuration error: {exc}", err=True)
+        raise typer.Exit(code=1)
+    except InfrastructureError as exc:
+        typer.echo(f"Infrastructure error: {exc}", err=True)
+        raise typer.Exit(code=1)
 
     _print_summary(summary)
 

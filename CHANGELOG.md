@@ -5,6 +5,29 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **W8 — real model-backed `LangGraphRunner`** (post-v0.1; enables v0.2). A
+  registered `AgentRunner` (`runner_id: langgraph`) that drives a minimal
+  ReAct-style agent (tools: `calculator`, `finish`) against the toy Q&A tasks
+  using the Anthropic API directly, with per-response token/cost accounting
+  (single-source price table sourced from the Anthropic model docs) and
+  `ResourceLimits` enforcement (tokens/cost/wall-time → matching
+  `TerminationReason`). The `anthropic` SDK is an optional `llm` extra imported
+  lazily, so core stays installable without it and CI is unaffected; unit tests
+  inject a fake client (no network), with one opt-in `@pytest.mark.live` test.
+  Config gains `runner_id` (mock|langgraph) and `model`; the CLI selects the
+  runner via the registry and surfaces a missing `ANTHROPIC_API_KEY` as a clean
+  exit. Ships with `configs/toy_langgraph.yaml`.
+  - *Scope/fallback:* file/sandbox tools deferred to a code-editing benchmark;
+    runner is implemented on the `anthropic` SDK directly (pre-authorized
+    fallback) under the `langgraph` name, with the `langgraph`/
+    `langchain-anthropic` pins declared for a future port.
+
+---
+
 ## [0.1.0] — 2026-07-05
 
 ### Added

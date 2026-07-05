@@ -420,7 +420,8 @@ AgentEvalOps/
 │       │
 │       ├── agents/                 # AgentRunner adapters
 │       │   ├── __init__.py
-│       │   └── mock_runner.py      # the only one that exists; real runners are W8+
+│       │   ├── mock_runner.py      # deterministic runner for tests/demo
+│       │   └── langgraph_runner.py # real Anthropic-backed runner (W8); anthropic SDK is an optional `llm` extra, imported lazily
 │       │
 │       ├── benchmarks/             # BenchmarkAdapter adapters
 │       │   ├── __init__.py

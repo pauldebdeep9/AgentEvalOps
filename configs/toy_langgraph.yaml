@@ -22,10 +22,10 @@ max_concurrent_tasks: 1
 # Selects the real runner. Default (omitted) would be "mock".
 runner_id: "langgraph"
 
-# Model id passed to the runner. W8 should confirm the current id and pricing
-# via the /claude-api skill before finalizing; a cost-efficient default is
-# appropriate for an eval runner.
-model: "claude-haiku-4-5-20251001"
+# Model id passed to the runner. Matches the runner's default and its cost
+# table key (see agents/langgraph_runner.py). Haiku is the cost-efficient
+# choice for an eval runner.
+model: "claude-haiku-4-5"
 
 # Real-LLM runs cost money and use real tokens, so give the limits headroom
 # relative to the mock configs but keep them bounded for a toy run.
