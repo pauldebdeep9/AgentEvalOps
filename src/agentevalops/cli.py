@@ -52,13 +52,16 @@ def run(
     """Run an evaluation from a YAML config file."""
     import asyncio
 
-    from agentevalops.agents.mock_runner import MockAgentRunner
-    from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
     from agentevalops.config.loader import load_run_config
     from agentevalops.core.errors import ConfigurationError
-    from agentevalops.evaluators.deterministic import DeterministicEvaluator
     from agentevalops.orchestration.local import LocalOrchestrator, RunSummary
-    from agentevalops.policy.basic_checker import BasicPolicyChecker
+    from agentevalops.registry import (
+        KIND_BENCHMARK,
+        KIND_EVALUATOR,
+        KIND_POLICY,
+        KIND_RUNNER,
+        default_registry,
+    )
     from agentevalops.stores.memory import InMemoryTraceStore
 
     try:
@@ -67,17 +70,22 @@ def run(
         typer.echo(f"Configuration error: {exc}", err=True)
         raise typer.Exit(code=1)
 
+    benchmark_cls = default_registry.get(KIND_BENCHMARK, loaded.benchmark_id)
+    runner_cls = default_registry.get(KIND_RUNNER, "mock")
+    evaluator_cls = default_registry.get(KIND_EVALUATOR, "deterministic")
+    policy_cls = default_registry.get(KIND_POLICY, "basic")
+
     store = InMemoryTraceStore()
     orchestrator = LocalOrchestrator(
         run_config=loaded.run_config,
-        benchmark=ToyBenchmarkAdapter(scenario=loaded.benchmark_scenario),
-        runner=MockAgentRunner(
+        benchmark=benchmark_cls(scenario=loaded.benchmark_scenario),
+        runner=runner_cls(
             should_fail=loaded.mock_fail,
             cost_per_task_usd=loaded.mock_cost_per_task_usd,
         ),
         trace_store=store,
-        evaluator=DeterministicEvaluator(),
-        policy_checker=BasicPolicyChecker(),
+        evaluator=evaluator_cls(),
+        policy_checker=policy_cls(),
         policy_spec=loaded.policy_spec,
     )
 
@@ -98,6 +106,81 @@ def run(
             benchmark_scenario=loaded.benchmark_scenario,
         )
         typer.echo(f"Bundle written to: {output.resolve()}")
+
+
+def _bundle_run_id(bundle: Path) -> str | None:
+    """Return the run_id recorded in a bundle's metadata.json, or None."""
+    import json
+
+    try:
+        data = json.loads(
+            (bundle / "metadata.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return None
+    run_id = data.get("run_id") if isinstance(data, dict) else None
+    return str(run_id) if run_id is not None else None
+
+
+def _candidate_bundles(runs_dir: Path) -> list[Path]:
+    """Return sub-directories of *runs_dir* that look like result bundles."""
+    return [
+        child
+        for child in sorted(runs_dir.iterdir())
+        if child.is_dir() and (child / "metadata.json").exists()
+    ]
+
+
+def _resolve_bundle(runs_dir: Path, run_id: str) -> Path | None:
+    """Find the bundle for *run_id* under *runs_dir*.
+
+    ``run_id="latest"`` resolves to the most-recently-modified bundle.
+    Otherwise a bundle matches when its recorded run_id (or, as a fallback,
+    its directory name) equals *run_id*.
+    """
+    candidates = _candidate_bundles(runs_dir)
+    if not candidates:
+        return None
+    if run_id == "latest":
+        return max(candidates, key=lambda p: p.stat().st_mtime)
+    for bundle in candidates:
+        if _bundle_run_id(bundle) == run_id or bundle.name == run_id:
+            return bundle
+    return None
+
+
+@app.command()
+def report(
+    run_id: str = typer.Option(
+        ...,
+        "--run-id",
+        "-r",
+        help="Run ID to report on, or 'latest' for the newest bundle.",
+    ),
+    runs_dir: Path = typer.Option(
+        Path("runs"),
+        "--runs-dir",
+        help="Directory that holds result bundles.",
+    ),
+) -> None:
+    """Print the markdown report for a previously-saved run bundle."""
+    if not runs_dir.is_dir():
+        typer.echo(f"Runs directory not found: {runs_dir}", err=True)
+        raise typer.Exit(code=1)
+
+    bundle = _resolve_bundle(runs_dir, run_id)
+    if bundle is None:
+        typer.echo(
+            f"No bundle found for run-id '{run_id}' in {runs_dir}", err=True
+        )
+        raise typer.Exit(code=1)
+
+    report_path = bundle / "report.md"
+    if not report_path.exists():
+        typer.echo(f"Bundle '{bundle}' has no report.md", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(report_path.read_text(encoding="utf-8"))
 
 
 @app.command()
@@ -207,3 +290,7 @@ def _print_replay_summary(rs: ReplaySummary) -> None:
 def main() -> None:
     """Package-level entry point wired up by pyproject.toml."""
     app()
+
+
+if __name__ == "__main__":
+    main()

@@ -121,3 +121,106 @@ def test_run_command_prints_pass_rate() -> None:
     result = runner.invoke(app, ["run", "--config", str(_CONFIG)])
     assert "Rate    :" in result.output
     assert "%" in result.output
+
+
+# ---------------------------------------------------------------------------
+# W6: report --run-id command
+# ---------------------------------------------------------------------------
+
+
+def _make_bundle(runs_dir: pathlib.Path, name: str) -> pathlib.Path:
+    """Run the toy config and write a bundle under runs_dir/name."""
+    out = runs_dir / name
+    result = runner.invoke(
+        app, ["run", "--config", str(_CONFIG), "--output", str(out)]
+    )
+    assert result.exit_code == 0, result.output
+    return out
+
+
+def test_report_by_run_id(tmp_path: pathlib.Path) -> None:
+    _make_bundle(tmp_path, "toy-smoke-001")
+    result = runner.invoke(
+        app,
+        ["report", "--run-id", "toy-smoke-001", "--runs-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0, result.output
+    # report.md content is echoed; it references the run id.
+    assert "toy-smoke-001" in result.output
+
+
+def test_report_latest(tmp_path: pathlib.Path) -> None:
+    _make_bundle(tmp_path, "bundle-a")
+    result = runner.invoke(
+        app, ["report", "--run-id", "latest", "--runs-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert "toy-smoke-001" in result.output
+
+
+def test_report_by_directory_name_fallback(tmp_path: pathlib.Path) -> None:
+    # Resolve by the bundle's directory name even if it differs from run_id.
+    _make_bundle(tmp_path, "custom-dir-name")
+    result = runner.invoke(
+        app,
+        ["report", "--run-id", "custom-dir-name", "--runs-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_report_unknown_run_id_exits_nonzero(tmp_path: pathlib.Path) -> None:
+    _make_bundle(tmp_path, "toy-smoke-001")
+    result = runner.invoke(
+        app, ["report", "--run-id", "nope", "--runs-dir", str(tmp_path)]
+    )
+    assert result.exit_code != 0
+    assert "No bundle found" in result.output
+
+
+def test_report_missing_runs_dir_exits_nonzero(
+    tmp_path: pathlib.Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        ["report", "--run-id", "latest", "--runs-dir", str(tmp_path / "nope")],
+    )
+    assert result.exit_code != 0
+    assert "Runs directory not found" in result.output
+
+
+def test_report_empty_runs_dir_exits_nonzero(tmp_path: pathlib.Path) -> None:
+    result = runner.invoke(
+        app, ["report", "--run-id", "latest", "--runs-dir", str(tmp_path)]
+    )
+    assert result.exit_code != 0
+    assert "No bundle found" in result.output
+
+
+def test_report_bundle_without_report_md_exits_nonzero(
+    tmp_path: pathlib.Path,
+) -> None:
+    bundle = _make_bundle(tmp_path, "toy-smoke-001")
+    (bundle / "report.md").unlink()
+    result = runner.invoke(
+        app,
+        ["report", "--run-id", "toy-smoke-001", "--runs-dir", str(tmp_path)],
+    )
+    assert result.exit_code != 0
+    assert "no report.md" in result.output
+
+
+def test_report_skips_dir_with_unreadable_metadata(
+    tmp_path: pathlib.Path,
+) -> None:
+    # A directory whose metadata.json is unparseable is not matched by run_id
+    # but is still skipped gracefully (no crash); a valid sibling resolves.
+    bad = tmp_path / "bad-bundle"
+    bad.mkdir()
+    (bad / "metadata.json").write_text("{ not json", encoding="utf-8")
+    _make_bundle(tmp_path, "toy-smoke-001")
+    result = runner.invoke(
+        app,
+        ["report", "--run-id", "toy-smoke-001", "--runs-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0, result.output
+    assert "toy-smoke-001" in result.output

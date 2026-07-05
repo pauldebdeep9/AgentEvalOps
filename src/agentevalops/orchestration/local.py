@@ -1,7 +1,8 @@
-"""LocalOrchestrator — synchronous task-loop wiring up the WBS 1 contracts."""
+"""LocalOrchestrator — async task-loop wiring up the WBS 1 contracts."""
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 
 from agentevalops.core.protocols import (
@@ -138,15 +139,49 @@ class LocalOrchestrator:
         self._policy_spec = policy_spec or PolicySpec(policy_id="default")
 
     async def run(self) -> RunSummary:
-        """Execute all benchmark tasks sequentially and return a summary."""
+        """Execute all benchmark tasks and return a summary.
+
+        Tasks run concurrently, bounded by ``run_config.max_concurrent_tasks``
+        (a semaphore).  Regardless of concurrency, ``task_results`` and the
+        aggregated ``all_events`` are ordered by task-enumeration order so the
+        summary is deterministic.  If the run is interrupted (``KeyboardInterrupt``
+        or task cancellation), the trace store is finalized on a best-effort
+        basis before the exception propagates, so partially-streamed traces are
+        still persisted.
+        """
         summary = RunSummary(run_id=self._config.run_id)
         tasks = list(self._benchmark.list_tasks())
         summary.total_tasks = len(tasks)
 
+        limit = max(1, self._config.max_concurrent_tasks)
+        semaphore = asyncio.Semaphore(limit)
+
+        async def _guarded(
+            task: TaskSpec,
+        ) -> tuple[TaskRunResult, list[TraceEvent]]:
+            async with semaphore:
+                return await self._run_task(task)
+
         all_events: list[TraceEvent] = []
 
-        for task in tasks:
-            result, events = await self._run_task(task)
+        futures = [asyncio.ensure_future(_guarded(t)) for t in tasks]
+        try:
+            results = await asyncio.gather(*futures)
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            # Cancel any siblings and retrieve each future's outcome so no
+            # exception is left "never retrieved", then persist whatever was
+            # streamed on a best-effort basis before re-raising.
+            for fut in futures:
+                fut.cancel()
+            for fut in futures:
+                try:
+                    await fut
+                except BaseException:  # noqa: BLE001 - draining, intentional
+                    pass
+            await self._trace_store.finalize(self._config.run_id)
+            raise
+
+        for result, events in results:
             summary.task_results.append(result)
             if result.evaluation.passed:
                 summary.passed_tasks += 1

@@ -43,6 +43,12 @@ dev = [
 [project.scripts]
 agentevalops = "agentevalops.cli:main"
 
+# Built-in benchmark adapters published through the public entry-point group
+# so third-party packages can plug new adapters in by declaring the same
+# group (see src/agentevalops/registry.py).
+[project.entry-points."agentevalops.adapters"]
+toy = "agentevalops.benchmarks.toy.adapter:ToyBenchmarkAdapter"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentevalops"]
 
