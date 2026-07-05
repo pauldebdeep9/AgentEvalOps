@@ -55,7 +55,8 @@ def run(
     from agentevalops.bundles.constants import REQUIRED_BUNDLE_FILES
     from agentevalops.config.loader import load_run_config
     from agentevalops.core.errors import ConfigurationError
-    from agentevalops.orchestration.local import LocalOrchestrator, RunSummary
+    from agentevalops.core.schemas import RunSummary
+    from agentevalops.orchestration.local import LocalOrchestrator
     from agentevalops.registry import (
         KIND_BENCHMARK,
         KIND_EVALUATOR,
@@ -278,7 +279,7 @@ def validate_bundle(
 
 def _print_summary(summary: object) -> None:
     """Print a concise one-block run summary to stdout."""
-    from agentevalops.orchestration.local import RunSummary
+    from agentevalops.core.schemas import RunSummary
 
     if not isinstance(summary, RunSummary):
         typer.echo(str(summary))

@@ -6,8 +6,7 @@ from collections import Counter
 from datetime import datetime, timezone
 
 from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION, REQUIRED_BUNDLE_FILES
-from agentevalops.core.schemas import RunConfig, TraceEvent
-from agentevalops.orchestration.local import RunSummary
+from agentevalops.core.schemas import RunConfig, RunSummary, TraceEvent
 
 
 def render_report(
@@ -120,3 +119,19 @@ def render_report(
     lines.append("")
 
     return "\n".join(lines)
+
+
+class MarkdownReportGenerator:
+    """``ReportGenerator`` implementation backed by ``render_report``."""
+
+    report_id: str = "markdown-v1"
+
+    async def render(
+        self,
+        run_config: RunConfig,
+        summary: RunSummary,
+        trace: list[TraceEvent],
+        config_name: str = "",
+    ) -> str:
+        """Produce a report.  Returns the report content as a string."""
+        return render_report(run_config, summary, trace, config_name)

@@ -25,6 +25,8 @@ from agentevalops.core.schemas import (
     PolicySpec,
     PolicyVerdict,
     ResourceLimits,
+    RunConfig,
+    RunSummary,
     ScoreResult,
     TaskSpec,
     TraceEvent,
@@ -193,14 +195,21 @@ class PolicyChecker(Protocol):
 
 @runtime_checkable
 class ReportGenerator(Protocol):
-    """Renders human-readable reports from a completed run."""
+    """Renders human-readable reports from a completed run.
+
+    Takes ``RunSummary`` (not just ``ScoreResult``) because a useful report
+    needs cost/token totals, per-task pass/fail, and the policy verdict —
+    none of which fit in a bare score aggregate.
+    """
 
     report_id: str
 
     async def render(
         self,
-        result: ScoreResult,
+        run_config: RunConfig,
+        summary: RunSummary,
         trace: list[TraceEvent],
+        config_name: str = "",
     ) -> str:
         """Produce a report.  Returns the report content as a string."""
         ...

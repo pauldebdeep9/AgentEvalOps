@@ -10,6 +10,7 @@ from agentevalops.core.schemas import (
     PolicySpec,
     ResourceLimits,
     RunConfig,
+    RunSummary,
     TerminationReason,
     TraceEvent,
     TraceEventKind,
@@ -17,7 +18,7 @@ from agentevalops.core.schemas import (
 )
 from agentevalops.core.types import BACKEND_LOCAL, AgentId, RunId
 from agentevalops.evaluators.deterministic import DeterministicEvaluator
-from agentevalops.orchestration.local import LocalOrchestrator, RunSummary
+from agentevalops.orchestration.local import LocalOrchestrator
 from agentevalops.policy.basic_checker import BasicPolicyChecker
 from agentevalops.stores.memory import InMemoryTraceStore
 

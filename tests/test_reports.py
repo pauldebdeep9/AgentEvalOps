@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
+
+from agentevalops.core.protocols import ReportGenerator
 from agentevalops.core.schemas import (
     AgentOutput,
     EvaluationResult,
     PolicyVerdict,
     ResourceLimits,
     RunConfig,
+    RunSummary,
+    TaskRunResult,
     TerminationReason,
     TraceEvent,
     TraceEventKind,
     Verdict,
 )
 from agentevalops.core.types import BACKEND_LOCAL, AgentId, RunId, TaskId
-from agentevalops.orchestration.local import RunSummary, TaskRunResult
-from agentevalops.reports.markdown import render_report
+from agentevalops.reports.markdown import MarkdownReportGenerator, render_report
 
 
 def _make_summary() -> tuple[RunConfig, RunSummary, list[TraceEvent]]:
@@ -148,3 +152,26 @@ def test_report_has_trace_summary_section() -> None:
     run_config, summary, events = _make_summary()
     report = render_report(run_config, summary, events)
     assert "## Trace Summary" in report
+
+
+# ---------------------------------------------------------------------------
+# MarkdownReportGenerator: the ReportGenerator protocol implementation
+# ---------------------------------------------------------------------------
+
+
+def test_markdown_report_generator_isinstance() -> None:
+    assert isinstance(MarkdownReportGenerator(), ReportGenerator)
+
+
+def test_markdown_report_generator_has_report_id() -> None:
+    assert MarkdownReportGenerator().report_id == "markdown-v1"
+
+
+def test_markdown_report_generator_matches_render_report() -> None:
+    run_config, summary, events = _make_summary()
+    generator = MarkdownReportGenerator()
+    via_generator = asyncio.run(
+        generator.render(run_config, summary, events, "config.yaml")
+    )
+    via_function = render_report(run_config, summary, events, "config.yaml")
+    assert via_generator == via_function

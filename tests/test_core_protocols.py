@@ -42,6 +42,8 @@ from agentevalops.core.schemas import (
     PolicySpec,
     PolicyVerdict,
     ResourceLimits,
+    RunConfig,
+    RunSummary,
     ScoreResult,
     TaskSpec,
     TerminationReason,
@@ -217,7 +219,13 @@ class MockPolicyChecker:
 class MockReportGenerator:
     report_id = "mock-report"
 
-    async def render(self, result: ScoreResult, trace: list[TraceEvent]) -> str:
+    async def render(
+        self,
+        run_config: RunConfig,
+        summary: RunSummary,
+        trace: list[TraceEvent],
+        config_name: str = "",
+    ) -> str:
         raise NotImplementedError("use in async tests only")
 
 

@@ -246,6 +246,42 @@ class PolicyVerdict:
 
 
 # ---------------------------------------------------------------------------
+# Run results
+# ---------------------------------------------------------------------------
+#
+# These live in core (not the orchestration package) because ReportGenerator
+# (a core protocol) needs to reference them. Moving them here keeps core a
+# leaf: it depends on nothing outside itself, and orchestration/reports/
+# bundles all import these types from core instead of from each other.
+
+
+@dataclass
+class TaskRunResult:
+    """Outcome of a single task within a run."""
+
+    task_id: TaskId
+    output: AgentOutput
+    evaluation: EvaluationResult
+    event_count: int
+
+
+@dataclass
+class RunSummary:
+    """Aggregated result of a complete orchestrator run."""
+
+    run_id: RunId
+    task_results: list[TaskRunResult] = field(default_factory=list)
+    policy_verdict: PolicyVerdict | None = None
+    score_result: ScoreResult | None = None
+    total_tasks: int = 0
+    passed_tasks: int = 0
+    failed_tasks: int = 0
+    trace_event_count: int = 0
+    total_cost_usd: float = 0.0
+    total_tokens: int = 0
+
+
+# ---------------------------------------------------------------------------
 # Result bundle metadata
 # ---------------------------------------------------------------------------
 

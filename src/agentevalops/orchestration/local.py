@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
 
 from agentevalops.core.protocols import (
     AgentRunner,
@@ -15,49 +14,17 @@ from agentevalops.core.protocols import (
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
-    EvaluationResult,
     PolicySpec,
-    PolicyVerdict,
     RunConfig,
-    ScoreResult,
+    RunSummary,
+    TaskRunResult,
     TaskSpec,
     TerminationReason,
     TraceEvent,
     TraceEventKind,
 )
-from agentevalops.core.types import RunId, TaskId
+from agentevalops.core.types import RunId
 from agentevalops.scorers.simple import SimpleScorer
-
-# ---------------------------------------------------------------------------
-# Result types (WBS 2-local — not part of the core contracts)
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class TaskRunResult:
-    """Outcome of a single task within a run."""
-
-    task_id: TaskId
-    output: AgentOutput
-    evaluation: EvaluationResult
-    event_count: int
-
-
-@dataclass
-class RunSummary:
-    """Aggregated result of a complete LocalOrchestrator run."""
-
-    run_id: RunId
-    task_results: list[TaskRunResult] = field(default_factory=list)
-    policy_verdict: PolicyVerdict | None = None
-    score_result: ScoreResult | None = None
-    total_tasks: int = 0
-    passed_tasks: int = 0
-    failed_tasks: int = 0
-    trace_event_count: int = 0
-    total_cost_usd: float = 0.0
-    total_tokens: int = 0
-
 
 # ---------------------------------------------------------------------------
 # Helpers

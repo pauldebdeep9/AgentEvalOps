@@ -14,9 +14,9 @@ from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
 from agentevalops.bundles.reader import BundleReader
 from agentevalops.bundles.writer import BundleWriter
 from agentevalops.config.loader import load_run_config
-from agentevalops.core.schemas import Verdict
+from agentevalops.core.schemas import RunSummary, Verdict
 from agentevalops.evaluators.deterministic import DeterministicEvaluator
-from agentevalops.orchestration.local import LocalOrchestrator, RunSummary
+from agentevalops.orchestration.local import LocalOrchestrator
 from agentevalops.policy.basic_checker import BasicPolicyChecker
 from agentevalops.replay.local import LocalReplayVerifier
 from agentevalops.stores.memory import InMemoryTraceStore

@@ -17,6 +17,7 @@ content files.  ``manifest.json`` is not checksummed inside itself.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,10 +32,10 @@ from agentevalops.core.schemas import (
     PolicySpec,
     ResultBundleMetadata,
     RunConfig,
+    RunSummary,
     TraceEvent,
 )
-from agentevalops.orchestration.local import RunSummary
-from agentevalops.reports.markdown import render_report
+from agentevalops.reports.markdown import MarkdownReportGenerator
 
 #: Re-exported for backward compatibility with code that imports BUNDLE_FILES
 #: from this module.  New code should import from bundles.constants directly.
@@ -168,7 +169,10 @@ class BundleWriter:
         all_events: list[TraceEvent],
         config_name: str,
     ) -> None:
-        report = render_report(run_config, summary, all_events, config_name)
+        generator = MarkdownReportGenerator()
+        report = asyncio.run(
+            generator.render(run_config, summary, all_events, config_name)
+        )
         path = self._dir / "report.md"
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(report)

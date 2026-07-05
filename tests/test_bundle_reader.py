@@ -15,13 +15,14 @@ from agentevalops.core.schemas import (
     PolicyVerdict,
     ResourceLimits,
     RunConfig,
+    RunSummary,
+    TaskRunResult,
     TerminationReason,
     TraceEvent,
     TraceEventKind,
     Verdict,
 )
 from agentevalops.core.types import BACKEND_LOCAL, AgentId, RunId, TaskId
-from agentevalops.orchestration.local import RunSummary, TaskRunResult
 
 # ---------------------------------------------------------------------------
 # Shared bundle fixture helpers
