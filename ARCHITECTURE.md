@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — AgentEvalOps Platform
 
-> **Status:** Draft v0.1 · **Owner:** *(your name)* · **Last updated:** 2026-05-10
+> **Status:** Draft v0.1 · **Owner:** *(your name)* · **Last updated:** 2026-07-05
 > This document specifies *how* AgentEvalOps is built. The *what* and *why* live in [`DESIGN.md`](./DESIGN.md). When this document and `DESIGN.md` disagree, `DESIGN.md` wins and this one is wrong.
 
 ---
@@ -11,9 +11,11 @@ AgentEvalOps is a Python package (`agentevalops`) with nine core protocols, a se
 
 The architecture has three layers:
 
-The **core layer** (`src/agentevalops/core/`) defines protocols, schemas, and the result-bundle format. It has no dependencies on any cloud provider, model provider, or agent framework. It is pure Python plus Pydantic plus OpenTelemetry.
+The **core layer** (`src/agentevalops/core/`) defines protocols, schemas, and errors. It has no dependencies on any cloud provider, model provider, or agent framework — it is plain Python `@dataclass` models, not Pydantic (see `core/schemas.py`'s own docstring: "no Pydantic, no ORM," to keep this layer dependency-free). OpenTelemetry wiring is planned (ROADMAP W9) but not yet implemented; nothing in `core/` depends on it today.
 
-The **adapter layer** (`src/agentevalops/agents/`, `benchmarks/`, `evaluators/`, `cloud/`, `observability/`) contains concrete implementations of the core protocols. Adapters depend on the core; the core never depends on adapters. New benchmarks, agents, clouds, and evaluators are added by writing new adapters.
+The **adapter layer** contains concrete implementations of the core protocols: `agents/` (`AgentRunner`), `benchmarks/` (`BenchmarkAdapter`), `evaluators/` (`Evaluator`), `scorers/` (`Scorer`), `stores/` (`TraceStore`), `reports/` (`ReportGenerator`), `policy/` (`PolicyChecker`). `cloud/` (`CloudBackend`) and `observability/` are planned but not yet created — nothing submits cloud jobs yet, so there is no real `CloudBackend` implementation, only a test-only mock. Adapters depend on the core; the core never depends on adapters. New benchmarks, agents, clouds, and evaluators are added by writing new adapters.
+
+Three more packages sit alongside the adapters and don't map to a single protocol: `orchestration/` (the eval loop; wires all the protocols together for a run), `bundles/` (result-bundle read/write/validate), and `replay/` (bundle verification — narrower than §7 describes; see the callout there). `registry.py` and `config/` are top-level, not nested under `core/`, despite earlier drafts of this document describing them that way (see §4).
 
 The **edge layer** (`src/agentevalops/cli.py`) is what users interact with — a CLI that composes adapters. The edge layer never reaches into adapter internals. A FastAPI service and a dashboard are out of scope for v0.1 and explicitly deferred.
 
@@ -25,7 +27,7 @@ This three-layer separation is the load-bearing architectural commitment. Everyt
 
 These are defined in `src/agentevalops/core/protocols.py`. They are Python `Protocol` classes (PEP 544), not abstract base classes, because we want structural subtyping — an implementation does not need to inherit from the protocol, only match its shape. This makes it trivial to wrap third-party agent frameworks without modifying them.
 
-All protocols are typed in strict mode. `pyright --strict` and `mypy --strict` pass on `src/agentevalops/core/` as a CI gate.
+All protocols are typed in strict mode. `mypy --strict` passes on all of `src/` as a CI gate (`mypy src`, see `pyproject.toml`'s `[tool.mypy]`). Earlier drafts of this document also named `pyright --strict`; that tool was never adopted — mypy alone is the actual, running gate.
 
 ### 2.1 `AgentRunner`
 
@@ -213,23 +215,25 @@ class TraceStore(Protocol):
 
 Persists files the agent produced (patches, model checkpoints, generated reports).
 
+**Status as of v0.1.0: defined, mock-only.** No production implementation exists — nothing in the codebase produces binary artifacts yet (that lands with SWE-bench patch handling). The real signature (`core/protocols.py`) is simpler than earlier drafts of this section described — plain `bytes`/`str`, not `BinaryIO`/`ArtifactRef` (neither of those types exists):
+
 ```python
-from typing import Protocol, BinaryIO
-from agentevalops.core.schemas import RunId, ArtifactRef
+from typing import Protocol
+from agentevalops.core.types import RunId
 
 class ArtifactStore(Protocol):
-    """Stores binary artifacts produced during a run."""
+    """Stores binary artifacts produced during a run (patches, reports, etc.)."""
 
-    async def put(self, run_id: RunId, path: str, content: BinaryIO) -> ArtifactRef:
-        """Store an artifact under (run_id, path). Returns a ref usable by get()."""
+    async def put(self, run_id: RunId, path: str, content: bytes) -> str:
+        """Store an artifact.  Returns an opaque reference string."""
         ...
 
-    async def get(self, ref: ArtifactRef) -> BinaryIO:
-        """Retrieve by reference."""
+    async def get(self, ref: str) -> bytes:
+        """Retrieve an artifact by its reference string."""
         ...
 
-    async def list(self, run_id: RunId) -> list[ArtifactRef]:
-        """Enumerate artifacts for a run."""
+    async def list(self, run_id: RunId) -> list[str]:
+        """Enumerate artifact reference strings for a run."""
         ...
 ```
 
@@ -237,28 +241,37 @@ class ArtifactStore(Protocol):
 
 ### 2.7 `ReportGenerator`
 
-Produces the human-readable artifacts in the result bundle: `failure_analysis.md`, the CLI/markdown summary, the cost-report rendering.
+Produces the human-readable report in the result bundle (`report.md`).
+
+**Status as of v0.1.0 (2026-07-05): real, in production.** `reports/markdown.py`'s `MarkdownReportGenerator` is what `BundleWriter._write_report` actually calls. The signature differs from earlier drafts of this section in two ways: it takes `RunConfig`/`RunSummary` (not a bare `ScoreResult` — a report needs cost, tokens, per-task results, and the policy verdict, none of which fit in a score aggregate), and it returns a plain `str`, not a `ReportArtifact` wrapper type (which was never built — the bundle writer handles the filename/content-type concerns itself):
 
 ```python
 from typing import Protocol
-from agentevalops.core.schemas import RunSummary, Trace, ReportArtifact
+from agentevalops.core.schemas import RunConfig, RunSummary, TraceEvent
 
 class ReportGenerator(Protocol):
     """Renders human-readable reports from a completed run."""
 
-    report_id: str  # e.g. "failure-analysis-llm", "cost-breakdown-html"
+    report_id: str  # e.g. "markdown-v1"
 
-    async def render(self, summary: RunSummary, trace: Trace) -> ReportArtifact:
-        """Produce a report. ReportArtifact contains the file content,
-        suggested filename, and content type."""
+    async def render(
+        self,
+        run_config: RunConfig,
+        summary: RunSummary,
+        trace: list[TraceEvent],
+        config_name: str = "",
+    ) -> str:
+        """Produce a report.  Returns the report content as a string."""
         ...
 ```
 
-`ReportGenerator` implementations may use LLMs (the failure-analysis-llm generator does), in which case the cost is captured the same way evaluator costs are.
+A future `ReportGenerator` implementation that uses an LLM (e.g. a failure-analysis generator) would capture its cost the same way evaluator costs are captured — no such implementation exists yet.
 
 ### 2.8 `CloudBackend`
 
-The cloud-neutrality boundary. All cloud-specific operations go through this protocol; everything else in the codebase is cloud-agnostic. The `LocalBackend` implementation (using local processes or docker-compose) is the default for v0.1 and requires no cloud credentials. The `AwsBackend` is planned for a later phase.
+The cloud-neutrality boundary. All cloud-specific operations go through this protocol; everything else in the codebase is cloud-agnostic.
+
+**Status as of v0.1.0: defined, mock-only — no `LocalBackend` either.** Despite what earlier drafts of this section said, there is no `LocalBackend` implementation today, not even for local execution: `LocalOrchestrator` runs tasks directly against `AgentRunner`/`BenchmarkAdapter`/etc. without going through any `CloudBackend.submit_job`-style call at all. `backend_id` on `RunConfig` is just a string (`"local"`) carried through for bundle metadata, not a dispatch key to a real backend object. The `AwsBackend` (and a real `LocalBackend` to match it) are planned for the AWS phase (ROADMAP W17+); until then only a test-only mock satisfies this protocol.
 
 > **Note on `ResourceLimits` vs. `PolicySpec`.** `ResourceLimits` (on `AgentConfig`) are *runtime controls* — the runner enforces them during execution and will stop the agent if a limit is reached. `PolicySpec` is a *post-run compliance check* — the `PolicyChecker` evaluates the completed trace after the fact and produces a verdict. They are separate concerns with separate enforcement points.
 
@@ -354,115 +367,121 @@ A few schemas worth calling out specifically:
 
 ## 4. Directory layout
 
-This is the v0.1 layout. Future-phase modules (AWS backend, additional benchmarks, dashboard) are noted as extension points.
+**This section describes the actual, as-built v0.1.0 layout** (updated 2026-07-05; earlier drafts described an aspirational structure — `orchestrator.py`/`bundle.py`/`replay.py`/`registry.py` nested under `core/`, `uv` as the package manager, separate `replay.yml`/`release.yml` workflows, an `examples/` tree — none of which is what actually got built. If you're picking this up in a new session, trust this section and the real `src/` tree over memory of older drafts.
 
 ```
-agent-evalops/
+AgentEvalOps/
 ├── README.md
 ├── DESIGN.md                       # what & why
 ├── ARCHITECTURE.md                 # this file
 ├── ROADMAP.md
+├── CHANGELOG.md                    # actual build history, by WBS number
 ├── SECURITY.md
-├── Makefile
-├── pyproject.toml
-├── uv.lock
+├── CONTRIBUTING.md
+├── Makefile                        # install, lint, typecheck, test, test-cov, check, smoke
+├── pyproject.toml                  # pip/hatchling — no uv, no uv.lock
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml                  # lint, type-check, test
-│       ├── replay.yml              # bundle-replay regression test
-│       └── release.yml
+│       ├── ci.yml                  # lint (ruff) + typecheck (mypy) + test+coverage
+│       │                           #   + smoke (run / validate-bundle / replay), matrix 3.10-3.12
+│       └── package.yml             # build check
 │
 ├── src/
 │   └── agentevalops/
 │       ├── __init__.py
-│       ├── cli.py                  # entry point: `agentevalops`
+│       ├── cli.py                  # entry point: `agentevalops` (run, report, replay,
+│       │                           #   validate-bundle, version, doctor)
+│       ├── registry.py             # entry-point discovery (top-level, not under core/)
 │       │
-│       ├── core/                   # LAYER 1: pure, no adapters
+│       ├── core/                   # LEAF: no dependency on any adapter or engine package
 │       │   ├── __init__.py
 │       │   ├── protocols.py        # the nine Protocol definitions
-│       │   ├── schemas.py          # Pydantic models
-│       │   ├── bundle.py           # result-bundle read/write
-│       │   ├── replay.py           # replay_command construction & execution
-│       │   ├── orchestrator.py     # runs the eval loop given protocol impls
-│       │   ├── registry.py         # adapter registration & discovery
+│       │   ├── schemas.py          # plain @dataclass models (no Pydantic) incl. RunSummary
+│       │   ├── types.py            # RunId/TaskId/AgentId/BackendId newtypes
 │       │   └── errors.py
 │       │
-│       ├── agents/                 # LAYER 2: AgentRunner adapters
-│       │   ├── __init__.py
-│       │   ├── mock_runner.py             # for tests and demo
-│       │   └── replay_runner.py           # re-runs from a bundle
-│       │   # Future: langgraph_runner.py, openai_compatible_runner.py, etc.
+│       ├── orchestration/
+│       │   └── local.py            # LocalOrchestrator: the eval loop, concurrency-bounded
 │       │
-│       ├── benchmarks/             # LAYER 2: BenchmarkAdapter adapters
+│       ├── bundles/                # result-bundle read/write/validate (not under core/)
+│       │   ├── constants.py
+│       │   ├── manifest.py         # SHA-256 checksums, format version
+│       │   ├── reader.py           # BundleReader (strict + recovery modes)
+│       │   ├── serializers.py
+│       │   ├── validator.py        # BundleValidator, 12 integrity checks
+│       │   └── writer.py           # BundleWriter
+│       │
+│       ├── replay/
+│       │   └── local.py            # LocalReplayVerifier — bundle *verification*,
+│       │                           #   not re-execution; see the callout in §7
+│       │
+│       ├── config/
+│       │   └── loader.py           # YAML RunConfig loader
+│       │
+│       ├── agents/                 # AgentRunner adapters
 │       │   ├── __init__.py
-│       │   └── toy/                       # for v0.1 demo
+│       │   └── mock_runner.py      # the only one that exists; real runners are W8+
+│       │
+│       ├── benchmarks/             # BenchmarkAdapter adapters
+│       │   ├── __init__.py
+│       │   └── toy/
 │       │       ├── adapter.py
+│       │       ├── scenarios.py
 │       │       └── tasks.py
-│       │   # Future: swebench/, mlebench/, etc.
+│       │   # Future: swebench/, mlebench/, etc. (not started)
 │       │
-│       ├── evaluators/             # LAYER 2: Evaluator adapters
+│       ├── evaluators/             # Evaluator adapters
 │       │   ├── __init__.py
 │       │   └── deterministic.py
-│       │   # Future: llm_judge.py (optional), tool_use.py, etc.
+│       │   # Future: llm_judge.py (optional), tool_use.py, etc. (not started)
 │       │
-│       ├── scorers/                # LAYER 2: Scorer adapters
+│       ├── scorers/                # Scorer adapters
 │       │   ├── __init__.py
-│       │   └── pass_at_k.py
+│       │   └── simple.py
 │       │
-│       ├── stores/                 # LAYER 2: TraceStore + ArtifactStore
+│       ├── stores/                 # TraceStore adapters
 │       │   ├── __init__.py
-│       │   ├── local_trace_store.py       # JSONL on disk (default)
-│       │   └── local_artifact_store.py   # files on disk (default)
-│       │   # Future: s3_trace_store.py, s3_artifact_store.py
+│       │   ├── memory.py           # InMemoryTraceStore (tests, and CLI when no --output)
+│       │   └── local.py            # LocalTraceStore: disk JSONL, flush+fsync per event,
+│       │                           #   used by `run --output` (survives a hard kill)
+│       │   # ArtifactStore has no implementation yet — nothing produces binary
+│       │   # artifacts; that lands with SWE-bench patch handling
 │       │
-│       ├── reports/                # LAYER 2: ReportGenerator adapters
+│       ├── reports/                # ReportGenerator adapters
 │       │   ├── __init__.py
-│       │   └── markdown_report.py
+│       │   └── markdown.py         # render_report() + MarkdownReportGenerator
 │       │
-│       ├── policy/                 # LAYER 2: PolicyChecker adapters
-│       │   ├── __init__.py
-│       │   ├── allowlist_checker.py
-│       │   └── cost_ceiling_checker.py
-│       │
-│       ├── cloud/                  # LAYER 2: CloudBackend adapters
-│       │   ├── __init__.py
-│       │   ├── local_backend.py           # local processes / docker-compose (default)
-│       │   └── aws/                       # Future (planned, not v0.1)
-│       │       # backend.py, fargate_jobs.py, s3_io.py, secrets.py, etc.
-│       │
-│       └── observability/          # LAYER 2: OTel wiring
+│       └── policy/                 # PolicyChecker adapters
 │           ├── __init__.py
-│           ├── otel_setup.py
-│           └── span_emitter.py
+│           └── basic_checker.py    # cost ceiling + tool allow/deny list
 │
-├── configs/
-│   └── toy_smoke.yaml
+│       # cloud/ and observability/ do not exist yet (ROADMAP W17+ / W9).
+│       # CloudBackend has no implementation, not even a LocalBackend —
+│       # the orchestrator runs tasks directly, without going through a
+│       # CloudBackend abstraction at all.
 │
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   ├── smoke/
-│   └── replay/
-│       └── fixtures/
+├── configs/                        # toy_smoke, toy_failure, toy_policy_violation,
+│                                    #   toy_trace_limit, toy_mixed
 │
-├── examples/
-│   └── 01_local_toy_eval/
+├── tests/                          # flat, not split into unit/integration/smoke/replay/;
+│                                    # one test file per source module, mostly
 │
-└── docs/
-    ├── benchmark_adapters.md
-    ├── writing_an_evaluator.md
-    └── images/
+├── docs/
+│   ├── local-demo.md
+│   └── release-checklist.md
+│
+└── runs/                           # gitignored — local bundle output only
 ```
 
-A few rules about this layout that exist for specific reasons:
+A few rules about this layout, and their actual enforcement status:
 
-`src/agentevalops/core/` imports nothing from any adapter module. This is enforced by an `import-linter` config in CI. The core layer's import graph is a leaf.
+`src/agentevalops/core/` imports nothing from any adapter, engine, or bundle package — it's the one hard rule everyone should keep true. **Not currently enforced by tooling**: no `import-linter` config exists yet (ROADMAP W1/W13 are both still open). `mypy --strict` will catch some violations incidentally (an import cycle fails to type-check) but that's not the same as a real layer-boundary lint.
 
-Adapter modules import from the core, optionally from each other within the same adapter family, and from third-party libraries. No adapter module imports from a different adapter family.
+Adapter modules import from the core, optionally from each other within the same adapter family, and from third-party libraries. No adapter module imports from a different adapter family. (Also unenforced today — same caveat as above.)
 
-`grep -r "boto3" src/` returns hits only in `src/agentevalops/cloud/aws/` (which is empty until the AWS phase). CI enforces this.
+`grep -r "boto3" src/` returns no hits at all today, since `cloud/` doesn't exist yet. The intended check ("`boto3` only inside `cloud/aws/`") isn't wired into CI.
 
-Tests mirror the source tree. There is one test file per source module.
+Tests are mostly one file per source module, but flat under `tests/` rather than split into `unit/`/`integration/`/`smoke/`/`replay/` subdirectories.
 
 ---
 
@@ -530,6 +549,8 @@ Specific choices and the reasons for them:
 
 ## 7. Replay determinism
 
+> **Status as of v0.1.0 (2026-07-05): this section describes the target design, not what's built.** The real `replay/local.py` (`LocalReplayVerifier`) is a static, read-only consistency checker over a bundle's own files — checksums, cross-file count matches, structural validity. It does **not** re-execute anything, substitute recorded model outputs, or compare two runs against each other; its own docstring says so explicitly ("Replay ... means 'bundle verification'. No agents, models, tools, or benchmarks are executed."). There is no `ReplayRunner` class, no `replay_command.txt` generation, and no `tests/replay/fixtures/` — `tests/test_replay.py` builds bundles on the fly with `tmp_path`, it doesn't replay a checked-in recording. The reproducibility story below (recorded-output substitution, exact tool-call match) is unbuilt; closing that gap is real, unstarted work, not a renaming exercise.
+
 Replay is a tested property of the platform, not a hope. The CI pipeline includes a job that takes a checked-in bundle from `tests/replay/fixtures/`, runs `replay_command.txt`, and asserts the new bundle matches the original on a defined schema:
 
 The new bundle must produce the same `AgentResult.success`, the same set of tool calls in the same order, the same `terminated_by` reason, and `total_cost_usd` within ±5% (tolerating provider-side pricing drift). It need not produce identical model outputs token-for-token — that would require provider cooperation we don't have — but the *behavioral* trace must match.
@@ -541,6 +562,8 @@ Live replay (re-running with the real model) is supported but not required for t
 ---
 
 ## 8. Observability
+
+> **Status as of v0.1.0 (2026-07-05): not implemented.** No `otel_setup.py`, no `observability/` package, no spans, no CloudWatch export — this whole section is the ROADMAP W9 target design. The only structured run data that exists today is `traces.jsonl` in the result bundle (application-level `TraceEvent`s written by the orchestrator), which is unrelated to OpenTelemetry spans.
 
 The platform emits OpenTelemetry spans for every step of every run. Span hierarchy:
 
@@ -572,7 +595,7 @@ Local runs export to a JSONL file in the bundle. AWS runs export to CloudWatch v
 
 ## 9. Configuration and the registry
 
-`RunConfig` is YAML. The orchestrator resolves string references in the config (e.g. `runner: langgraph-claude-4-7`) against a registry defined in `src/agentevalops/core/registry.py`. The registry is populated at import time by adapter modules calling `register_runner`, `register_evaluator`, etc.
+`RunConfig` is YAML, loaded by `config/loader.py`. String references in the config (e.g. `runner: mock`) are resolved against a registry defined in `src/agentevalops/registry.py` — top-level, not under `core/` (an earlier draft of this document put it there). Built-in adapters register themselves at import time; third-party plugins can publish additional benchmark adapters under the `agentevalops.adapters` entry-point group, discovered via `importlib.metadata.entry_points`.
 
 Users can register their own adapters by installing a package that exposes the `agentevalops.adapters` entry point group in its `pyproject.toml`. The platform discovers third-party adapters via `importlib.metadata.entry_points()` at startup and adds them to the registry. This is how external users contribute new benchmarks and runners without forking the platform.
 

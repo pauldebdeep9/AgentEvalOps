@@ -50,6 +50,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   hard process kill, not just an in-process interrupt; `agentevalops report
   --run-id` CLI command; interrupted-bundle recovery test coverage
   (`strict=False` reads an unsealed bundle).
+- **WBS 12** — `v0.1.0` tag cut and pushed to `origin/main`. `ReportGenerator`
+  protocol given its first real (non-mock) implementation:
+  `RunSummary`/`TaskRunResult` moved from `orchestration/local.py` into
+  `core/schemas.py` (pure data, no adapter deps — this is what let a core
+  protocol reference them without a circular import); `ReportGenerator.render()`
+  widened from `(ScoreResult, trace)` to `(RunConfig, RunSummary, trace,
+  config_name)`, since a useful report needs cost/tokens/per-task
+  results/policy verdict, none of which fit in a bare score aggregate;
+  `MarkdownReportGenerator` added and wired into `BundleWriter._write_report`
+  in place of the direct `render_report()` call. `ArtifactStore`/`CloudBackend`
+  left intentionally mock-only (no caller exists for either yet). Audited
+  ARCHITECTURE.md and ROADMAP.md against running code and fixed drift:
+  corrected `src/` directory tree (WBS packages don't nest under `core/` the
+  way early drafts described), replaced stale `pyright` references with the
+  actual `mypy --strict` gate, and added explicit status callouts marking
+  "replay" as bundle verification (not recorded-output re-execution) and
+  OpenTelemetry/`CloudBackend`/`ArtifactStore` as not yet implemented.
 
 ### Not included in v0.1
 
