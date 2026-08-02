@@ -269,10 +269,93 @@ def test_unsupported_runner_id_raises(tmp_path: Path) -> None:
         load_run_config(p)
 
 
+# ---------------------------------------------------------------------------
+# Model-provenance gap (docs/adr/0002): a model-backed runner_id must not be
+# loadable without an explicit `model` field. No environment-variable or
+# hardcoded fallback is a legal substitute for a config-driven run -- this
+# is what makes the bundle's recorded config the single source of truth for
+# which model produced it. Fails loudly at load time, not silently.
+# ---------------------------------------------------------------------------
+
+
+def test_openai_runner_without_model_raises_at_load_time(
+    tmp_path: Path,
+) -> None:
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\nrunner_id: openai\n",
+    )
+    with pytest.raises(ConfigurationError, match="model"):
+        load_run_config(p)
+
+
+def test_langgraph_runner_without_model_raises_at_load_time(
+    tmp_path: Path,
+) -> None:
+    # LangGraphRunner has the identical provenance gap as OpenAIRunner's
+    # now-removed OPENAI_MODEL fallback -- it silently defaulted to its own
+    # DEFAULT_MODEL when `model` was omitted. Closed uniformly, not just for
+    # the runner this session happened to start from.
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\nrunner_id: langgraph\n",
+    )
+    with pytest.raises(ConfigurationError, match="model"):
+        load_run_config(p)
+
+
+def test_mock_runner_without_model_does_not_raise() -> None:
+    # The mock runner ignores `model` entirely; only model-backed runners
+    # (everything except "mock") require it.
+    result = load_run_config(_SMOKE)
+    assert result.runner_id == "mock"
+    assert result.model is None
+
+
 def test_example_langgraph_config_loads() -> None:
     result = load_run_config(Path("configs/toy_langgraph.yaml"))
     assert result.runner_id == "langgraph"
     assert result.model is not None
+
+
+def test_openai_runner_id_accepted(tmp_path: Path) -> None:
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\n"
+        'runner_id: openai\nmodel: "gpt-4.1-mini-2025-04-14"\n',
+    )
+    result = load_run_config(p)
+    assert result.runner_id == "openai"
+    assert result.model == "gpt-4.1-mini-2025-04-14"
+
+
+def test_example_openai_config_loads() -> None:
+    result = load_run_config(Path("configs/toy_openai.yaml"))
+    assert result.runner_id == "openai"
+    assert result.model is not None
+
+
+def test_supported_runners_matches_registry() -> None:
+    """Guards against the 2026-08-03 parity bug: a runner registered in
+    ``registry.py`` (``openai``) was left out of this module's
+    ``_SUPPORTED_RUNNERS`` allowlist, making it unreachable from any YAML
+    config even though it was fully wired up everywhere else. The two lists
+    are maintained separately (see the comment above ``_SUPPORTED_RUNNERS``
+    in ``config/loader.py`` — no deliberate design reason was found for
+    that), so nothing else catches them drifting apart except this test.
+    """
+    from agentevalops import registry as registry_module
+    from agentevalops.config.loader import _SUPPORTED_RUNNERS
+
+    registered = set(registry_module.names(registry_module.KIND_RUNNER))
+    assert _SUPPORTED_RUNNERS == registered, (
+        f"config/loader.py's _SUPPORTED_RUNNERS {sorted(_SUPPORTED_RUNNERS)} "
+        f"has drifted from the registry's actually-registered runner names "
+        f"{sorted(registered)}. A name registered in registry.py but "
+        "missing here is unreachable from YAML; a name here with no "
+        "matching registration is dead config that will raise "
+        "UnknownComponentError at runtime instead of a clean config error."
+    )
 
 
 def test_negative_max_trace_events_raises(tmp_path: Path) -> None:

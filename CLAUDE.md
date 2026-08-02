@@ -72,20 +72,24 @@ belongs to an abandoned strategy in a different project and is not
 agentevalops's problem; don't mistake it for something new, and don't fix it
 here.
 
-## Baseline (verified 2026-08-02, HEAD `83bfb17`)
+## Baseline (verified 2026-08-03)
 
 - ruff: clean
-- mypy: clean (42 source files) — the CI-only `anthropic` import-not-found
-  failure from earlier in this file's history is fixed (dedicated
-  `anthropic.*` mypy override in `pyproject.toml`, mirroring the
-  pre-existing `opentelemetry.*` one)
-- `lint-imports`: **5 kept, 0 broken**
-- pytest: 571 passed, 1 skipped (opt-in `@pytest.mark.live`), 96% branch coverage
+- mypy: clean (43 source files) — dedicated `anthropic.*` and `openai.*`
+  mypy overrides in `pyproject.toml` (mirroring the pre-existing
+  `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
+  despite both SDKs being lazily-imported optional deps
+- `lint-imports`: **6 kept, 0 broken** (6th contract added alongside
+  `OpenAIRunner`: "openai confined to agents/")
+- pytest: 617 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.26% branch
+  coverage
 - CI floor: `--cov-fail-under=94`
 
 ## Optional extras
 
-- `llm` — `anthropic`, for `agents/langgraph_runner.py`. Real runs cost money and
-  need `ANTHROPIC_API_KEY`. Never run `configs/toy_langgraph.yaml` without being
-  asked to.
+- `llm` — `anthropic` (for `agents/langgraph_runner.py`) and `openai` (for
+  `agents/openai_runner.py`, docs/adr/0001-openai-runner-chat-completions.md).
+  Real runs cost money and need `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`
+  respectively. Never run `configs/toy_langgraph.yaml` or
+  `configs/toy_openai.yaml` without being asked to.
 - `otel` — scaffold only, emits nothing.

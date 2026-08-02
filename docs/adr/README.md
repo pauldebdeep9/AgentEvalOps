@@ -1,0 +1,24 @@
+# Architecture Decision Records
+
+No ADR convention existed in this repo before `0001` — searched for `*adr*`
+and `*decision*` under the repo root, found nothing. This directory and the
+lightweight format below are established by `0001`, not carried over from a
+prior pattern.
+
+**Format:** one Markdown file per decision, numbered sequentially
+(`NNNN-short-title.md`), with `Status` / `Context` / `Decision` /
+`Consequences` sections. Superseding a decision means adding a new numbered
+file that says so and updating the old one's `Status` line — never editing
+history in place.
+
+**When to add one:** a decision with consequences that outlive the PR that
+made it — a provider choice, a boundary/abstraction call, anything a future
+session might be tempted to "clean up" without knowing why it's shaped that
+way. Routine implementation detail belongs in code comments or the commit
+message, not here.
+
+| # | Title |
+|---|---|
+| [0001](0001-openai-runner-chat-completions.md) | OpenAI-backed agent runner: scope, API choice, model-id config, no shared provider abstraction |
+| [0002](0002-outcome-taxonomy.md) | Unified outcome taxonomy: five axes (task outcome, evaluation outcome, run aggregation, bundle integrity, replay comparison), not one enum. Proposed, not implemented. |
+| [0003](0003-replay-semantics.md) | Replay semantics: what it asserts, the determinism boundary, nondeterminism enumerated from real bundles, `replay_command.txt`, fixture strategy. Depends on 0002. Proposed, not implemented. |

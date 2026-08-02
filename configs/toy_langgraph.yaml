@@ -31,7 +31,10 @@ runner_id: "langgraph"
 
 # Model id passed to the runner. Matches the runner's default and its cost
 # table key (see agents/langgraph_runner.py). Haiku is the cost-efficient
-# choice for an eval runner.
+# choice for an eval runner. Required, not optional: as of 2026-08-04
+# config/loader.py raises ConfigurationError at load time if a model-backed
+# runner_id config (langgraph or openai) omits this field -- no silent
+# default for a config-driven run (docs/adr/0001-... §3, revised).
 model: "claude-haiku-4-5"
 
 # Real-LLM runs cost money and use real tokens, so give the limits headroom

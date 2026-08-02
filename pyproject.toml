@@ -76,15 +76,20 @@ dev = [
     "pre-commit>=3.0,<5",
     "import-linter>=2.13,<3",
 ]
-# Model-backed runner dependencies (Risk #2: upstream churn — pins are exact).
-# NOT installed in CI; the langgraph runner imports these lazily so core stays
-# importable without them.  The runner's current implementation uses the
-# `anthropic` SDK directly (see agents/langgraph_runner.py fallback note); the
-# langgraph / langchain-anthropic pins are declared for a future LangGraph port.
+# Model-backed runner dependencies (Risk #2: upstream churn — pins are exact,
+# same discipline as commit aadbe89: an exact pin, not a range, for any SDK
+# a real model-backed runner calls directly). NOT installed in CI; the
+# langgraph/openai runners import these lazily so core stays importable
+# without them.  The runner's current implementation uses the `anthropic` SDK
+# directly (see agents/langgraph_runner.py fallback note); the langgraph /
+# langchain-anthropic pins are declared for a future LangGraph port. `openai`
+# backs agents/openai_runner.py (docs/adr/0001-...) — pinned to the version
+# verified in this session's dev env (Sai2511), same as the anthropic pin.
 llm = [
     "anthropic==0.75.0",
     "langgraph==1.0.10",
     "langchain-anthropic==1.0.0",
+    "openai==1.83.0",
 ]
 # OpenTelemetry instrumentation (ROADMAP W9). Optional + imported lazily so
 # core stays importable and CI (which does not install this extra) is
@@ -141,6 +146,23 @@ ignore_missing_imports = true
 # not installed in CI, so let mypy tolerate the missing stubs for W9 wiring.
 [[tool.mypy.overrides]]
 module = ["opentelemetry.*"]
+ignore_missing_imports = true
+
+# openai is an optional extra (llm) imported lazily inside
+# agents/openai_runner.py; it is NOT installed in CI (ci.yml installs only
+# .[dev]), so let mypy tolerate the missing stubs rather than fail on
+# import-not-found. This is the exact bug that made main red for two commits
+# during W8 (a lazily-imported optional dependency with no override) —
+# verified by differential (see docs/adr/0001-... report / session notes):
+# mypy is clean with openai installed AND this override present; uninstalling
+# openai while keeping the override still passes; removing the override with
+# openai uninstalled fails on import-not-found. Same tradeoff as the
+# anthropic override above: light, churn-resistant CI at the cost of never
+# type-checking calls against the real openai API surface, acceptable
+# because the SDK is isolated behind a lazy import and an injectable client
+# (agent_factory).
+[[tool.mypy.overrides]]
+module = ["openai.*"]
 ignore_missing_imports = true
 
 [tool.coverage.run]
@@ -303,3 +325,37 @@ source_modules = [
     "agentevalops.stores",
 ]
 forbidden_modules = ["boto3", "botocore"]
+
+# openai backs agents/openai_runner.py (docs/adr/0001-openai-runner-chat-
+# completions.md). Kept as its own contract rather than folded into the
+# anthropic/langgraph/langchain_anthropic one above: that contract's name and
+# history are specifically about the Anthropic-backed runner's dependency
+# set, and a second, independently-evolving provider SDK deserves a contract
+# that can be read, proven, and changed on its own -- same reasoning that
+# already gave opentelemetry and boto3/botocore each their own contract
+# instead of merging into the anthropic one.
+# allow_indirect_imports = true: same reasoning as the three contracts above
+# -- constrains where the `import openai` statement lives (agents/), not how
+# far the name is transitively reachable from; registry.py referencing
+# OpenAIRunner to register it is correct composition, not a leak.
+[[tool.importlinter.contracts]]
+name = "openai confined to agents/ (ARCHITECTURE.md §4)"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = [
+    "agentevalops.benchmarks",
+    "agentevalops.bundles",
+    "agentevalops.cli",
+    "agentevalops.config",
+    "agentevalops.core",
+    "agentevalops.evaluators",
+    "agentevalops.observability",
+    "agentevalops.orchestration",
+    "agentevalops.policy",
+    "agentevalops.registry",
+    "agentevalops.replay",
+    "agentevalops.reports",
+    "agentevalops.scorers",
+    "agentevalops.stores",
+]
+forbidden_modules = ["openai"]

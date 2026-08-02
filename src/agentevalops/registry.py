@@ -254,16 +254,19 @@ def _register_builtins(reg: Registry) -> None:
     # for callers that don't actually run anything.
     from agentevalops.agents.langgraph_runner import LangGraphRunner
     from agentevalops.agents.mock_runner import MockAgentRunner
+    from agentevalops.agents.openai_runner import OpenAIRunner
     from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
     from agentevalops.evaluators.deterministic import DeterministicEvaluator
     from agentevalops.policy.basic_checker import BasicPolicyChecker
 
     reg.register(KIND_BENCHMARK, "toy", ToyBenchmarkAdapter)
     reg.register(KIND_RUNNER, "mock", MockAgentRunner)
-    # Registering the langgraph runner does NOT import anthropic/langgraph —
-    # those deps are imported lazily inside LangGraphRunner methods, so the
-    # registry stays importable with only the core dependencies present.
+    # Registering the langgraph/openai runners does NOT import
+    # anthropic/langgraph/openai — those deps are imported lazily inside the
+    # runner methods, so the registry stays importable with only the core
+    # dependencies present.
     reg.register(KIND_RUNNER, "langgraph", LangGraphRunner)
+    reg.register(KIND_RUNNER, "openai", OpenAIRunner)
     reg.register(KIND_EVALUATOR, "deterministic", DeterministicEvaluator)
     reg.register(KIND_POLICY, "basic", BasicPolicyChecker)
 

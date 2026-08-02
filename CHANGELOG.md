@@ -9,6 +9,33 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **OpenAI-backed `OpenAIRunner`** (`runner_id: "openai"`), a second, independent
+  `AgentRunner` alongside `LangGraphRunner` — not a fix or replacement for it,
+  and does not close W8 (see `docs/adr/0001-openai-runner-chat-completions.md`
+  for the API-choice, model-config, and no-shared-abstraction decisions). Chat
+  Completions API, same `calculator`/`finish` tool set re-expressed in
+  OpenAI's function-calling shape, own price table (`gpt-4.1-mini-2025-04-14`),
+  own `llm` extra pin, own mypy override, own import-linter contract (6th
+  contract: "openai confined to agents/"). Config: `configs/toy_openai.yaml`.
+  Offline unit tests only (`tests/test_openai_runner.py`), no network.
+  - **Live verification attempted 2026-08-03, blocked before producing a
+    result — an OpenAI account funding issue, not a code defect.** Every
+    model call against `configs/toy_openai.yaml` failed with `429
+    insufficient_quota`. 2 tasks attempted, 0 passed, `total_cost_usd = $0.00`
+    actually incurred (OpenAI does not bill rejected 429s) — but this is a
+    trivial zero-vs-zero, not a real cost-accounting check; that verification
+    is still unperformed. `validate-bundle` and `replay` both correctly
+    rejected the resulting incomplete bundle (missing required files).
+    Recorded in full in ROADMAP.md §0; the bundle is kept at
+    `runs/live-verify-openai-2026-08-03/`, not deleted.
+  - **Parity bug found and fixed in the same session:** `config/loader.py`'s
+    `_SUPPORTED_RUNNERS` allowlist had not been updated when `OpenAIRunner`
+    was registered in `registry.py`, making `runner_id: "openai"` rejected
+    from any YAML config even though the runner was otherwise fully wired
+    up. Fixed; guarded by a new test
+    (`test_supported_runners_matches_registry`) that asserts the allowlist
+    equals the registry's registered runner names, confirmed to fail against
+    the pre-fix state before being trusted.
 - **W8 — real model-backed `LangGraphRunner`** (post-v0.1; enables v0.2). A
   registered `AgentRunner` (`runner_id: langgraph`) that drives a minimal
   ReAct-style agent (tools: `calculator`, `finish`) against the toy Q&A tasks
@@ -89,6 +116,101 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     that module form in CI would get a permanently green gate that checks
     nothing. Use the `lint-imports` console script instead (what
     `Makefile`/CI actually call).
+- **`tests/test_enum_construction_coverage.py`** — a mechanical check that,
+  for every member of `TraceEventKind`, `Verdict`, and `TerminationReason`
+  (`core/schemas.py`), asserts the member is constructed somewhere in
+  non-test `src/`, or is named in an allowlist with a comment pointing at
+  the roadmap item that will wire it. Written because the same "vocabulary
+  exists, never constructed" pattern had already surfaced twice
+  independently (`TerminationReason.INFRA_FAILURE`, `Verdict.WARN` before
+  2026-08-03) — this test, on first run, found it a **third and fourth**
+  time: `TraceEventKind.AGENT_OBSERVATION` and `.EVALUATOR_SCORE`/
+  `.POLICY_VERDICT` are also never constructed anywhere. All four are now
+  allowlisted with a roadmap reference each (`INFRA_FAILURE` and
+  `AGENT_OBSERVATION` had existing anchors; `EVALUATOR_SCORE`/
+  `POLICY_VERDICT` did not — a new `ROADMAP.md` §0 entry records the
+  finding since none existed to point at). Proved to actually catch drift,
+  not just pass by construction: temporarily removed `INFRA_FAILURE` from
+  the allowlist, confirmed the test fails naming exactly that member, then
+  restored it.
+  - **Does not cover `ResultBundleMetadata.sealed`** (hardcoded `True` at
+    its one write site, read back nowhere) — a different shape, a
+    constant-valued field rather than an unconstructed enum member. A
+    narrow, single-field "is `.sealed` ever read outside its write site"
+    check would be cheap to add, but would fail immediately (nothing reads
+    it today, and fixing that is blocked on the same orchestrator
+    prerequisite as `INFRA_FAILURE`) and doesn't generalize to a reusable
+    "any write-only field" checker without real judgment about which
+    fields are *supposed* to vary — not built; see the report accompanying
+    this change for the full reasoning.
+
+### Fixed
+
+- **No model-backed bundle recorded which model produced it — `OPENAI_MODEL`
+  environment-variable fallback deleted, not written back.** Investigated
+  the full path a model id takes to reach a runner (`docs/adr/0001-...`
+  §3, revised): `OpenAIRunner` resolved `model` from three sources (explicit
+  config field → `OPENAI_MODEL` env var → `DEFAULT_MODEL` constant) and
+  `LangGraphRunner` had the identical gap in miniature (config field →
+  `DEFAULT_MODEL`, no env var, but the same silent-default behavior). Per
+  `docs/adr/0002-outcome-taxonomy.md`'s finding that `RunConfig.agent_id`
+  in `config.json` is the static YAML string, never the runner's
+  model-qualified value, either fallback path let a config-driven run
+  proceed with a model the bundle would never record and that couldn't be
+  reconstructed from a second, potentially-divergent source. Fixed by
+  *removing* the ambiguous path rather than adding a write-back (a
+  write-back would leave two sources that can disagree, not one that
+  can't): `OPENAI_MODEL` is deleted entirely from `OpenAIRunner`, and
+  `config/loader.py` now raises `ConfigurationError` at load time if a
+  model-backed `runner_id` (`langgraph` or `openai`) omits `model` —
+  failing loudly instead of silently defaulting. `configs/toy_openai.yaml`
+  and `configs/toy_langgraph.yaml` updated to document `model` as required,
+  not merely recommended.
+  - **Does not fully close the provenance gap, and isn't meant to.**
+    `config.json` still doesn't record the model, because `RunConfig` has
+    no `model` field and none was added — that's a config-schema change,
+    explicitly deferred to the next, schema-focused session per
+    `docs/adr/0002`'s open questions (fix `agent_id` to reflect the
+    resolved model, vs. add a dedicated `model_id` field — undecided).
+    What changed here is that there is now exactly one legal source for
+    the model on any config-driven run, not that the bundle records it
+    yet.
+
+- **`BasicPolicyChecker` was a fail-open release gate.** `check()` only ever
+  inspected cost, the tool deny-list, and trace length; it never asked
+  whether anything was actually evaluated. A run with zero evaluated results
+  (an empty benchmark) or where every task failed at the infrastructure
+  layer before finishing (an API outage — see the 2026-08-03 infra-failure
+  gap below) tripped none of the three checks and silently returned
+  `Verdict.PASS`, `"all checks passed"` — the same class of bug as a
+  deny-list silent failure: the check ran, reported success, and inspected
+  nothing. Reproduced first (both a directly-constructed zero-results input
+  and the real `tests/fixtures/bundles/partial-infra-failure-2026-08-03/`
+  fixture's actual trace both returned `PASS` against the pre-fix code).
+  Fixed by downgrading a would-be `PASS` to `Verdict.WARN` — the pre-existing,
+  previously-unused third member of the `Verdict` enum
+  (`core/schemas.py`'s own docstring: "binary-plus-warn") — whenever
+  `output.success` is `False` **and** no `AGENT_TERMINAL` event appears
+  anywhere in the trace (every runner yields one as its last event on every
+  completion path; the only way to have zero across the whole trace is if no
+  task's `run()` generator ever finished). Deliberately conservative: a
+  genuine finding from the three existing checks is never downgraded, so
+  real cost/deny-list/trace-count violations still surface even on a run
+  that didn't finish cleanly. No `Verdict` member added, no bundle-contract
+  or schema change — `WARN` already existed. Scoped narrowly to this one
+  checker; the orchestrator's exception handling, `RunSummary`, and the
+  report are untouched (that's the taxonomy-design work, still open — see
+  `ROADMAP.md` §0).
+  - **Known gap, not covered by this fix, reported not fixed:** a run where
+    *some* tasks were genuinely evaluated (any completed, so the trace has
+    at least one `AGENT_TERMINAL`) and others infra-failed still returns
+    `PASS` with no signal that part of the run was never evaluated — the
+    presence of even one real terminal event masks the absence for the rest,
+    since `check()` only sees the whole run's combined output and trace, not
+    a per-task breakdown. Not currently reachable through the real
+    orchestrator (today, any infra failure aborts the whole run before
+    `check()` is ever called at all, for every task — see the gap below), so
+    this is a forward-looking limitation, not a live bug.
 
 ---
 

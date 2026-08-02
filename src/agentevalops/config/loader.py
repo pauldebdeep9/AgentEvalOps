@@ -37,8 +37,30 @@ _SUPPORTED_BACKENDS: frozenset[str] = frozenset({"local", "aws"})
 _SUPPORTED_BENCHMARKS: frozenset[str] = frozenset({"toy"})
 #: Agent runners selectable from a config's ``runner_id``.  ``"mock"`` is the
 #: default and the only runner required for the v0.1 demo path; ``"langgraph"``
-#: is the real Claude-backed runner (ROADMAP W8), registered separately.
-_SUPPORTED_RUNNERS: frozenset[str] = frozenset({"mock", "langgraph"})
+#: is the real Claude-backed runner (ROADMAP W8) and ``"openai"`` is the real
+#: OpenAI-backed runner (docs/adr/0001-openai-runner-chat-completions.md),
+#: both registered separately.
+#:
+#: This frozenset duplicates the registry's set of registered runner names
+#: (``registry.names(registry.KIND_RUNNER)``) instead of querying it
+#: directly. Investigated 2026-08-03, after ``"openai"`` was registered in
+#: ``registry.py`` but left out here, making the runner unreachable from any
+#: YAML config despite being fully wired up everywhere else: **no deliberate
+#: design reason was found for keeping these two lists separate.** It looks
+#: like accidental duplication from when this module predated the registry
+#: having more than two runners, not an intentional boundary. The actual
+#: guardrail against future drift is
+#: ``test_supported_runners_matches_registry`` in
+#: ``tests/test_config_loader.py``, which asserts this set equals the
+#: registry's registered runner names and fails loudly if they diverge --
+#: this comment records the "why not merged" investigation, not a reason to
+#: leave it duplicated forever. Collapsing this into a direct
+#: ``registry.names(...)`` call is a legitimate future refactor; it was not
+#: done here to keep this fix scoped to the parity bug, and would need
+#: checking against import-linter's layers contract (config/ and registry.py
+#: are already in the same middle tier, so this is expected to be
+#: uncontroversial, just unverified until someone actually does it).
+_SUPPORTED_RUNNERS: frozenset[str] = frozenset({"mock", "langgraph", "openai"})
 
 # ---------------------------------------------------------------------------
 # Public types
@@ -293,6 +315,29 @@ def load_run_config(path: Path) -> LoadedRunConfig:
 
     model_raw = raw.get("model")
     model = str(model_raw) if model_raw is not None else None
+
+    # Model-backed runners (everything except "mock") must specify `model`
+    # explicitly in the run config -- no environment-variable or hardcoded
+    # fallback is legal here. This is the config-load-time half of closing
+    # the model-provenance gap docs/adr/0002 found: a bundle should never be
+    # producible from an ambiguous or silently-defaulted model. (The
+    # runners' own DEFAULT_MODEL fallback still exists for direct,
+    # non-CLI construction -- e.g. tests -- which is a different, lower-
+    # stakes context than "a config this loader accepted, that will produce
+    # a bundle.") Investigated 2026-08-04: LangGraphRunner silently
+    # defaulting to its own DEFAULT_MODEL when `model` was omitted had the
+    # identical provenance gap as OpenAIRunner's now-removed OPENAI_MODEL
+    # env fallback, just without a second env-var source -- both are closed
+    # here, uniformly, rather than fixing only the runner this session
+    # happened to start from.
+    if runner_id != "mock" and model is None:
+        raise ConfigurationError(
+            f"runner_id '{runner_id}' requires an explicit 'model' field in "
+            "the run config. There is no environment-variable or default "
+            "fallback for a config-driven run -- this is what makes the "
+            "bundle's recorded config the single source of truth for which "
+            "model produced it."
+        )
 
     return LoadedRunConfig(
         path=path,

@@ -1,0 +1,66 @@
+# AgentEvalOps — real OpenAI-backed runner (docs/adr/0001-openai-runner-chat-
+# completions.md)
+#
+# `runner_id: openai` IS registered (src/agentevalops/registry.py) and
+# selects `OpenAIRunner` — a real, model-backed agent that calls the OpenAI
+# Chat Completions API directly (see agents/openai_runner.py's module
+# docstring and the ADR for the API-choice and no-shared-abstraction
+# decisions). This is a SECOND provider alongside `runner_id: langgraph`
+# (Anthropic) — it does not replace it and does not close ROADMAP W8, whose
+# exit criteria are about the Anthropic runner specifically.
+#
+# This path is NOT exercised in CI, costs real money, and is never run
+# without being asked to.
+#
+# To use it:
+#
+#   1. Install the optional LLM extra:
+#        pip install -e ".[llm]"
+#   2. Export an OpenAI API key (never commit it):
+#        export OPENAI_API_KEY=sk-...
+#   3. Run:
+#        agentevalops run --config configs/toy_openai.yaml --output runs/oai
+#
+# A missing OPENAI_API_KEY surfaces as a clean CLI exit (ConfigurationError),
+# not a crash. As of 2026-08-03 this path has never actually been run and
+# reconciled against a real OpenAI invoice — that verification is a separate,
+# later task with its own approval, not part of this session.
+#
+# Estimated cost of a full run against this config (2 toy 'smoke' tasks,
+# gpt-4.1-mini-2025-04-14 @ $0.40/1M input, $1.60/1M output — see
+# openai_runner.py's price table comment for the pricing source): each task
+# needs 1-2 model calls (direct finish, or one calculator call + finish).
+# Estimating generously at ~300 input + ~50 output tokens per call and 3
+# calls per task (6 calls total): (6*300*0.40 + 6*50*1.60) / 1e6 ≈ $0.0012 —
+# well under one cent for the full smoke run. Real usage may differ once
+# actually measured; this is a pre-run estimate, not a reconciled invoice.
+
+run_id: "toy-openai-001"
+agent_id: "openai-chat"
+backend_id: "local"
+max_concurrent_tasks: 1
+
+# Selects the real OpenAI runner. Default (omitted) would be "mock".
+runner_id: "openai"
+
+# Model id passed to the runner. Matches the runner's default and its cost
+# table key (see agents/openai_runner.py). Required, not optional: as of
+# 2026-08-04 there is no OPENAI_MODEL environment-variable fallback (removed
+# entirely, docs/adr/0001-... §3, revised) and no silent default for a
+# config-driven run -- config/loader.py raises ConfigurationError at load
+# time if a runner_id: openai (or langgraph) config omits this field.
+model: "gpt-4.1-mini-2025-04-14"
+
+# Real-LLM runs cost money and use real tokens, so give the limits headroom
+# relative to the mock configs but keep them bounded for a toy run.
+resource_limits:
+  max_tokens: 20000
+  max_wall_seconds: 120.0
+  max_cost_usd: 1.0
+
+benchmark_id: "toy"
+benchmark_scenario: smoke
+
+policy:
+  policy_id: "default"
+  max_cost_usd: 1.0
