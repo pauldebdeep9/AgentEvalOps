@@ -28,6 +28,14 @@ htmlcov/
 venv/
 env/
 
+# Secrets — never commit. API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
+# live here for local live-run testing; this file was found untracked but
+# unprotected by any existing rule below, which is exactly the gap that lets
+# a broad `git add` commit a key permanently.
+.env
+.env.*
+.env.local
+
 # Editor / OS
 .vscode/settings.json
 .DS_Store
