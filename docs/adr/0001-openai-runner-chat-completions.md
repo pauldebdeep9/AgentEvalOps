@@ -2,12 +2,14 @@
 
 ## Status
 
-Accepted — 2026-08-03. **§3 revised 2026-08-04** — the `OPENAI_MODEL`
-fallback described below was removed entirely after the model-provenance
-investigation (`docs/adr/0002-outcome-taxonomy.md`) found it was exactly
-the ambiguous second source this ADR's own reasoning already argued
-against. The original text is kept, struck through in spirit not in fact,
-so the "why did we ever have this" question stays answerable — see the
+Accepted — 2026-08-03. **§3 revised 2026-08-04, closed 2026-08-05** — the
+`OPENAI_MODEL` fallback described below was removed entirely after the
+model-provenance investigation (`docs/adr/0002-outcome-taxonomy.md`) found
+it was exactly the ambiguous second source this ADR's own reasoning already
+argued against; §3's remaining open gap (`config.json` not recording the
+model at all) was closed in the following session by giving `RunConfig` a
+real `model` field. The original text is kept, struck through in spirit not
+in fact, so the "why did we ever have this" question stays answerable — see the
 "Revised 2026-08-04" callout inside §3.
 
 ## Context
@@ -134,6 +136,30 @@ choice between fixing `agent_id` to reflect the resolved model versus
 adding a dedicated `model_id` field). What changed here is that there is
 now exactly one legal source for the model on any config-driven run, not
 that the bundle records it yet.
+
+**Closed 2026-08-05 (W12a).** The "batched into the next session" above
+was that session: `RunConfig` gained a real `model: str | None = None`
+field (`core/schemas.py`) — not a dedicated `model_id` field, and not a fix
+to `agent_id`, resolving the choice this ADR left open by the simplest
+option neither alternative was actually weighed against. `config.json`
+records the model **by construction** now: `bundles/writer.py`'s
+`_write_config` already serializes the entire `RunConfig` object, so a new
+field on it reaches the bundle with no separate write-back call to add or
+keep in sync — exactly the "one source, not two" property this ADR's
+2026-08-04 revision was reaching for. `config/loader.py`'s existing
+load-time rejection (§3 above) and the new field now provably share one
+source of truth: `LoadedRunConfig.model` was found to be a *second*,
+independently-populated field carrying the same value as
+`run_config.model` — the identical `_SUPPORTED_RUNNERS`-shaped drift risk
+this session was separately warned to watch for, discovered by inspection
+rather than by a failure — and was collapsed into a read-only property over
+`run_config.model` rather than left as two fields that happened to agree.
+A dedicated test (`tests/test_bundle_provenance.py::
+test_model_backed_bundle_names_its_model`) asserts `config.json`'s
+`run_config.model` is populated for a real model-backed config, proven
+against the pre-fix loader (temporarily reverted, confirmed `None`,
+restored) before being trusted. See `docs/adr/0002-outcome-taxonomy.md`,
+Axis 4, for the full field-level design this closure implements.
 
 ### 4. No shared provider abstraction
 

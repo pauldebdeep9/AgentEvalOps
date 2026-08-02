@@ -72,7 +72,7 @@ belongs to an abandoned strategy in a different project and is not
 agentevalops's problem; don't mistake it for something new, and don't fix it
 here.
 
-## Baseline (verified 2026-08-03)
+## Baseline (verified 2026-08-05)
 
 - ruff: clean
 - mypy: clean (43 source files) — dedicated `anthropic.*` and `openai.*`
@@ -81,9 +81,12 @@ here.
   despite both SDKs being lazily-imported optional deps
 - `lint-imports`: **6 kept, 0 broken** (6th contract added alongside
   `OpenAIRunner`: "openai confined to agents/")
-- pytest: 617 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.26% branch
+- pytest: 639 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.51% branch
   coverage
 - CI floor: `--cov-fail-under=94`
+- Bundle format: `BUNDLE_FORMAT_VERSION = "0.2"` (`bundles/constants.py`);
+  `"0.1"` bundles (incl. `runs/toy-smoke*` on disk) still validate/read —
+  see `docs/adr/0002-outcome-taxonomy.md`
 
 ## Optional extras
 

@@ -19,12 +19,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from agentevalops import __version__
-from agentevalops.bundles.constants import REQUIRED_BUNDLE_FILES
+from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION, REQUIRED_BUNDLE_FILES
 from agentevalops.bundles.manifest import write_manifest
 from agentevalops.bundles.serializers import to_jsonable
 from agentevalops.core.errors import BundleError
@@ -40,6 +41,63 @@ from agentevalops.reports.markdown import MarkdownReportGenerator
 #: Re-exported for backward compatibility with code that imports BUNDLE_FILES
 #: from this module.  New code should import from bundles.constants directly.
 BUNDLE_FILES: tuple[str, ...] = REQUIRED_BUNDLE_FILES
+
+#: Sentinel recorded in ``metadata.json.git_sha`` when the process isn't
+#: running inside a git checkout, or ``git`` itself isn't available. Never
+#: ``None``, never fabricated -- see ``ResultBundleMetadata``'s docstring
+#: and docs/adr/0002-outcome-taxonomy.md, Axis 4.
+_GIT_SHA_UNAVAILABLE: str = "unavailable"
+
+
+def _capture_git_provenance(cwd: Path | None = None) -> tuple[str, bool | None]:
+    """Best-effort ``(git_sha, git_dirty)`` capture. Never raises.
+
+    ``cwd`` defaults to the process's actual working directory when
+    ``None`` -- this deliberately answers "is *this* invocation running
+    inside a git checkout," not "is the package's own source tree a git
+    checkout" (those can differ, e.g. an installed wheel). Accepting an
+    explicit ``cwd`` is what makes this testable against a real, disposable
+    temporary git repository rather than mocking subprocess calls.
+
+    Returns ``(_GIT_SHA_UNAVAILABLE, None)`` if ``git`` is missing, times
+    out, or the directory isn't a checkout. Returns ``(sha, None)`` (not
+    ``(sha, False)``) if the SHA was found but dirty-state couldn't be
+    determined -- a fabricated "clean" is exactly the false provenance
+    claim this function exists to avoid.
+    """
+    try:
+        sha_result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return (_GIT_SHA_UNAVAILABLE, None)
+
+    sha = sha_result.stdout.strip()
+    if sha_result.returncode != 0 or not sha:
+        return (_GIT_SHA_UNAVAILABLE, None)
+
+    try:
+        status_result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return (sha, None)
+
+    if status_result.returncode != 0:
+        return (sha, None)
+
+    dirty = bool(status_result.stdout.strip())
+    return (sha, dirty)
 
 
 class BundleWriter:
@@ -68,10 +126,22 @@ class BundleWriter:
         config_name: str = "",
         benchmark_id: str = "",
         benchmark_scenario: str = "",
+        status: Literal["sealed", "interrupted", "partial"] = "sealed",
     ) -> Path:
-        """Write all bundle files including manifest; return output dir."""
+        """Write all bundle files including manifest; return output dir.
+
+        ``status`` (docs/adr/0002, Axis 4): the caller's own knowledge of
+        *why* it's writing right now -- ``"sealed"`` for a normal run that
+        completed (the default; covers a run with some ``not_evaluated``
+        tasks too, since the run itself finished), ``"interrupted"`` for a
+        ``KeyboardInterrupt``/cancellation, ``"partial"`` for anything else
+        that stopped the caller from reaching a normal return. This
+        function itself has no way to infer that from ``summary`` alone --
+        a deliberately empty/best-effort ``RunSummary`` and a real, fully
+        populated one are the same shape, so the caller must say which.
+        """
         self._prepare_dir()
-        self._write_metadata(run_config, summary)
+        self._write_metadata(run_config, summary, status)
         self._write_config(
             run_config, policy_spec, config_name,
             benchmark_id, benchmark_scenario,
@@ -109,16 +179,23 @@ class BundleWriter:
             fh.write("\n")
 
     def _write_metadata(
-        self, run_config: RunConfig, summary: RunSummary
+        self,
+        run_config: RunConfig,
+        summary: RunSummary,
+        status: Literal["sealed", "interrupted", "partial"],
     ) -> None:
+        git_sha, git_dirty = _capture_git_provenance()
         metadata = ResultBundleMetadata(
-            schema_version="0.1.0",
+            schema_version=BUNDLE_FORMAT_VERSION,
             run_id=run_config.run_id,
             created_at=datetime.now(timezone.utc),
             platform_version=__version__,
             backend_id=run_config.backend_id,
             task_count=summary.total_tasks,
-            sealed=True,
+            sealed=(status == "sealed"),
+            status=status,
+            git_sha=git_sha,
+            git_dirty=git_dirty,
         )
         self._write_json("metadata.json", metadata)
 

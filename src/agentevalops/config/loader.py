@@ -98,9 +98,6 @@ class LoadedRunConfig:
         Which registered agent runner to use (``"mock"`` by default, or
         ``"langgraph"`` for the real Claude-backed runner).  The CLI resolves
         this against the component registry.
-    model:
-        Model identifier passed to model-backed runners (e.g. the LangGraph
-        runner).  ``None`` for the mock runner, which ignores it.
     """
 
     path: Path
@@ -112,7 +109,20 @@ class LoadedRunConfig:
     mock_cost_per_task_usd: float = 0.0
     benchmark_scenario: str = "smoke"
     runner_id: str = "mock"
-    model: str | None = None
+
+    @property
+    def model(self) -> str | None:
+        """Model id for model-backed runners, or ``None`` for ``mock``.
+
+        A read-only view over ``run_config.model`` -- not a second stored
+        field. Before 2026-08-05 this was its own dataclass field, set from
+        the same local variable as ``run_config.model`` in
+        :func:`load_run_config` but structurally capable of drifting from
+        it if any other construction path ever set them differently. There
+        is now exactly one place this value lives; this property exists
+        only so ``loaded.model`` keeps working as a convenience accessor.
+        """
+        return self.run_config.model
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +230,12 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         )
 
     # ------------------------------------------------------------------
+    # model (parsed early so run_config can carry it -- see below)
+    # ------------------------------------------------------------------
+    model_raw = raw.get("model")
+    model = str(model_raw) if model_raw is not None else None
+
+    # ------------------------------------------------------------------
     # run_config
     # ------------------------------------------------------------------
     run_config = RunConfig(
@@ -228,6 +244,7 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         backend_id=BackendId(backend_id_str),
         max_concurrent_tasks=int(raw.get("max_concurrent_tasks", 1)),
         resource_limits=resource_limits,
+        model=model,
     )
 
     # ------------------------------------------------------------------
@@ -313,9 +330,6 @@ def load_run_config(path: Path) -> LoadedRunConfig:
             f"Supported values: {sorted(_SUPPORTED_RUNNERS)}"
         )
 
-    model_raw = raw.get("model")
-    model = str(model_raw) if model_raw is not None else None
-
     # Model-backed runners (everything except "mock") must specify `model`
     # explicitly in the run config -- no environment-variable or hardcoded
     # fallback is legal here. This is the config-load-time half of closing
@@ -349,5 +363,4 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         mock_cost_per_task_usd=mock_cost_raw,
         benchmark_scenario=benchmark_scenario,
         runner_id=runner_id,
-        model=model,
     )

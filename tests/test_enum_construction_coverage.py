@@ -66,15 +66,14 @@ _AUDITED_ENUMS: tuple[type, ...] = (TraceEventKind, Verdict, TerminationReason)
 #: docstring. Do not remove an entry just because this test is inconveniently
 #: failing; wire the member for real, or leave it here with its reference.
 _ALLOWLIST: dict[type, frozenset[str]] = {
-    TerminationReason: frozenset(
-        {
-            # ROADMAP.md §0 (2026-08-03 infra-failure gap) / docs/adr/0002
-            # Axis 1: the orchestrator must catch InfrastructureError per
-            # task instead of letting it abort the whole run before this
-            # can ever be constructed.
-            "INFRA_FAILURE",
-        }
-    ),
+    # TerminationReason.INFRA_FAILURE wired for real 2026-08-05
+    # (docs/adr/0002, Axis 1: orchestration/local.py's _run_task now
+    # catches InfrastructureError/ConfigurationError per task and
+    # constructs a real AgentOutput carrying this value) -- no longer
+    # allowlisted. Left as an explicit empty entry, not removed, so the
+    # "no roadmap-item comment" rule stays visible even for an enum with
+    # nothing currently reserved.
+    TerminationReason: frozenset(),
     TraceEventKind: frozenset(
         {
             # ROADMAP.md row 14 (SWE-bench spike, W14+) via

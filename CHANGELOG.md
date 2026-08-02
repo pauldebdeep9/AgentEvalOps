@@ -9,6 +9,97 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **W12a — outcome taxonomy, model provenance, and best-effort finalize**
+  (`docs/adr/0002-outcome-taxonomy.md`, implemented in full; closes the
+  remaining gap in `docs/adr/0001-openai-runner-chat-completions.md` §3).
+  Bundle format bumped **`0.1` → `0.2`** (`bundles.constants.
+  BUNDLE_FORMAT_VERSION`) — additive and backward-compatible, see
+  "Compatibility" below.
+  - **The core fix**: `orchestration/local.py`'s `_run_task` now catches a
+    runner's own `InfrastructureError`/`ConfigurationError` *per task*
+    instead of letting it abort the whole run via `asyncio.gather()`.
+    Reproduced the old behavior first, fault-injected (no network): the
+    orchestrator raised uncaught and `cli.py` never reached
+    `BundleWriter`, leaving only a bare `traces.jsonl` — exactly what
+    `tests/fixtures/bundles/partial-infra-failure-2026-08-03/` (a real,
+    preserved incident) already showed. A caught failure now becomes a
+    well-formed `AgentOutput(termination_reason=INFRA_FAILURE)` +
+    `EvaluationResult(evaluated=False, ...)` for that task, and the run
+    continues.
+  - **New/changed fields** (all additive): `RunSummary.not_evaluated_tasks`
+    (named for the observable fact, not the inferred cause — infra failure
+    is one reason evaluation didn't happen, not the only one;
+    `failed_tasks` now means a genuine, evaluated merit-based failure, no
+    longer silently absorbing not-evaluated tasks). `EvaluationResult.
+    evaluated: bool = True` (the orchestrator sets `False` directly for a
+    caught per-task failure — the evaluator itself is never asked to
+    special-case "there was nothing to judge"). `RunConfig.model: str |
+    None` — closes the model-provenance gap: `config.json` now records
+    which model produced a run *by construction* (the whole `RunConfig` is
+    already serialized there), no write-back path needed or added.
+    `ResultBundleMetadata.status` (`"sealed"`/`"interrupted"`/`"partial"`)
+    — makes a finalized-under-failure bundle distinguishable from a
+    complete one; `sealed: bool` kept for compatibility, now always
+    derived from `status`. `ResultBundleMetadata.git_sha`/`.git_dirty` —
+    real subprocess-based capture (`bundles/writer.py:
+    _capture_git_provenance`), never `None`/omitted (`"unavailable"`
+    sentinel outside a checkout), never fabricated (a clean SHA against a
+    dirty tree — the likelier failure mode than "no checkout at all" — is
+    the specific case this exists to catch, and is tested against a real
+    temporary git repo, not mocked).
+  - **CLI best-effort finalize**: `cli.py`'s `run` command now writes a
+    bundle on *every* exit path — clean completion, `KeyboardInterrupt`,
+    and (now rare, defensive-backstop-only, since the orchestrator fix
+    above means a runner's own failure no longer reaches here)
+    `InfrastructureError`/`ConfigurationError`, plus a new catch-all for
+    any unexpected exception. Before this, only clean completion ever
+    reached `BundleWriter`.
+  - **`LoadedRunConfig.model` found to be a second, independently-set copy
+    of `run_config.model`** — the same `_SUPPORTED_RUNNERS`-shaped drift
+    risk flagged as a pattern to watch for in the prior session, found by
+    inspection this time rather than by a failure. Collapsed into a
+    read-only property over `run_config.model`; there is now exactly one
+    stored value, not two that happen to agree.
+  - **Version-string consolidation**: `metadata.json`'s `schema_version`
+    and `manifest.json`'s `bundle_format_version` were two independently
+    hardcoded literals (`"0.1.0"` vs `"0.1"`) never cross-checked against
+    anything. Both now come from the single `BUNDLE_FORMAT_VERSION`
+    constant; a regression test asserts they agree.
+  - **Pass-rate string always shows both figures**
+    (`reports/markdown.py`'s new `format_pass_rate()`, shared by the CLI
+    and the markdown report so the two surfaces can't drift into two
+    different conventions): `"{passed}/{evaluated} evaluated passed
+    ({not_evaluated} not evaluated)"`. Not a config option, not a single
+    denominator choice — the not-evaluated count is always present, even
+    at zero, and the zero-evaluated case is spelled out in words
+    (`"0 evaluated (N not evaluated)"`) rather than left as a confusing
+    `0/0` fraction.
+  - **Compatibility**: old (`"0.1"`) bundles — including the
+    `runs/toy-smoke*` bundles already on disk — still validate and read;
+    `validate_bundle`/`BundleReader` accept `LEGACY_BUNDLE_FORMAT_VERSIONS
+    = {"0.1"}` alongside the current version, and a synthetic old-format
+    bundle (missing every field this entry adds) is tested for continued
+    validity and readability. The preserved incident fixture
+    (`tests/fixtures/bundles/partial-infra-failure-2026-08-03/`) is
+    unaffected either way — it has no `manifest.json` at all, so bundle
+    *format version* compatibility doesn't apply to it; its own
+    missing-file assertions (`tests/test_bundle_fixtures.py`) are
+    unchanged and untouched, per its own never-regenerate rule.
+  - **Deliberately not done, reported rather than silently deferred**:
+    `TraceEventKind.EVALUATOR_SCORE`/`.POLICY_VERDICT` remain unwired
+    (found by `tests/test_enum_construction_coverage.py` in the prior
+    session) — assessed this session and deferred past W12a; see
+    `ROADMAP.md` §0 for the reasoning, including a real design question
+    (no existing precedent for a run-level, non-runner-emitted trace
+    event) that `POLICY_VERDICT` specifically surfaced. `TerminationReason.
+    INFRA_FAILURE` is wired for real now and removed from the enum
+    construction-coverage allowlist.
+  - Every new behavior proved fail-first: reverted, confirmed the specific
+    failure, restored — covering all four CLI exit paths, model
+    provenance, `git_dirty` against a real dirty tree, the
+    outside-a-checkout sentinel, the version-string agreement, and the
+    allowlist's own drift-detection.
+
 - **OpenAI-backed `OpenAIRunner`** (`runner_id: "openai"`), a second, independent
   `AgentRunner` alongside `LangGraphRunner` — not a fix or replacement for it,
   and does not close W8 (see `docs/adr/0001-openai-runner-chat-completions.md`

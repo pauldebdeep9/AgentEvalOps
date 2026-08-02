@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import typer
 
 if TYPE_CHECKING:
     from agentevalops.config.loader import LoadedRunConfig
+    from agentevalops.core.schemas import RunSummary, TraceEvent
     from agentevalops.replay.local import ReplaySummary
 
 from agentevalops import __version__
@@ -95,7 +96,8 @@ def run(
             )
             raise typer.Exit(code=1)
         # Streams traces to <output>/traces.jsonl as they happen, so a hard
-        # kill mid-run still leaves a readable (unsealed) partial trace.
+        # kill mid-run still leaves a readable (unsealed) partial trace even
+        # if the best-effort write below can't run at all (e.g. SIGKILL).
         store: InMemoryTraceStore | LocalTraceStore = LocalTraceStore(output)
     else:
         store = InMemoryTraceStore()
@@ -110,33 +112,27 @@ def run(
         policy_spec=loaded.policy_spec,
     )
 
-    try:
-        summary: RunSummary = asyncio.run(orchestrator.run())
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        if output is not None:
-            typer.echo(
-                "Run interrupted. Partial trace events were durably "
-                f"written to: {(output / 'traces.jsonl').resolve()}",
-                err=True,
-            )
-        else:
-            typer.echo("Run interrupted.", err=True)
-        raise typer.Exit(code=130)
-    except ConfigurationError as exc:
-        # Model-backed runners validate credentials lazily at run time (e.g.
-        # a missing ANTHROPIC_API_KEY), so surface it as a clean exit.
-        typer.echo(f"Configuration error: {exc}", err=True)
-        raise typer.Exit(code=1)
-    except InfrastructureError as exc:
-        typer.echo(f"Infrastructure error: {exc}", err=True)
-        raise typer.Exit(code=1)
+    def _write_bundle(
+        summary: RunSummary,
+        status: Literal["sealed", "interrupted", "partial"],
+        all_events: list[TraceEvent],
+    ) -> None:
+        """Best-effort bundle write, used on every exit path.
 
-    _print_summary(summary)
-
-    if output is not None:
+        Before docs/adr/0002 (2026-08-05) only the clean-completion path
+        ever reached ``BundleWriter`` -- ``KeyboardInterrupt`` and
+        ``InfrastructureError`` both exited without writing anything beyond
+        whatever ``LocalTraceStore`` had already flushed to
+        ``traces.jsonl`` on its own. ``status`` records *why* this bundle
+        isn't necessarily a normal one, so a reader (and, eventually,
+        W12c's replay tooling) can tell a finalized-under-failure bundle
+        apart from a complete one without guessing from the summary's
+        shape alone.
+        """
+        if output is None:
+            return
         from agentevalops.bundles.writer import BundleWriter
 
-        all_events = store.events(loaded.run_config.run_id)
         # overwrite=True: `output` was already validated above to be free of
         # bundle files before the run started; the only file that may exist
         # now is traces.jsonl, written live by LocalTraceStore during the run.
@@ -148,8 +144,68 @@ def run(
             config_name=str(config),
             benchmark_id=loaded.benchmark_id,
             benchmark_scenario=loaded.benchmark_scenario,
+            status=status,
         )
-        typer.echo(f"Bundle written to: {output.resolve()}")
+        suffix = "" if status == "sealed" else f" (status: {status})"
+        typer.echo(f"Bundle written to: {output.resolve()}{suffix}")
+
+    def _degraded_summary() -> tuple[RunSummary, list[TraceEvent]]:
+        """Best-effort RunSummary for a run that didn't return one.
+
+        Only reached when ``orchestrator.run()`` itself couldn't complete
+        normally -- an interrupt, or a failure outside any single task's
+        scope (``LocalOrchestrator._run_task`` already catches a runner's
+        own ``InfrastructureError``/``ConfigurationError`` per task and
+        returns a real, fully-populated summary with the affected tasks
+        marked not-evaluated instead of raising -- see docs/adr/0002).
+        Counts are honestly left at zero/unknown rather than guessed;
+        ``trace_event_count`` is the one thing actually knowable here, from
+        whatever the trace store captured before things went wrong.
+        """
+        events = store.events(loaded.run_config.run_id)
+        return (
+            RunSummary(
+                run_id=loaded.run_config.run_id,
+                trace_event_count=len(events),
+            ),
+            events,
+        )
+
+    try:
+        summary: RunSummary = asyncio.run(orchestrator.run())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        degraded, events = _degraded_summary()
+        typer.echo("Run interrupted.", err=True)
+        _write_bundle(degraded, "interrupted", events)
+        raise typer.Exit(code=130)
+    except ConfigurationError as exc:
+        # Reachable only for a ConfigurationError raised outside a single
+        # task's scope (e.g. from the scorer or policy checker) -- a
+        # model-backed runner's own missing-credential ConfigurationError is
+        # now caught per task by the orchestrator and comes back as a
+        # normal summary with the affected task(s) not-evaluated, not a
+        # raise reaching here.
+        degraded, events = _degraded_summary()
+        typer.echo(f"Configuration error: {exc}", err=True)
+        _write_bundle(degraded, "partial", events)
+        raise typer.Exit(code=1)
+    except InfrastructureError as exc:
+        # Same reasoning as ConfigurationError above -- a runner's own
+        # infrastructure failure no longer reaches here; this remains a
+        # defensive backstop for an InfrastructureError raised elsewhere in
+        # the orchestration loop.
+        degraded, events = _degraded_summary()
+        typer.echo(f"Infrastructure error: {exc}", err=True)
+        _write_bundle(degraded, "partial", events)
+        raise typer.Exit(code=1)
+    except Exception as exc:  # noqa: BLE001 - last-resort finalize, see docs/adr/0002
+        degraded, events = _degraded_summary()
+        typer.echo(f"Unexpected error: {exc}", err=True)
+        _write_bundle(degraded, "partial", events)
+        raise typer.Exit(code=1)
+
+    _print_summary(summary)
+    _write_bundle(summary, "sealed", store.events(loaded.run_config.run_id))
 
 
 def _build_runner(loaded: LoadedRunConfig) -> Any:
@@ -321,14 +377,13 @@ def _print_summary(summary: object) -> None:
         typer.echo(str(summary))
         return
 
-    total = summary.total_tasks
-    passed = summary.passed_tasks
-    failed = summary.failed_tasks
-    pass_rate = (passed / total * 100) if total > 0 else 0.0
+    from agentevalops.reports.markdown import format_pass_rate
+
     typer.echo(f"Run ID  : {summary.run_id}")
-    typer.echo(f"Tasks   : {passed} / {total} passed")
-    typer.echo(f"Failed  : {failed}")
-    typer.echo(f"Rate    : {pass_rate:.0f}%")
+    typer.echo(
+        f"Tasks   : {format_pass_rate(summary)}, {summary.total_tasks} attempted"
+    )
+    typer.echo(f"Failed  : {summary.failed_tasks}")
     typer.echo(f"Cost    : ${summary.total_cost_usd:.4f}")
     typer.echo(f"Tokens  : {summary.total_tokens}")
     if summary.policy_verdict is not None:

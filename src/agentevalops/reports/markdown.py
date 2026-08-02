@@ -9,6 +9,37 @@ from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION, REQUIRED_BUNDL
 from agentevalops.core.schemas import RunConfig, RunSummary, TraceEvent
 
 
+def format_pass_rate(summary: RunSummary) -> str:
+    """Render a run's pass rate as a string that cannot be misread.
+
+    Always exposes both figures (docs/adr/0002, Axis 3) -- not a config
+    option, not a single denominator choice. Counting not-evaluated tasks
+    as attempted-and-failed understates capability; silently excluding them
+    from the denominator inflates it; a setting to choose between the two
+    makes the number's meaning depend on invisible state. The ratio's
+    denominator is tasks actually evaluated (``passed_tasks +
+    failed_tasks``); the not-evaluated count is always appended, even when
+    it is zero -- omitting it *because* it's zero would be exactly the kind
+    of conditional collapse this function exists to avoid.
+
+    Used by both ``cli.py``'s ``_print_summary`` and this module's report
+    headline, so the two surfaces can't drift into reporting the ratio two
+    different ways.
+    """
+    evaluated_total = summary.passed_tasks + summary.failed_tasks
+    not_evaluated = summary.not_evaluated_tasks
+    if evaluated_total == 0:
+        # "0/0 evaluated passed" reads as an undefined ratio, not as "we
+        # evaluated nothing" -- say the zero-evaluated case in words instead
+        # of a fraction, per this session's explicit "must be unmistakable"
+        # requirement for that case.
+        return f"0 evaluated ({not_evaluated} not evaluated)"
+    return (
+        f"{summary.passed_tasks}/{evaluated_total} evaluated passed "
+        f"({not_evaluated} not evaluated)"
+    )
+
+
 def render_report(
     run_config: RunConfig,
     summary: RunSummary,
@@ -23,9 +54,6 @@ def render_report(
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     total = summary.total_tasks
-    passed = summary.passed_tasks
-    failed = summary.failed_tasks
-    pass_rate = (passed / total * 100) if total > 0 else 0.0
 
     # ---- header ----------------------------------------------------------
     lines.append(f"# AgentEvalOps Run Report — {summary.run_id}")
@@ -47,10 +75,8 @@ def render_report(
         f"${rl.max_cost_usd:.2f} / "
         f"{rl.max_wall_seconds:.0f} s"
     )
-    lines.append(
-        f"- Tasks:         {passed} / {total} passed"
-        f"  ({failed} failed, {pass_rate:.0f}%)"
-    )
+    lines.append(f"- Tasks:         {format_pass_rate(summary)}, {total} attempted")
+    lines.append(f"- Failed:        {summary.failed_tasks}")
     lines.append(f"- Total cost:    ${summary.total_cost_usd:.4f}")
     lines.append(f"- Total tokens:  {summary.total_tokens}")
     lines.append(f"- Trace events:  {len(all_events)}")
@@ -65,7 +91,15 @@ def render_report(
     lines.append("| Task ID | Passed | Score | Termination | Notes |")
     lines.append("|---------|--------|-------|-------------|-------|")
     for tr in summary.task_results:
-        passed_str = "yes" if tr.evaluation.passed else "no"
+        if not tr.evaluation.evaluated:
+            # Distinct from "no" -- a not-evaluated task was never judged
+            # at all, so reading this row as "the agent failed" would be
+            # exactly the misread docs/adr/0002 traces back to a false
+            # PASS on an unevaluated run; the per-task row must not repeat
+            # the same collapse from the other direction.
+            passed_str = "not evaluated"
+        else:
+            passed_str = "yes" if tr.evaluation.passed else "no"
         score_str = f"{tr.evaluation.score:.2f}"
         reason = tr.output.termination_reason.value
         notes = tr.evaluation.notes.replace("|", "\\|")

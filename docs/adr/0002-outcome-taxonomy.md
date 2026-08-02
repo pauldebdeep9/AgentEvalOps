@@ -2,9 +2,22 @@
 
 ## Status
 
-Proposed — 2026-08-04. Design only; nothing in this ADR is implemented. See
-"Open questions" at the end — several items here need an explicit decision
-before any of it is built.
+Proposed 2026-08-04 — **implemented 2026-08-05 (W12a)**, with the following
+resolutions of what "Open questions" left open: `not_evaluated_tasks`, not
+`infra_failed_tasks` (names the fact, not the inferred cause — decided
+during implementation, applied consistently). `sealed: bool` kept alongside
+`status`, always derived from it. `git_dirty` added alongside `git_sha`
+(this ADR named `git_sha` alone; the implementing session found a clean SHA
+against a dirty tree was the more likely false-provenance failure mode and
+added the flag). The `agent_id`-fix-vs-`model_id`-field choice for Axis 4's
+model provenance was resolved by neither: `RunConfig` gained a direct
+`model` field (see `docs/adr/0001-openai-runner-chat-completions.md`'s
+2026-08-05 closure). Axis 5 (`Verdict.WARN` does not generalize) confirmed,
+unchanged. `TraceEventKind.EVALUATOR_SCORE`/`.POLICY_VERDICT` wiring
+(mentioned in "A recurring pattern," not one of the five axes) assessed and
+explicitly deferred past W12a — see `ROADMAP.md` §0's W12a entry for the
+reasoning, including a real design question (no precedent for a run-level,
+non-runner-emitted trace event) `POLICY_VERDICT` specifically surfaced.
 
 ## Context
 

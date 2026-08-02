@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from agentevalops.core.types import AgentId, BackendId, RunId, TaskId
 
@@ -98,13 +98,25 @@ class ResourceLimits:
 
 @dataclass
 class RunConfig:
-    """Top-level configuration for a single evaluation run."""
+    """Top-level configuration for a single evaluation run.
+
+    ``model``: the model id passed to a model-backed runner (e.g.
+    ``"gpt-4.1-mini-2025-04-14"``). ``None`` for the mock runner, which
+    ignores it. This is the single source of truth for which model produced
+    a run — ``config/loader.py`` rejects a model-backed ``runner_id`` config
+    that omits it, and because the value lives here (not on a separate
+    loader-only wrapper), ``config.json`` records it by construction: the
+    whole ``RunConfig`` object is what gets serialized, so a new field here
+    needs no separate write-back path to reach the bundle (docs/adr/0001 §3,
+    closed 2026-08-05).
+    """
 
     run_id: RunId
     agent_id: AgentId
     backend_id: BackendId
     max_concurrent_tasks: int = 1
     resource_limits: ResourceLimits = field(default_factory=ResourceLimits)
+    model: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +193,17 @@ class EvaluationResult:
     ``score`` is in [0.0, 1.0].  Deterministic evaluators use 0.0 or 1.0.
     ``citations`` are ``step_index`` values pointing at the specific events
     the score is based on.
+
+    ``evaluated``: ``False`` means this task was never handed to the
+    evaluator at all -- there was nothing to judge (e.g. the runner raised
+    an infrastructure/configuration error before producing a result). The
+    orchestrator decides this, not the evaluator (docs/adr/0002, Axis 2):
+    an evaluator's contract is to judge a completed result against
+    criteria, not to special-case "there is no result." ``passed=False``
+    still holds in this case (there is no basis to call it a pass), but
+    ``evaluated=False`` is what actually distinguishes "we judged this and
+    it failed" from "we never got to judge it" -- collapsing the two into
+    one boolean is the bug this field exists to fix.
     """
 
     evaluator_id: str
@@ -188,6 +211,7 @@ class EvaluationResult:
     evaluator_kind: str
     score: float
     passed: bool
+    evaluated: bool = True
     confidence: float = 1.0
     cost_usd: float = 0.0
     latency_ms: float = 0.0
@@ -267,7 +291,17 @@ class TaskRunResult:
 
 @dataclass
 class RunSummary:
-    """Aggregated result of a complete orchestrator run."""
+    """Aggregated result of a complete orchestrator run.
+
+    Three-way partition of ``total_tasks`` (docs/adr/0002, Axis 3):
+    ``total_tasks == passed_tasks + failed_tasks + not_evaluated_tasks``.
+    ``failed_tasks`` means a genuine, evaluated merit-based failure
+    (``evaluated=True``, ``passed=False``) -- it no longer silently absorbs
+    tasks that were never evaluated at all. ``not_evaluated_tasks`` names
+    the observable fact (nothing was judged), not the inferred cause:
+    infrastructure failure is one reason evaluation didn't happen, not the
+    only conceivable one, so the field is not called ``infra_failed_tasks``.
+    """
 
     run_id: RunId
     task_results: list[TaskRunResult] = field(default_factory=list)
@@ -276,6 +310,7 @@ class RunSummary:
     total_tasks: int = 0
     passed_tasks: int = 0
     failed_tasks: int = 0
+    not_evaluated_tasks: int = 0
     trace_event_count: int = 0
     total_cost_usd: float = 0.0
     total_tokens: int = 0
@@ -292,6 +327,37 @@ class ResultBundleMetadata:
 
     ``schema_version`` is the contract version of the bundle format itself,
     not the platform version.  Increment it when bundle layout changes.
+    Sourced from a single constant (``bundles.constants.BUNDLE_FORMAT_VERSION``)
+    -- this field and ``manifest.json``'s ``bundle_format_version`` used to
+    be two independently hardcoded literals (``"0.1.0"`` vs ``"0.1"``) that
+    happened to agree by coincidence, not construction; see
+    ``docs/adr/0002-outcome-taxonomy.md``.
+
+    ``status`` (docs/adr/0002, Axis 4): ``"sealed"`` for a normal, complete
+    run (every exit path that reaches the end of ``LocalOrchestrator.run()``
+    normally -- including one with some ``not_evaluated_tasks``, since the
+    *run* completed even if not every task did). ``"interrupted"`` for
+    ``KeyboardInterrupt``/task cancellation. ``"partial"`` for anything else
+    that stopped the CLI from reaching a normal return (an unexpected
+    exception, or an infrastructure/configuration failure the orchestrator
+    itself could not recover from). ``sealed: bool`` is kept for backward
+    compatibility with any reader still checking the old boolean and is
+    always derived from this field (``sealed == (status == "sealed")``), not
+    set independently -- avoiding a second, driftable source of the same
+    fact was the entire point of adding ``status``.
+
+    ``git_sha`` / ``git_dirty`` (docs/adr/0002, Axis 4): what code produced
+    this bundle. ``git_sha`` is never omitted and never fabricated -- outside
+    a git checkout (or if ``git`` itself is unavailable) it is the literal
+    sentinel string ``"unavailable"``, never ``None`` and never a blank or
+    made-up value. ``git_dirty`` is ``True``/``False`` only when ``git_sha``
+    is a real commit SHA and the working-tree state was actually determined;
+    ``None`` whenever it wasn't (no checkout, or the sentinel case) --
+    downstream consumers must treat ``git_sha == "unavailable"`` and
+    ``git_dirty is True`` identically, as *cannot determine a match*, never
+    as a match by omission. A clean SHA recorded against a dirty working
+    tree would be a false provenance claim, which is the more likely
+    failure mode than running entirely outside a checkout.
     """
 
     schema_version: str
@@ -301,3 +367,6 @@ class ResultBundleMetadata:
     backend_id: BackendId
     task_count: int = 0
     sealed: bool = False
+    status: Literal["sealed", "interrupted", "partial"] = "sealed"
+    git_sha: str = "unavailable"
+    git_dirty: bool | None = None

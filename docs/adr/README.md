@@ -19,6 +19,6 @@ message, not here.
 
 | # | Title |
 |---|---|
-| [0001](0001-openai-runner-chat-completions.md) | OpenAI-backed agent runner: scope, API choice, model-id config, no shared provider abstraction |
-| [0002](0002-outcome-taxonomy.md) | Unified outcome taxonomy: five axes (task outcome, evaluation outcome, run aggregation, bundle integrity, replay comparison), not one enum. Proposed, not implemented. |
-| [0003](0003-replay-semantics.md) | Replay semantics: what it asserts, the determinism boundary, nondeterminism enumerated from real bundles, `replay_command.txt`, fixture strategy. Depends on 0002. Proposed, not implemented. |
+| [0001](0001-openai-runner-chat-completions.md) | OpenAI-backed agent runner: scope, API choice, model-id config, no shared provider abstraction. Model-provenance gap closed 2026-08-05. |
+| [0002](0002-outcome-taxonomy.md) | Unified outcome taxonomy: five axes (task outcome, evaluation outcome, run aggregation, bundle integrity, replay comparison), not one enum. **Implemented 2026-08-05 (W12a).** |
+| [0003](0003-replay-semantics.md) | Replay semantics: what it asserts, the determinism boundary, nondeterminism enumerated from real bundles, `replay_command.txt`, fixture strategy. Depends on 0002 (implemented). Not yet implemented — W12b/W12c. |

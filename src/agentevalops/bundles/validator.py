@@ -28,12 +28,17 @@ from pathlib import Path
 
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
+    LEGACY_BUNDLE_FORMAT_VERSIONS,
     MANIFEST_FILENAME,
     REQUIRED_BUNDLE_FILES,
 )
 
-#: Bundle format versions that this validator understands.
-SUPPORTED_FORMAT_VERSIONS: frozenset[str] = frozenset({BUNDLE_FORMAT_VERSION})
+#: Bundle format versions that this validator understands: the current one
+#: plus any legacy versions still readable (see LEGACY_BUNDLE_FORMAT_VERSIONS'
+#: own docstring for the backward-compatibility policy).
+SUPPORTED_FORMAT_VERSIONS: frozenset[str] = (
+    frozenset({BUNDLE_FORMAT_VERSION}) | LEGACY_BUNDLE_FORMAT_VERSIONS
+)
 
 
 @dataclasses.dataclass

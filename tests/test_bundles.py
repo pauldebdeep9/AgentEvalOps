@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from agentevalops.bundles.constants import MANIFEST_FILENAME
+from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION, MANIFEST_FILENAME
 from agentevalops.bundles.serializers import to_jsonable
 from agentevalops.bundles.writer import BUNDLE_FILES, BundleWriter
 from agentevalops.core.errors import BundleError
@@ -181,7 +181,7 @@ def test_metadata_json_is_valid_json(tmp_path: Path) -> None:
     data = json.loads((bundle_dir / "metadata.json").read_text())
     assert data["run_id"] == "bundle-test-001"
     assert data["sealed"] is True
-    assert data["schema_version"] == "0.1.0"
+    assert data["schema_version"] == BUNDLE_FORMAT_VERSION
 
 
 def test_config_json_contains_run_config(tmp_path: Path) -> None:

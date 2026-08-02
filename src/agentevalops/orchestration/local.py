@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+from agentevalops.core.errors import ConfigurationError, InfrastructureError
 from agentevalops.core.protocols import (
     AgentRunner,
     BenchmarkAdapter,
@@ -14,6 +15,7 @@ from agentevalops.core.protocols import (
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
+    EvaluationResult,
     PolicySpec,
     RunConfig,
     RunSummary,
@@ -150,7 +152,9 @@ class LocalOrchestrator:
 
         for result, events in results:
             summary.task_results.append(result)
-            if result.evaluation.passed:
+            if not result.evaluation.evaluated:
+                summary.not_evaluated_tasks += 1
+            elif result.evaluation.passed:
                 summary.passed_tasks += 1
             summary.total_cost_usd += result.output.total_cost_usd
             summary.total_tokens += result.output.total_tokens
@@ -159,7 +163,15 @@ class LocalOrchestrator:
         await self._trace_store.finalize(self._config.run_id)
 
         # --- post-run aggregation -----------------------------------------
-        summary.failed_tasks = summary.total_tasks - summary.passed_tasks
+        # Three-way partition (docs/adr/0002, Axis 3): passed + failed +
+        # not_evaluated == total. failed_tasks now means a genuine,
+        # evaluated merit-based failure -- it no longer silently absorbs
+        # tasks that were never evaluated at all (not_evaluated_tasks does).
+        summary.failed_tasks = (
+            summary.total_tasks
+            - summary.passed_tasks
+            - summary.not_evaluated_tasks
+        )
         summary.trace_event_count = len(all_events)
 
         all_evals = [r.evaluation for r in summary.task_results]
@@ -179,7 +191,28 @@ class LocalOrchestrator:
     async def _run_task(
         self, task: TaskSpec
     ) -> tuple[TaskRunResult, list[TraceEvent]]:
-        """Run a single task end-to-end and return its result + events."""
+        """Run a single task end-to-end and return its result + events.
+
+        A runner is contractually allowed to raise ``InfrastructureError``/
+        ``ConfigurationError`` instead of yielding a terminal event
+        (``core/protocols.py``'s ``AgentRunner`` docstring: "Raise only on
+        infrastructure failure"). Before docs/adr/0002 (2026-08-05) that
+        raise propagated straight out of this method, through
+        ``asyncio.gather()``, aborting the *entire* run -- every other
+        task's results discarded, no bundle ever written (see the fixture
+        at ``tests/fixtures/bundles/partial-infra-failure-2026-08-03/`` and
+        this session's fault-injected reproduction). It is now caught here,
+        per task: the task comes back as a well-formed, honestly-labeled
+        ``not_evaluated`` result and the run continues.
+
+        Deliberately narrow: only the two documented "legitimate runner
+        failure" exception types are caught here. An exception of any other
+        type is a bug, not a modeled failure mode, and is left to propagate
+        out of the whole run -- ``cli.py``'s best-effort finalize path
+        (docs/adr/0002, Axis 4) is what handles *that*, distinctly, as a
+        ``"partial"`` bundle rather than a normal one with some
+        not-evaluated tasks in it.
+        """
         run_id: RunId = self._config.run_id
         agent_input = AgentInput(
             task=task,
@@ -187,15 +220,41 @@ class LocalOrchestrator:
         )
         limits = self._config.resource_limits
 
-        trace_iter = await self._runner.run(agent_input, limits)
         events: list[TraceEvent] = []
-        terminal: TraceEvent | None = None
-
-        async for event in trace_iter:
-            await self._trace_store.append(run_id, event)
-            events.append(event)
-            if event.kind == TraceEventKind.AGENT_TERMINAL:
-                terminal = event
+        try:
+            trace_iter = await self._runner.run(agent_input, limits)
+            terminal: TraceEvent | None = None
+            async for event in trace_iter:
+                await self._trace_store.append(run_id, event)
+                events.append(event)
+                if event.kind == TraceEventKind.AGENT_TERMINAL:
+                    terminal = event
+        except (InfrastructureError, ConfigurationError) as exc:
+            output = AgentOutput(
+                success=False,
+                termination_reason=TerminationReason.INFRA_FAILURE,
+                error=str(exc),
+            )
+            evaluation = EvaluationResult(
+                evaluator_id=self._evaluator.evaluator_id,
+                evaluator_kind=self._evaluator.evaluator_kind,
+                score=0.0,
+                passed=False,
+                evaluated=False,
+                notes=(
+                    "not evaluated: infrastructure failure before "
+                    f"completion ({exc})"
+                ),
+            )
+            return (
+                TaskRunResult(
+                    task_id=task.task_id,
+                    output=output,
+                    evaluation=evaluation,
+                    event_count=len(events),
+                ),
+                events,
+            )
 
         output = _output_from_terminal(terminal)
         # Scoring is routed through the Evaluator (DeterministicEvaluator by

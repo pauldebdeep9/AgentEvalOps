@@ -94,7 +94,7 @@ def test_report_contains_config_name() -> None:
 def test_report_contains_pass_fraction() -> None:
     run_config, summary, events = _make_summary()
     report = render_report(run_config, summary, events)
-    assert "1 / 1 passed" in report
+    assert "1/1 evaluated passed" in report
 
 
 def test_report_contains_trace_event_count() -> None:
@@ -131,15 +131,18 @@ def test_report_starts_with_heading() -> None:
 
 
 def test_report_contains_pass_rate() -> None:
+    # The "always shows both" rule (docs/adr/0002 / 2026-08-05 session)
+    # means the not-evaluated count is present even when it's zero -- a
+    # config-free way to guarantee the figure is never silently omitted.
     run_config, summary, events = _make_summary()
     report = render_report(run_config, summary, events)
-    assert "100%" in report
+    assert "(0 not evaluated)" in report
 
 
 def test_report_contains_failed_count() -> None:
     run_config, summary, events = _make_summary()
     report = render_report(run_config, summary, events)
-    assert "0 failed" in report
+    assert "- Failed:        0" in report
 
 
 def test_report_has_task_results_section() -> None:

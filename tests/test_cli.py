@@ -53,7 +53,7 @@ def test_run_command_prints_run_id() -> None:
 
 def test_run_command_prints_tasks_passed() -> None:
     result = runner.invoke(app, ["run", "--config", str(_CONFIG)])
-    assert "2 / 2 passed" in result.output
+    assert "2/2 evaluated passed" in result.output
 
 
 def test_run_command_prints_policy() -> None:
@@ -125,11 +125,15 @@ def test_run_command_rejects_output_dir_with_existing_bundle(
 def test_run_command_interrupt_persists_partial_trace(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A KeyboardInterrupt mid-run must not lose already-streamed events.
+    """A KeyboardInterrupt mid-run must not lose already-streamed events,
+    and (since docs/adr/0002 / the 2026-08-05 session's Task 1) must now
+    also produce a real, best-effort bundle -- not just a bare
+    traces.jsonl. metadata.json.status must say "interrupted" so a reader
+    can tell this apart from a normal, complete run without guessing.
 
     LocalTraceStore flushes+fsyncs each event to <output>/traces.jsonl as it
-    happens, so even though no bundle is produced (no metadata.json etc.),
-    the partial trace file survives on disk.
+    happens independently of the bundle write, so the partial trace file
+    would still survive on disk even if the finalize step itself failed.
     """
     from agentevalops.core.schemas import TraceEvent
     from agentevalops.core.types import RunId
@@ -167,7 +171,14 @@ def test_run_command_interrupt_persists_partial_trace(
     traces_path = output_dir / "traces.jsonl"
     assert traces_path.exists()
     assert traces_path.read_text(encoding="utf-8").strip() != ""
-    assert not (output_dir / "metadata.json").exists()
+
+    import json
+
+    metadata_path = output_dir / "metadata.json"
+    assert metadata_path.exists()
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert metadata["status"] == "interrupted"
+    assert metadata["sealed"] is False
 
 
 def test_run_command_interrupt_without_output(
@@ -210,9 +221,12 @@ def test_run_command_prints_failed_count() -> None:
 
 
 def test_run_command_prints_pass_rate() -> None:
+    # No standalone percentage line by design (docs/adr/0002 / 2026-08-05
+    # session, Task 5): the always-both fraction replaces it. The
+    # not-evaluated count is present even at zero.
     result = runner.invoke(app, ["run", "--config", str(_CONFIG)])
-    assert "Rate    :" in result.output
-    assert "%" in result.output
+    assert "evaluated passed" in result.output
+    assert "(0 not evaluated)" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -306,8 +320,15 @@ def test_run_langgraph_runner_missing_key_exits_cleanly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # The langgraph runner is registered but validates its API key lazily at
-    # run time; with no key, `run` must exit cleanly (not crash / not call the
-    # network).  Delete the key so the test is deterministic offline.
+    # run time -- inside _run_task's scope, so as of docs/adr/0002 (the
+    # 2026-08-05 session) the orchestrator now catches this per task rather
+    # than letting it abort the whole run: the run completes normally (exit
+    # 0), the affected task comes back not_evaluated with the API-key error
+    # recorded in its own EvaluationResult, and a real, sealed bundle is
+    # written -- this is "exits cleanly" in a stronger sense than before
+    # (a full, honest bundle, not just a clean process exit). Assert against
+    # the written bundle's content, not stdout -- _print_summary doesn't
+    # dump per-task error text to the console by design.
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     cfg = tmp_path / "lg.yaml"
     cfg.write_text(
@@ -315,9 +336,26 @@ def test_run_langgraph_runner_missing_key_exits_cleanly(
         'model: "claude-haiku-4-5"\n',
         encoding="utf-8",
     )
-    result = runner.invoke(app, ["run", "--config", str(cfg)])
-    assert result.exit_code != 0
-    assert "ANTHROPIC_API_KEY" in result.output
+    output_dir = tmp_path / "lg-bundle"
+    result = runner.invoke(
+        app, ["run", "--config", str(cfg), "--output", str(output_dir)]
+    )
+    assert result.exit_code == 0, result.output
+    assert "not evaluated" in result.output
+
+    import json
+
+    metadata = json.loads(
+        (output_dir / "metadata.json").read_text(encoding="utf-8")
+    )
+    assert metadata["status"] == "sealed"
+    evaluations = json.loads(
+        (output_dir / "evaluations.json").read_text(encoding="utf-8")
+    )
+    assert any(
+        "ANTHROPIC_API_KEY" in e["notes"] and e["evaluated"] is False
+        for e in evaluations
+    )
 
 
 def test_report_skips_dir_with_unreadable_metadata(

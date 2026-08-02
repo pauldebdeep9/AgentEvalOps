@@ -2,10 +2,14 @@
 
 ## Status
 
-Proposed — 2026-08-04. Design only; nothing in this ADR is implemented.
+Proposed — 2026-08-04. Design only; nothing in this ADR is implemented yet.
 Depends on [0002](0002-outcome-taxonomy.md) — the "code changed" and
 "results differ" outcomes this ADR defines are two of that ADR's five axes.
-See "Open questions" at the end.
+**0002 was implemented 2026-08-05 (W12a)**, which unblocks this ADR's
+prerequisites (`git_sha`/`git_dirty`, `RunConfig.model`) but this ADR's own
+content — `replay_command.txt`, `ReplayRunner`, the fixture strategy — is
+still entirely unbuilt, scoped to W12b/W12c. See "Open questions" at the
+end.
 
 This single ADR covers both the taxonomy-adjacent replay decisions and the
 detailed, evidence-based answers to the six W12 design questions — a
