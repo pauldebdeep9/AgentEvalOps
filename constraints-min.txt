@@ -10,3 +10,22 @@
 # hand -- this file does not derive them automatically.
 typer==0.15.4
 pyyaml==6.0
+
+# click is a transitive dependency of typer, not a direct one -- but the
+# 0.15.3 bisection failure (see pyproject.toml's typer comment) was never
+# a typer bug: click's Parameter.make_metavar() gained a required `ctx`
+# argument in a later click release, and 0.15.3's own click range still
+# admits that newer, incompatible click. Left unpinned, `ci-min-deps`
+# would float to whatever click is newest at install time and could go
+# red on a future click release with zero change to this codebase. Pinned
+# to the version that resolves alongside typer==0.15.4 today (verified:
+# full gate green -- 571 passed, 1 skipped, 96% coverage -- with exactly
+# this combination).
+#
+# Other transitive deps of typer==0.15.4 (rich, shellingham,
+# typing-extensions, markdown-it-py, mdurl, pygments) are deliberately
+# NOT pinned here: no incident or reproduced break has ever implicated
+# any of them, unlike click. Do not pin them speculatively -- if one
+# turns out to be load-bearing, pin it then, with the same kind of
+# evidence recorded here.
+click==8.1.8

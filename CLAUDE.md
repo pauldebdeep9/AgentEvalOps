@@ -19,6 +19,7 @@ point at a different interpreter than the one the project is installed into.
 | Install | `$ENV/bin/pip install -e ".[dev]"` |
 | Lint | `$ENV/bin/python -m ruff check src/ tests/` |
 | Type-check | `$ENV/bin/python -m mypy src` |
+| Import layer contracts | `$ENV/bin/lint-imports` — **only the console script works.** `python -m importlinter.cli lint-imports` exits 0 with zero output regardless of contract state (`importlinter/cli.py` has no `if __name__ == "__main__":` guard); it silently checks nothing. |
 | Test | `$ENV/bin/python -m pytest -q --cov=agentevalops --cov-report=term-missing` |
 | Smoke | `$ENV/bin/agentevalops run --config configs/toy_smoke.yaml --output runs/tmp` then `validate-bundle` / `replay` on the same dir |
 
@@ -71,12 +72,16 @@ belongs to an abandoned strategy in a different project and is not
 agentevalops's problem; don't mistake it for something new, and don't fix it
 here.
 
-## Baseline (verified 2026-08-02, HEAD `eb99b66`)
+## Baseline (verified 2026-08-02, HEAD `83bfb17`)
 
 - ruff: clean
+- mypy: clean (42 source files) — the CI-only `anthropic` import-not-found
+  failure from earlier in this file's history is fixed (dedicated
+  `anthropic.*` mypy override in `pyproject.toml`, mirroring the
+  pre-existing `opentelemetry.*` one)
+- `lint-imports`: **5 kept, 0 broken**
 - pytest: 571 passed, 1 skipped (opt-in `@pytest.mark.live`), 96% branch coverage
 - CI floor: `--cov-fail-under=94`
-- `mypy src`: **fails in CI** on `anthropic` import-not-found — see ROADMAP §0
 
 ## Optional extras
 

@@ -49,10 +49,27 @@ dependencies = [
 # pytest resolves to 9.x today though the floor said >=8) and are confirmed
 # passing at that version. The goal is "an unknown future major can't break
 # the gate silently," not "roll back to the original pin."
+#
+# ruff is the exception: it's pre-1.0, so its minor releases behave like
+# majors -- 0.x minor bumps are where ruff adds new default lint rules, and
+# a "<1" ceiling would let 0.16 (or any later 0.x) fail `ruff check` against
+# code that hasn't changed. Pinned to the minor actually verified
+# (0.15.14) rather than "<1". Do not relax this back to a wide range just
+# because ruff hasn't hit 1.0 -- that's the reason for the tight ceiling,
+# not a reason to loosen it.
+#
+# mypy and pytest were reviewed in the same pass and their existing
+# next-major ceilings confirmed, not assumed: both were verified this
+# session across every minor release currently published within their
+# ceiling (mypy 2.0.0/2.1.0/2.3.0; pytest 9.0.0/9.1.1) against this
+# repo's actual code -- identical results every time (mypy: clean on all
+# 42 files; pytest: 571 passed, 1 skipped, 96% coverage). Unlike ruff,
+# neither project's minor releases have introduced new checks that break
+# already-clean code, at least not yet and not for this codebase.
 dev = [
     "pytest>=8,<10",
     "pytest-cov>=5,<8",
-    "ruff>=0.4,<1",
+    "ruff>=0.15,<0.16",
     "mypy>=1.10,<3",
     "types-PyYAML>=6,<7",
     "build>=1.0,<2",
