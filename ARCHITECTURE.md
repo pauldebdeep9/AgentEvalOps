@@ -13,7 +13,7 @@ The architecture has three layers:
 
 The **core layer** (`src/agentevalops/core/`) defines protocols, schemas, and errors. It has no dependencies on any cloud provider, model provider, or agent framework — it is plain Python `@dataclass` models, not Pydantic (see `core/schemas.py`'s own docstring: "no Pydantic, no ORM," to keep this layer dependency-free). OpenTelemetry wiring is planned (ROADMAP W9) but not yet implemented; nothing in `core/` depends on it today.
 
-The **adapter layer** contains concrete implementations of the core protocols: `agents/` (`AgentRunner`), `benchmarks/` (`BenchmarkAdapter`), `evaluators/` (`Evaluator`), `scorers/` (`Scorer`), `stores/` (`TraceStore`), `reports/` (`ReportGenerator`), `policy/` (`PolicyChecker`). `cloud/` (`CloudBackend`) and `observability/` are planned but not yet created — nothing submits cloud jobs yet, so there is no real `CloudBackend` implementation, only a test-only mock. Adapters depend on the core; the core never depends on adapters. New benchmarks, agents, clouds, and evaluators are added by writing new adapters.
+The **adapter layer** contains concrete implementations of the core protocols: `agents/` (`AgentRunner`), `benchmarks/` (`BenchmarkAdapter`), `evaluators/` (`Evaluator`), `scorers/` (`Scorer`), `stores/` (`TraceStore`), `reports/` (`ReportGenerator`), `policy/` (`PolicyChecker`). `cloud/` (`CloudBackend`) is planned but not yet created — nothing submits cloud jobs yet, so there is no real `CloudBackend` implementation, only a test-only mock. `observability/` exists as of the W9 scaffold (see §8) but instruments nothing yet. Adapters depend on the core; the core never depends on adapters. New benchmarks, agents, clouds, and evaluators are added by writing new adapters.
 
 Three more packages sit alongside the adapters and don't map to a single protocol: `orchestration/` (the eval loop; wires all the protocols together for a run), `bundles/` (result-bundle read/write/validate), and `replay/` (bundle verification — narrower than §7 describes; see the callout there). `registry.py` and `config/` are top-level, not nested under `core/`, despite earlier drafts of this document describing them that way (see §4).
 
@@ -452,14 +452,18 @@ AgentEvalOps/
 │       │   ├── __init__.py
 │       │   └── markdown.py         # render_report() + MarkdownReportGenerator
 │       │
-│       └── policy/                 # PolicyChecker adapters
+│       ├── policy/                 # PolicyChecker adapters
+│       │   ├── __init__.py
+│       │   └── basic_checker.py    # cost ceiling + tool allow/deny list
+│       │
+│       └── observability/          # W9 scaffold only — see §8
 │           ├── __init__.py
-│           └── basic_checker.py    # cost ceiling + tool allow/deny list
+│           └── otel_setup.py       # span-name/attribute constants, NoOpTracer;
+│                                    #   configure_tracer() raises NotImplementedError
 │
-│       # cloud/ and observability/ do not exist yet (ROADMAP W17+ / W9).
-│       # CloudBackend has no implementation, not even a LocalBackend —
-│       # the orchestrator runs tasks directly, without going through a
-│       # CloudBackend abstraction at all.
+│       # cloud/ does not exist yet (ROADMAP W17+). CloudBackend has no
+│       # implementation, not even a LocalBackend — the orchestrator runs
+│       # tasks directly, without going through a CloudBackend abstraction.
 │
 ├── configs/                        # toy_smoke, toy_failure, toy_policy_violation,
 │                                    #   toy_trace_limit, toy_mixed
@@ -564,7 +568,7 @@ Live replay (re-running with the real model) is supported but not required for t
 
 ## 8. Observability
 
-> **Status as of v0.1.0 (2026-07-05): not implemented.** No `otel_setup.py`, no `observability/` package, no spans, no CloudWatch export — this whole section is the ROADMAP W9 target design. The only structured run data that exists today is `traces.jsonl` in the result bundle (application-level `TraceEvent`s written by the orchestrator), which is unrelated to OpenTelemetry spans.
+> **Status as of 2026-08-02: scaffold only, ~10% of this section.** `observability/otel_setup.py` exists and matches the span-name/attribute-key constants below (`eval.run`, `agent.tool_call`, `cost_usd`, etc. — see `tests/test_observability.py`'s constants-match-spec tests). It also provides a `NoOpTracer`/`NoOpSpan` pair so future instrumented call sites are safe whether or not the `otel` extra is installed. That is the entire built surface. **Not built:** a real `TracerProvider`, a span exporter, any instrumentation call site (verified — `grep` for `otel_setup`/`get_tracer`/`configure_tracer` outside `observability/` itself returns nothing; no orchestrator, runner, or evaluator emits a span), and the `spans.jsonl` file described below. `get_tracer()` always returns the no-op tracer; `configure_tracer()` raises `NotImplementedError` — both are explicit `TODO(W9)` stubs, not bugs. The only structured run data that exists today is `traces.jsonl` (application-level `TraceEvent`s written by the orchestrator), which is a separate file and a separate data model from the OpenTelemetry spans this section describes — see the note in §2.5.
 
 The platform emits OpenTelemetry spans for every step of every run. Span hierarchy:
 
@@ -590,7 +594,7 @@ eval.run                        (root span, run_id)
 
 Span attributes carry `run_id`, `task_id`, `agent_id`, `model_id`, `cost_usd`, `tokens_in`, `tokens_out`, `latency_ms`. Cost and tokens are emitted as both span attributes and CloudWatch Metrics (via the embedded metric format), so dashboards can graph them without parsing logs.
 
-Local runs export to a JSONL file in the bundle. AWS runs export to CloudWatch via ADOT, with the JSONL file still produced inside the bundle for portability — the bundle is the contract, the cloud surface is augmentation.
+Local runs export to `spans.jsonl` in the bundle — a distinct file from `traces.jsonl` (the application-level `TraceEvent` log, which exists today; see §2.5). AWS runs export to CloudWatch via ADOT, with `spans.jsonl` still produced inside the bundle for portability — the bundle is the contract, the cloud surface is augmentation.
 
 ---
 

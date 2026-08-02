@@ -1,18 +1,25 @@
 # AgentEvalOps — real LangGraph + Claude runner (ROADMAP W8)
 #
-# Opt-in config that selects the real Claude-backed runner instead of the mock.
-# This path is NOT exercised in CI and requires additional setup:
+# `runner_id: langgraph` IS registered (src/agentevalops/registry.py) and
+# selects `LangGraphRunner` — a real, model-backed agent that calls the
+# Anthropic API directly (see agents/langgraph_runner.py's module docstring
+# for the LangGraph-vs-hand-rolled fallback decision). This path is NOT
+# exercised in CI, costs real money, and is never run without being asked to.
 #
-#   1. Install the optional LLM extra (added in W8):
+# To use it:
+#
+#   1. Install the optional LLM extra:
 #        pip install -e ".[llm]"
 #   2. Export an Anthropic API key (never commit it):
 #        export ANTHROPIC_API_KEY=sk-ant-...
 #   3. Run:
 #        agentevalops run --config configs/toy_langgraph.yaml --output runs/lg
 #
-# Until the LangGraphRunner is registered (W8), `runner_id: langgraph` fails
-# fast with: "No runner registered under name 'langgraph'. Known: ['mock']".
-# That is expected — this file is the skeleton the W8 session builds against.
+# A missing ANTHROPIC_API_KEY surfaces as a clean CLI exit (ConfigurationError),
+# not a crash. As of 2026-08-02 this path has never actually been run and
+# reconciled against a real Anthropic invoice, nor checked against the W8 exit
+# criteria (solves >=1/3 toy tasks; cost within 5% of the invoice) — see
+# ROADMAP.md §0.
 
 run_id: "toy-langgraph-001"
 agent_id: "langgraph-claude"

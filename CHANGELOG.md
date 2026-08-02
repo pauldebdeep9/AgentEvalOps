@@ -25,6 +25,28 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     runner is implemented on the `anthropic` SDK directly (pre-authorized
     fallback) under the `langgraph` name, with the `langgraph`/
     `langchain-anthropic` pins declared for a future port.
+- **W9 — OpenTelemetry warmup scaffold.** `observability/otel_setup.py`
+  establishes the *seam* for OTel instrumentation, no more: span-name and
+  attribute-key constants mirroring the ARCHITECTURE §8 hierarchy, a
+  `NoOpTracer`/`NoOpSpan` pair so future instrumented call sites are safe and
+  free whether or not the extra is installed, and a `get_tracer()` that
+  currently always returns the no-op. `configure_tracer()` is an explicit
+  `NotImplementedError` stub. **This scaffold emits no spans.** There is no
+  `TracerProvider`, no exporter, no `spans.jsonl` output, and zero
+  instrumentation call sites anywhere in the orchestrator, runners, or
+  evaluators — real span emission is a dedicated future W9 session's work.
+  Adds the optional `otel` extra (`opentelemetry-api`/`-sdk`, imported lazily,
+  not installed in CI) and its own `mypy.overrides` block.
+  - *Caveat 1:* `tests/test_observability.py` gives this module 100% coverage,
+    but that is coverage of a no-op — it modestly inflates the repo's headline
+    coverage percentage without exercising any real span-emission behavior.
+  - *Caveat 2:* this ships alongside a fix for a related but separate defect —
+    W8 shipped with `mypy --strict` red in CI for two commits because the dev
+    environment had the `llm` extra installed and CI did not, and nothing
+    checked that they agreed. That is a process gap (no dev/CI parity check),
+    not a one-off missing config line; it can recur for any future optional
+    extra, including this one's `opentelemetry.*` override, if the same
+    unchecked assumption holds.
 
 ---
 
