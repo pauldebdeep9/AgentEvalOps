@@ -189,9 +189,17 @@ modules = [
 # agents/ by omitting `agentevalops.agents` from source_modules below --
 # that is the one package these are allowed in, expressed by leaving it out
 # rather than by an ignore_imports exemption.
+# allow_indirect_imports = true: the rule constrains where the *import
+# statement* lives (agents/), not how far a name can be transitively
+# reached from. registry.py resolving adapters by name must reference
+# them -- that is correct composition, not a leak. Genuine layering leaks
+# (e.g. core reaching into an adapter) are already caught by the layers
+# contract above; this contract's job is narrower: keep the anthropic
+# import statement itself out of every package except agents/.
 [[tool.importlinter.contracts]]
 name = "anthropic/langgraph/langchain_anthropic confined to agents/ (ARCHITECTURE.md §4)"
 type = "forbidden"
+allow_indirect_imports = true
 source_modules = [
     "agentevalops.benchmarks",
     "agentevalops.bundles",
@@ -214,9 +222,16 @@ forbidden_modules = ["anthropic", "langgraph", "langchain_anthropic"]
 # scaffold" wraps OpenTelemetry, imported lazily (see §8). Confined to
 # observability/ by omitting `agentevalops.observability` from
 # source_modules, same rationale as the contract above.
+# allow_indirect_imports = true: same reasoning as the anthropic contract
+# above -- this constrains where the import statement lives, not
+# transitive reachability. It passes vacuously today only because
+# otel_setup.py has zero call sites; the moment W9 wires it into the
+# registry-resolved orchestrator/runners, indirect reach through
+# registry.py would otherwise trip this identically.
 [[tool.importlinter.contracts]]
 name = "opentelemetry confined to observability/ (ARCHITECTURE.md §4, §8)"
 type = "forbidden"
+allow_indirect_imports = true
 source_modules = [
     "agentevalops.agents",
     "agentevalops.benchmarks",
@@ -244,9 +259,15 @@ forbidden_modules = ["opentelemetry"]
 # confined to or excluded from, so this contract is vacuous today -- it
 # has nothing to check. It becomes load-bearing the moment W17 creates
 # cloud/ and something outside it imports boto3.
+# allow_indirect_imports = true: same reasoning as the two contracts
+# above. Once cloud/ exists and is registry-resolved like every other
+# adapter family, indirect reach through registry.py would otherwise
+# trip this identically -- constrain the import statement's location,
+# not transitive reachability.
 [[tool.importlinter.contracts]]
 name = "boto3/botocore confined to cloud/ (ARCHITECTURE.md §4) -- vacuous until cloud/ exists, W17+"
 type = "forbidden"
+allow_indirect_imports = true
 source_modules = [
     "agentevalops.agents",
     "agentevalops.benchmarks",

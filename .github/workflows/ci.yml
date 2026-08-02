@@ -32,10 +32,10 @@ jobs:
       - name: Type-check with mypy
         run: mypy src
 
-      # ROADMAP W13. As of 2026-08-02 this step is expected to fail: the
-      # anthropic-confinement contract catches a real, pre-existing violation
-      # (cli/registry transitively reach anthropic via agents/langgraph_runner.py).
-      # See ROADMAP.md §0 -- that finding is open, awaiting a decision, not fixed.
+      # ROADMAP W13. 5 contracts derived from ARCHITECTURE.md §4. Uses the
+      # `lint-imports` console script -- `python -m importlinter.cli` has no
+      # __main__ guard and silently no-ops (exit 0) regardless of contract
+      # status.
       - name: Check import layer contracts
         run: lint-imports
 

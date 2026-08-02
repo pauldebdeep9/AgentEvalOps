@@ -61,20 +61,34 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `Check import layer contracts` step in the `ci` job (not `ci-min-deps`).
   Every contract was proven to actually fail against a deliberately injected
   violation, then reverted, before being trusted — a contract that's never
-  been shown to fail isn't evidence of anything.
-  - *Finding, not fixed:* the anthropic-confinement contract fails against
-    **existing** code, not a probe — `cli`/`registry` transitively reach
-    `anthropic` via `agents/langgraph_runner.py` (registry imports the runner
-    to register it; the runner imports `anthropic` lazily). Whether that
-    transitive reach is what the confinement rule was meant to forbid, or the
-    contract needs `allow_indirect_imports`/a narrower rule to accommodate
-    registry.py's normal job, is an open decision — see ROADMAP.md §0. The
-    `ci` job's new step will fail on push until it's resolved.
+  been shown to fail isn't evidence of anything. **5/5 pass.**
+  - *Mis-specified contract, corrected same day — not a code violation.*
+    The anthropic-confinement contract initially failed against existing
+    code: `cli`/`registry` transitively reach `anthropic` via
+    `agents/langgraph_runner.py` (registry imports the runner to register
+    it; the runner imports `anthropic` lazily). Diagnosis: ARCHITECTURE.md
+    §4's confinement rule constrains *where the import statement lives*
+    (`agents/`), not how far a name can be transitively reached from — a
+    registry that resolves adapters by name must reference them, which is
+    correct composition, not a leak. Genuine layering leaks are already
+    caught by the separate layers contract. Fix: `allow_indirect_imports =
+    true` on all three forbidden-import contracts (anthropic, opentelemetry,
+    boto3) — not just the one that failed today, since the other two pass
+    only because `otel_setup.py` has zero call sites and `cloud/` doesn't
+    exist, and would break identically the moment W9 or W17 wires anything
+    through the registry. Not an `ignore_imports` exemption — the semantics
+    of what each contract detects changed, deliberately, for all call sites,
+    not one path around a single case. Re-proved after the fix: each
+    forbidden contract still fails against a fresh direct violation, and the
+    anthropic contract is confirmed KEPT with the registry chain no longer
+    tripping it.
   - *Tooling gap found along the way:* `python -m importlinter.cli
     lint-imports` — the invocation import-linter's own docs suggest — silently
     no-ops (exit 0, no output) regardless of contract status: `importlinter/
-    cli.py` has no `if __name__ == "__main__":` guard. Use the `lint-imports`
-    console script instead (what `Makefile`/CI actually call).
+    cli.py` has no `if __name__ == "__main__":` guard. Anyone reaching for
+    that module form in CI would get a permanently green gate that checks
+    nothing. Use the `lint-imports` console script instead (what
+    `Makefile`/CI actually call).
 
 ---
 
