@@ -32,3 +32,8 @@ env/
 .vscode/settings.json
 .DS_Store
 *.swp
+
+# Claude Code local state — machine-specific, not shared project config.
+# .claude/settings.json stays trackable for future shared project settings.
+.claude/settings.local.json
+.claude/worktrees/
