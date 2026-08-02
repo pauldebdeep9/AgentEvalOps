@@ -1,0 +1,2 @@
+{"run_id": "toy-openai-001", "step_index": 0, "kind": "agent.plan", "payload": {"plan": "Solve: Return the string 'hello world'."}, "timestamp": "2026-08-02T16:36:14.310512+00:00", "cost_delta_usd": 0.0, "tokens_delta": 0}
+{"run_id": "toy-openai-001", "step_index": 0, "kind": "agent.plan", "payload": {"plan": "Solve: Return the integer 42 as a string."}, "timestamp": "2026-08-02T16:36:19.081147+00:00", "cost_delta_usd": 0.0, "tokens_delta": 0}
