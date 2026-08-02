@@ -79,6 +79,20 @@ markers = [
 python_version = "3.10"
 strict = true
 
+# anthropic is an optional extra (llm) imported lazily inside
+# agents/langgraph_runner.py; it is NOT installed in CI (ci.yml installs only
+# .[dev]), so let mypy tolerate the missing stubs rather than fail on
+# import-not-found.
+# Tradeoff accepted: this buys a light, churn-resistant CI at the cost of
+# never type-checking calls against the real anthropic API surface. The
+# alternative -- installing .[llm] in CI -- was rejected because it couples
+# the gate to upstream SDK churn (Risk #2, ROADMAP.md §5), and because the
+# runner already isolates the SDK behind a lazy import and an injectable
+# client (agent_factory), so the untyped surface stays small and contained.
+[[tool.mypy.overrides]]
+module = ["anthropic.*"]
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ["agentevalops"]
 branch = true
