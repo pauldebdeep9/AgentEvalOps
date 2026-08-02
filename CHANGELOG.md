@@ -47,6 +47,34 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     not a one-off missing config line; it can recur for any future optional
     extra, including this one's `opentelemetry.*` override, if the same
     unchecked assumption holds.
+- **W13 — import-linter layer contracts.** `[tool.importlinter]` in
+  `pyproject.toml`: 5 contracts derived from ARCHITECTURE.md §4 (not
+  reverse-engineered from today's imports) — a layers contract (`cli` >
+  adapters/orchestration/bundles/replay/registry/config > `core`), an
+  independence contract (the 8 existing adapter families must not import each
+  other), and 3 forbidden-import contracts confining `anthropic`/`langgraph`/
+  `langchain_anthropic` to `agents/`, `opentelemetry` to `observability/`, and
+  `boto3`/`botocore` to `cloud/` (the last is vacuous today — `cloud/` doesn't
+  exist until W17). `agentevalops.cloud` is excluded from the independence
+  contract for the same reason: import-linter errors, not just fails, if a
+  listed module doesn't exist. Wired into `make lint-imports` and a new
+  `Check import layer contracts` step in the `ci` job (not `ci-min-deps`).
+  Every contract was proven to actually fail against a deliberately injected
+  violation, then reverted, before being trusted — a contract that's never
+  been shown to fail isn't evidence of anything.
+  - *Finding, not fixed:* the anthropic-confinement contract fails against
+    **existing** code, not a probe — `cli`/`registry` transitively reach
+    `anthropic` via `agents/langgraph_runner.py` (registry imports the runner
+    to register it; the runner imports `anthropic` lazily). Whether that
+    transitive reach is what the confinement rule was meant to forbid, or the
+    contract needs `allow_indirect_imports`/a narrower rule to accommodate
+    registry.py's normal job, is an open decision — see ROADMAP.md §0. The
+    `ci` job's new step will fail on push until it's resolved.
+  - *Tooling gap found along the way:* `python -m importlinter.cli
+    lint-imports` — the invocation import-linter's own docs suggest — silently
+    no-ops (exit 0, no output) regardless of contract status: `importlinter/
+    cli.py` has no `if __name__ == "__main__":` guard. Use the `lint-imports`
+    console script instead (what `Makefile`/CI actually call).
 
 ---
 

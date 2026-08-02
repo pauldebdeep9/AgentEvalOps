@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test test-cov check smoke build clean
+.PHONY: install lint typecheck lint-imports test test-cov check smoke build clean
 
 install:
 	python -m pip install -e ".[dev]"
@@ -8,6 +8,9 @@ lint:
 
 typecheck:
 	mypy src
+
+lint-imports:
+	lint-imports
 
 test:
 	pytest

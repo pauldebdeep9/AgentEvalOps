@@ -57,6 +57,7 @@ dev = [
     "types-PyYAML>=6,<7",
     "build>=1.0,<2",
     "pre-commit>=3.0,<5",
+    "import-linter>=2.13,<3",
 ]
 # Model-backed runner dependencies (Risk #2: upstream churn — pins are exact).
 # NOT installed in CI; the langgraph runner imports these lazily so core stays
@@ -131,3 +132,136 @@ branch = true
 
 [tool.coverage.report]
 show_missing = true
+
+# ROADMAP W13. Contracts are derived from ARCHITECTURE.md §4 (the source of
+# truth for layering) -- not reverse-engineered from today's imports. A
+# contract that fails is a finding to report, not something to loosen.
+[tool.importlinter]
+root_packages = ["agentevalops"]
+include_external_packages = true
+
+# ARCHITECTURE.md §1: "The architecture has three layers" (core lowest,
+# adapter middle, edge/cli highest). §4: "core imports nothing from any
+# adapter, engine, or bundle package -- the one hard rule everyone should
+# keep true" and "Adapters depend on the core; the core never depends on
+# adapters." The middle layer groups everything §1 calls "adapters" plus
+# the three packages §1 says "sit alongside the adapters" (orchestration/,
+# bundles/, replay/) plus registry.py and config/ (top-level per §4, not
+# ranked separately from the adapters they serve -- registry.py imports
+# concrete adapter classes to register them, which the ":" (non-independent)
+# grouping below permits: it asserts a rank relative to cli/core, not
+# mutual independence within the middle tier. That narrower, precise claim
+# -- "no adapter module imports from a different adapter family" -- is the
+# separate independence contract below.
+[[tool.importlinter.contracts]]
+name = "Layers: cli > (adapters + orchestration/bundles/replay/registry/config) > core (ARCHITECTURE.md §1, §4)"
+type = "layers"
+containers = ["agentevalops"]
+layers = [
+    "cli",
+    "agents:benchmarks:bundles:config:evaluators:observability:orchestration:policy:registry:replay:reports:scorers:stores",
+    "core",
+]
+
+# ARCHITECTURE.md §4: "Adapter modules import from the core, optionally
+# from each other within the same adapter family, and from third-party
+# libraries. No adapter module imports from a different adapter family."
+# `agentevalops.cloud` is deliberately excluded: it does not exist yet
+# (ROADMAP W17+), and an independence contract errors if a listed module
+# doesn't exist rather than merely failing it -- add it here once cloud/
+# is created.
+[[tool.importlinter.contracts]]
+name = "Adapter families are independent of each other (ARCHITECTURE.md §4)"
+type = "independence"
+modules = [
+    "agentevalops.agents",
+    "agentevalops.benchmarks",
+    "agentevalops.evaluators",
+    "agentevalops.observability",
+    "agentevalops.policy",
+    "agentevalops.reports",
+    "agentevalops.scorers",
+    "agentevalops.stores",
+]
+
+# ARCHITECTURE.md §4 directory-tree comment: "agents/langgraph_runner.py ...
+# anthropic SDK is an optional `llm` extra, imported lazily." Confined to
+# agents/ by omitting `agentevalops.agents` from source_modules below --
+# that is the one package these are allowed in, expressed by leaving it out
+# rather than by an ignore_imports exemption.
+[[tool.importlinter.contracts]]
+name = "anthropic/langgraph/langchain_anthropic confined to agents/ (ARCHITECTURE.md §4)"
+type = "forbidden"
+source_modules = [
+    "agentevalops.benchmarks",
+    "agentevalops.bundles",
+    "agentevalops.cli",
+    "agentevalops.config",
+    "agentevalops.core",
+    "agentevalops.evaluators",
+    "agentevalops.observability",
+    "agentevalops.orchestration",
+    "agentevalops.policy",
+    "agentevalops.registry",
+    "agentevalops.replay",
+    "agentevalops.reports",
+    "agentevalops.scorers",
+    "agentevalops.stores",
+]
+forbidden_modules = ["anthropic", "langgraph", "langchain_anthropic"]
+
+# ARCHITECTURE.md §4 directory-tree comment: "observability/ ... W9
+# scaffold" wraps OpenTelemetry, imported lazily (see §8). Confined to
+# observability/ by omitting `agentevalops.observability` from
+# source_modules, same rationale as the contract above.
+[[tool.importlinter.contracts]]
+name = "opentelemetry confined to observability/ (ARCHITECTURE.md §4, §8)"
+type = "forbidden"
+source_modules = [
+    "agentevalops.agents",
+    "agentevalops.benchmarks",
+    "agentevalops.bundles",
+    "agentevalops.cli",
+    "agentevalops.config",
+    "agentevalops.core",
+    "agentevalops.evaluators",
+    "agentevalops.orchestration",
+    "agentevalops.policy",
+    "agentevalops.registry",
+    "agentevalops.replay",
+    "agentevalops.reports",
+    "agentevalops.scorers",
+    "agentevalops.stores",
+]
+forbidden_modules = ["opentelemetry"]
+
+# ARCHITECTURE.md §4: "`grep -r "boto3" src/` returns hits only in
+# `src/agentevalops/cloud/aws/` ... The intended check isn't wired into
+# CI." Wiring it now, before cloud/ exists, deliberately: `agentevalops.
+# cloud` will be the one allowed package once created (excluded from
+# source_modules the same way agents/ and observability/ are excluded
+# above), but there is no cloud/ directory yet for boto3/botocore to be
+# confined to or excluded from, so this contract is vacuous today -- it
+# has nothing to check. It becomes load-bearing the moment W17 creates
+# cloud/ and something outside it imports boto3.
+[[tool.importlinter.contracts]]
+name = "boto3/botocore confined to cloud/ (ARCHITECTURE.md §4) -- vacuous until cloud/ exists, W17+"
+type = "forbidden"
+source_modules = [
+    "agentevalops.agents",
+    "agentevalops.benchmarks",
+    "agentevalops.bundles",
+    "agentevalops.cli",
+    "agentevalops.config",
+    "agentevalops.core",
+    "agentevalops.evaluators",
+    "agentevalops.observability",
+    "agentevalops.orchestration",
+    "agentevalops.policy",
+    "agentevalops.registry",
+    "agentevalops.replay",
+    "agentevalops.reports",
+    "agentevalops.scorers",
+    "agentevalops.stores",
+]
+forbidden_modules = ["boto3", "botocore"]
