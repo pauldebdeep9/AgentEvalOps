@@ -55,3 +55,50 @@ jobs:
       - name: Clean up generated run
         if: always()
         run: rm -rf runs/ci-smoke
+
+  # Makes the dependency floor in pyproject.toml's `dependencies` testable.
+  # The `ci` job above always resolves to the newest satisfying version, so a
+  # floor that doesn't actually work stays invisible until a user installs
+  # into an environment that happens to resolve close to the minimum -- which
+  # is exactly what happened on 2026-08-02 (typer downgraded to its declared
+  # floor by an unrelated project sharing a dev env; 49 CLI tests failed).
+  # This job installs at exactly the floors pinned in constraints-min.txt and
+  # runs the same gate, so a floor that regresses fails CI instead of a user.
+  ci-min-deps:
+    name: CI (min deps)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python (project minimum)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install package with dev dependencies at the declared floor
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" -c constraints-min.txt
+
+      - name: Lint with ruff
+        run: ruff check src/ tests/
+
+      - name: Type-check with mypy
+        run: mypy src
+
+      - name: Run tests with coverage
+        run: pytest --cov=agentevalops --cov-report=term-missing --cov-fail-under=94
+
+      - name: Smoke — run
+        run: agentevalops run --config configs/toy_smoke.yaml --output runs/ci-min-smoke
+
+      - name: Smoke — validate-bundle
+        run: agentevalops validate-bundle --bundle runs/ci-min-smoke
+
+      - name: Smoke — replay
+        run: agentevalops replay --bundle runs/ci-min-smoke
+
+      - name: Clean up generated run
+        if: always()
+        run: rm -rf runs/ci-min-smoke

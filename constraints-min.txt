@@ -1,0 +1,12 @@
+# Pins every core runtime dependency to exactly its declared floor in
+# pyproject.toml's `[project] dependencies`. Used by the "CI (min deps)"
+# workflow job to make the floor testable -- without this, CI always
+# resolves to the newest satisfying version, so a floor that doesn't
+# actually work (see the 2026-08-02 typer incident recorded in
+# pyproject.toml) stays invisible until a user installs into an
+# environment that resolves to something close to the minimum.
+#
+# Keep these in lockstep with pyproject.toml's `dependencies` floors by
+# hand -- this file does not derive them automatically.
+typer==0.15.4
+pyyaml==6.0

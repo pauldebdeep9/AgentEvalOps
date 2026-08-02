@@ -24,20 +24,39 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Testing",
 ]
+# typer floor: 2026-08-02 incident, 49 CLI tests failed when the shared dev
+# env was (transiently) downgraded to typer==0.12.0 by a sibling project.
+# Diagnosed, not assumed: typer 0.12.0's get_click_type() has no branch for
+# Optional/Union parameter types at all (confirmed with a minimal `str | None`
+# probe, not just cli.py's `Path | None` -- this is a genuine, general typer
+# API gap, not a cli.py style issue routable by respelling Optional). Bisected
+# 0.12.0 (broken) .. 0.27.0 (known-good) by binary search on PyPI's version
+# list: 0.15.3 still failed, but on a *different* bug (click's
+# Parameter.make_metavar() gained a required `ctx` arg in newer click, and
+# 0.15.3's own click range still permits the incompatible newest click);
+# 0.15.4, the very next patch, resolves cleanly. True minimum: 0.15.4.
+# Ceiling: no typer 1.0 exists yet; capped at the next major regardless, per
+# the same policy applied to pyyaml and the dev extra below.
 dependencies = [
-    "typer>=0.12",
-    "pyyaml>=6",
+    "typer>=0.15.4,<1",
+    "pyyaml>=6,<7",
 ]
 
 [project.optional-dependencies]
+# Ceilings below cap at the next major above the version verified working in
+# this session (2026-08-02) -- not the next major above the old floor, since
+# several of these had already drifted ahead of their stated minimum (e.g.
+# pytest resolves to 9.x today though the floor said >=8) and are confirmed
+# passing at that version. The goal is "an unknown future major can't break
+# the gate silently," not "roll back to the original pin."
 dev = [
-    "pytest>=8",
-    "pytest-cov>=5",
-    "ruff>=0.4",
-    "mypy>=1.10",
-    "types-PyYAML>=6",
-    "build>=1.0",
-    "pre-commit>=3.0",
+    "pytest>=8,<10",
+    "pytest-cov>=5,<8",
+    "ruff>=0.4,<1",
+    "mypy>=1.10,<3",
+    "types-PyYAML>=6,<7",
+    "build>=1.0,<2",
+    "pre-commit>=3.0,<5",
 ]
 # Model-backed runner dependencies (Risk #2: upstream churn — pins are exact).
 # NOT installed in CI; the langgraph runner imports these lazily so core stays
