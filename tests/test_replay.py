@@ -13,6 +13,7 @@ from __future__ import annotations
 import pathlib
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from agentevalops.bundles.reader import BundleReader, LoadedBundle
@@ -283,12 +284,21 @@ def test_cli_replay_end_to_end_via_run_then_replay(
 
 
 def test_cli_replay_deprecation_notice_on_stderr_not_stdout(
-    tmp_path: Path,
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # Calls the command function directly (bypassing CliRunner) and reads
+    # real stdout/stderr via pytest's capsys -- CliRunner's own stdout/
+    # stderr separation behavior differs across the supported typer range
+    # (`>=0.15.4,<1`; the project's own ci-min-deps floor pins 0.15.4,
+    # which does not separate them the way a newer typer does), so
+    # asserting on `result.stderr` would be brittle across that range.
+    from agentevalops.cli import replay as replay_cmd
+
     bundle_dir = _make_valid_bundle(tmp_path)
-    result = runner.invoke(app, ["replay", "--bundle", str(bundle_dir)])
-    assert "deprecated" in result.stderr.lower()
-    assert "deprecated" not in result.stdout.lower()
+    replay_cmd(bundle=bundle_dir)
+    captured = capsys.readouterr()
+    assert "deprecated" in captured.err.lower()
+    assert "deprecated" not in captured.out.lower()
 
 
 def test_cli_replay_and_validate_bundle_agree_on_exit_code(
@@ -303,11 +313,20 @@ def test_cli_replay_and_validate_bundle_agree_on_exit_code(
 
 
 def test_cli_replay_and_validate_bundle_identical_stdout(
-    tmp_path: Path,
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # Same rationale as the deprecation-notice test above: direct function
+    # calls + capsys, not CliRunner, so this holds across the whole
+    # supported typer range rather than just the version installed here.
+    from agentevalops.cli import replay as replay_cmd
+    from agentevalops.cli import validate_bundle as validate_bundle_cmd
+
     bundle_dir = _make_valid_bundle(tmp_path)
-    replay_result = runner.invoke(app, ["replay", "--bundle", str(bundle_dir)])
-    validate_result = runner.invoke(
-        app, ["validate-bundle", "--bundle", str(bundle_dir)]
-    )
-    assert replay_result.stdout == validate_result.stdout
+
+    replay_cmd(bundle=bundle_dir)
+    replay_out = capsys.readouterr().out
+
+    validate_bundle_cmd(bundle=bundle_dir)
+    validate_out = capsys.readouterr().out
+
+    assert replay_out == validate_out
