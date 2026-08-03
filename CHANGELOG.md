@@ -26,6 +26,39 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     `_compute_step_cost` added to `OpenAIRunner` as the price-resolution
     seam `AzureOpenAIRunner` overrides, so no per-provider branch was needed
     inside the shared loop.
+  - **Follow-up (same day): the third attribute resolved, not left as a
+    hand-maintained duplicate.** `_model` was initially kept alive alongside
+    the two new attributes, purely so three existing white-box tests
+    (`runner._model == DEFAULT_MODEL`) would pass unmodified. Checked via
+    `grep -rn "self\._model\b" src/` whether anything in non-test `src/`
+    actually read it: nothing did, and `AzureOpenAIRunner` never set it to
+    the deployment name either (the confusable case this would have been a
+    real defect). Deleted `_model` entirely; the three tests now assert
+    `_model_id` instead, since that's the attribute that actually carries
+    the resolved model going forward. No parity test needed — there is no
+    longer a third value to keep in sync.
+  - **Azure price-table comment gained two caveats, values/enforcement
+    unchanged**: (1) the table is keyed on model id alone, but Azure's real
+    rate is also a function of deployment type (Global Standard/Regional
+    Standard/Provisioned/Batch) and region — construction-time enforcement
+    guarantees the model id is *known*, not that the price is *right* for
+    whichever deployment type the caller's `deployment` name actually
+    points at; (2) the sourcing is weaker than `OpenAIRunner`'s
+    `_PRICE_PER_1M_USD`, which cites OpenAI's own pricing page directly —
+    Azure's page renders client-side and couldn't be scraped, so this rests
+    on two secondary sources instead of the vendor's own numbers.
+  - **Split into two separable commits, each independently verified green**:
+    a behavior-preserving refactor commit (`_api_model`/`_model_id` split,
+    the `_model` resolution above, the affected `OpenAIRunner` tests —
+    nothing Azure) and a second commit for everything else. The refactor
+    commit's isolation was proven, not assumed: checked out alone in a
+    separate `git worktree`, confirmed the editable install resolved
+    *inside* that worktree (not the main tree), then ran ruff/mypy/pytest
+    there and got the same clean result (639 passed, 1 skipped, 97% —
+    identical to the pre-row-13b baseline) before the worktree was removed.
+    Both commits pushed to `origin/main`; CI (lint, mypy, import contracts,
+    tests+coverage, smoke run/validate-bundle/replay) and the packaging
+    check both passed across Python 3.10/3.11/3.12.
   - **Own price table, fails loud instead of guessing**: Azure gets
     `_AZURE_PRICE_PER_1M_USD`, deliberately not sharing `OpenAIRunner`'s
     `_FALLBACK_PRICE_PER_1M_USD` — Azure keys requests by deployment name,
@@ -64,8 +97,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     top-level module) — 6/6 contracts still kept.
   - **Live verification not attempted** — remains blocked on Azure
     subscription quota, the same class of blocker as `OpenAIRunner`'s
-    2026-08-03 attempt, not a new one. `DefaultAzureCredential`/AAD
-    authentication is explicitly out of scope (D6): API-key auth only.
+    2026-08-03 attempt, not a new one. Live pass-rate and cost-accounting
+    reconciliation against a real Azure invoice are both unchecked, same as
+    the other two model-backed runners — see `ROADMAP.md` §0's standing
+    cost-validation-gap entry, which names this as one structural fact
+    across all three runners rather than three separate footnotes.
+    `DefaultAzureCredential`/AAD authentication is explicitly out of scope
+    (D6): API-key auth only.
 
 - **`docs/adr/0004-cloud-backend-two-axes.md` + doc sync — "Azure support" is
   two independent axes, not one.** Documentation only, no code. Axis B

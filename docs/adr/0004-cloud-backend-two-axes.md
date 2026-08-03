@@ -1,9 +1,25 @@
-# 0004. "Azure support" is two independent axes, only one of which is a
-`CloudBackend`, and the `CloudBackend` one is not starting yet
+# 0004. Azure support is two axes: a runner now, a `CloudBackend` later
 
 ## Status
 
-Proposed — 2026-08-03.
+Proposed — 2026-08-03 (commit `3ecc8a6`, authored one commit after W12a's
+`f6d08e0` in the same session — both real git-commit dates are 2026-08-03,
+confirmed via `git log --format="%H %ad" --date=short -- docs/adr/0004-*`
+and the same command against `f6d08e0`; this ADR does not postdate its
+prerequisite). `ROADMAP.md`'s own prose separately labels that same W12a
+work "closed 2026-08-05" — a pre-existing inconsistency in `ROADMAP.md`'s
+own narrative dating (its header and several §0 entries use "2026-08-05"
+for work whose real git-commit date is "2026-08-03"), not a real ordering
+problem between these two documents. Not corrected here: fixing
+`ROADMAP.md`'s own historical date labels is a larger, separate cleanup
+outside this ADR's scope, and this ADR's own date needed no change once
+checked against git log rather than against `ROADMAP.md`'s prose.
+
+**Axis B (D1, D3) implemented 2026-08-03** — `AzureOpenAIRunner`,
+`ROADMAP.md` row 13b: subclasses `OpenAIRunner`, no new import-linter
+contract, offline-tested. **Axis A (D2, D4) not started** — gated on
+`AwsBackend` existing and v0.2 shipping, per D2's own start condition; see
+"Open questions" below for the checkable revisit trigger.
 
 ## Context
 
@@ -92,13 +108,32 @@ scope**, unchanged from `ROADMAP.md` §1's existing exclusion list.
    session" in the originating ticket) — it only records that both become
    wrong the day `AzureBackend` actually lands (see Consequences).
 
-5. **No new import-linter contract is implied by Axis B.** The existing 6th
-   contract, `"openai confined to agents/"` (`pyproject.toml:341-361`), sets
-   `forbidden_modules = ["openai"]` — a top-level module name. Azure OpenAI
-   is reached through `openai.AzureOpenAI`, a class inside that same
-   top-level package, not a separate import target. The contract already
-   covers it; an `AzureOpenAIRunner` built on the `openai` SDK needs no new
-   or modified contract, only to live in `agents/` like every other runner.
+5. **No new import-linter contract is implied by Axis B — for the API-key
+   auth path only.** The existing 6th contract, `"openai confined to
+   agents/"` (`pyproject.toml:341-361`), sets `forbidden_modules =
+   ["openai"]` — a top-level module name. Azure OpenAI reached via API key
+   goes through `openai.AzureOpenAI`, a class inside that same top-level
+   package, not a separate import target — the contract already covers it,
+   and an `AzureOpenAIRunner` built this way needs no new or modified
+   contract, only to live in `agents/` like every other runner. **This does
+   not generalize to AAD / managed-identity authentication**, which
+   enterprise Azure OpenAI deployments commonly use instead of a static API
+   key: that path requires the separate top-level `azure-identity` package,
+   which the `openai` contract's `forbidden_modules` list does not name and
+   would not catch. Adding AAD auth later would need its own new
+   `azure-identity confined to agents/` contract (or an extension of the
+   existing one), not a free ride on this finding. AAD/managed-identity
+   auth was out of scope for the implemented Axis B runner (its own
+   design ticket, not a decision this ADR makes) — recorded here only so a
+   future session adding it doesn't assume finding 5 already covers it.
+
+6. **`AwsBackend` and `LocalBackend` genuinely have zero implementations —
+   verified directly, not inferred from finding 1.** `grep -rn "class
+   AwsBackend\|class LocalBackend" src/ tests/` returns zero hits. Finding
+   1 above is evidence for a different, narrower claim (the five job-related
+   *schema types* don't exist); it does not by itself establish that no
+   concrete `CloudBackend` implementation exists. This finding is the actual
+   evidence D2 needs and previously mis-cited as finding 1.
 
 ## Decision
 
@@ -112,7 +147,7 @@ backend work that has nothing to do with it).
 
 **D2. Axis A does not start before `AwsBackend` exists and v0.2 ships.**
 `CloudBackend` has zero implementations today — no `AwsBackend`, no
-`LocalBackend` (finding 1). Porting an abstraction that has never carried
+`LocalBackend` (finding 6). Porting an abstraction that has never carried
 one real implementation means guessing at the protocol's actual shape from
 both ends simultaneously: without a concrete AWS implementation to see what
 the protocol needs to look like in practice, and without a concrete Azure
@@ -179,6 +214,12 @@ from it later:
 
 ## Prerequisite work identified, not implemented by this ADR
 
+This work now has an owner and a place in the plan: **`ROADMAP.md` row
+16b** ("Backend axis prerequisites"), added alongside row 13b, not yet
+started as of this writing. The three bullets below are exactly that row's
+scope; this ADR identifies the need, row 16b is where it's tracked and
+scheduled.
+
 - `KIND_BACKEND` in `registry.py`, alongside the existing `KIND_BENCHMARK`/
   `KIND_RUNNER`/`KIND_EVALUATOR`/`KIND_POLICY`.
 - `config/loader.py`'s `_SUPPORTED_BACKENDS` derived from the registry
@@ -188,7 +229,8 @@ from it later:
   AWS; a real backend for the mode the platform already runs in by default,
   so `CloudBackend` has at least one concrete implementation before a second
   is attempted (see D2).
-- **Open decision, not resolved here:** whether `JobSpec`/`JobHandle`/
+- **Open decision, not resolved here (also part of row 16b's scope):**
+  whether `JobSpec`/`JobHandle`/
   `JobStatus` (named in ARCHITECTURE.md §2.8's target code block but absent
   from the real protocol, finding 1) become real typed schemas, or whether
   the `dict[str, Any]`/`str` shape already in production is kept
@@ -197,6 +239,29 @@ from it later:
   `schema_version` rule, the same category of change `docs/adr/0002`
   already went through for the outcome taxonomy — not a decision to make
   informally inside a future backend PR.
+
+## Open questions
+
+**When does D2's start condition actually trigger?** D2 says Axis A "does
+not start before `AwsBackend` exists and v0.2 ships" — a real start
+condition, but not yet written as something a future session can check
+mechanically rather than by re-reading this whole ADR. Made legible here:
+
+- **Check:** `grep -rn "class AwsBackend" src/` returns at least one hit,
+  AND `ROADMAP.md`'s milestone ladder (§3) shows v0.2 tagged.
+- **Until both are true**, Axis A work (a real `AzureBackend`, `cloud/azure/`,
+  the `azure.* confined to cloud/` contract) should not start — not because
+  Azure specifically is deprioritized, but because `CloudBackend` still has
+  zero real implementations to design a second one against (finding 6).
+- **Revisit this ADR when the check above first passes** — not to
+  re-litigate D1–D4, but to confirm the primitive mapping (this ADR's own
+  table) and the three asymmetries still hold once `AwsBackend`'s actual
+  shape exists to compare against. If they don't, that's new evidence for a
+  follow-up ADR, not a reason to edit this one's history in place.
+
+(ADR-0003's Status line references an "Open questions" section that does not
+exist in that file as a heading — noted here, not fixed there; out of this
+ADR's scope.)
 
 ## Consequences
 
