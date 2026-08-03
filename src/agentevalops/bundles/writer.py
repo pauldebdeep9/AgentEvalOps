@@ -2,14 +2,19 @@
 
 Bundle layout (all files in *output_dir*):
 
-    metadata.json     — schema version, run_id, timestamps, platform
-    config.json       — RunConfig + PolicySpec that produced the run
-    traces.jsonl      — one JSON object per TraceEvent (newline-delimited)
-    evaluations.json  — list of EvaluationResult objects, one per task
-    policy.json       — PolicyVerdict (or null if no policy check was run)
-    summary.json      — RunSummary (counts, cost, tokens, task results)
-    report.md         — human-readable markdown report
-    manifest.json     — bundle format version, file sizes, SHA-256 checksums
+    metadata.json       — schema version, run_id, timestamps, platform
+    config.json         — RunConfig + PolicySpec that produced the run
+    traces.jsonl        — one JSON object per TraceEvent (newline-delimited)
+    evaluations.json    — list of EvaluationResult objects, one per task
+    policy.json         — PolicyVerdict (or null if no policy check was run)
+    summary.json        — RunSummary (counts, cost, tokens, task results)
+    report.md           — human-readable markdown report
+    replay_command.txt  — structural provenance: invocation, git_sha/
+                          git_dirty, platform_version, run_id, resolved
+                          model id (docs/adr/0003-replay-semantics.md Q4).
+                          Required starting at format "0.4"; see
+                          bundles/constants.py's required_files_for_version.
+    manifest.json       — bundle format version, file sizes, SHA-256 checksums
 
 The manifest is always written *last* so that its checksums cover all
 content files.  ``manifest.json`` is not checksummed inside itself.
@@ -19,13 +24,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 from agentevalops import __version__
-from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION, REQUIRED_BUNDLE_FILES
+from agentevalops.bundles.constants import (
+    BUNDLE_FORMAT_VERSION,
+    REPLAY_COMMAND_FILENAME,
+    REQUIRED_BUNDLE_FILES,
+)
 from agentevalops.bundles.manifest import write_manifest
 from agentevalops.bundles.serializers import to_jsonable
 from agentevalops.core.errors import BundleError
@@ -45,8 +56,30 @@ BUNDLE_FILES: tuple[str, ...] = REQUIRED_BUNDLE_FILES
 #: Sentinel recorded in ``metadata.json.git_sha`` when the process isn't
 #: running inside a git checkout, or ``git`` itself isn't available. Never
 #: ``None``, never fabricated -- see ``ResultBundleMetadata``'s docstring
-#: and docs/adr/0002-outcome-taxonomy.md, Axis 4.
+#: and docs/adr/0002-outcome-taxonomy.md, Axis 4. Reused verbatim in
+#: replay_command.txt for the Azure resource name when
+#: ``AZURE_OPENAI_ENDPOINT`` is unset -- one sentinel string, one meaning
+#: ("cannot determine"), used everywhere a provenance value is unavailable.
 _GIT_SHA_UNAVAILABLE: str = "unavailable"
+
+
+def _azure_resource_name_from_endpoint(endpoint: str) -> str | None:
+    """Extract just the resource-name subdomain from an Azure OpenAI
+    endpoint URL (e.g. ``https://my-resource.openai.azure.com`` ->
+    ``"my-resource"``) -- never the full URL.
+
+    A bundle is portable and shareable (DESIGN.md), so a tenant-specific
+    endpoint URL must not go in one (row 13b ticket's D5). The resource
+    name answers "which Azure resource produced this" without embedding a
+    URL a recipient could dial into. Returns ``None`` if *endpoint* doesn't
+    parse to a usable hostname.
+    """
+    host = urlparse(endpoint).netloc or urlparse(endpoint).path
+    host = host.split("@")[-1].split(":")[0].strip()
+    if not host:
+        return None
+    resource = host.split(".")[0]
+    return resource or None
 
 
 def _capture_git_provenance(cwd: Path | None = None) -> tuple[str, bool | None]:
@@ -141,7 +174,13 @@ class BundleWriter:
         populated one are the same shape, so the caller must say which.
         """
         self._prepare_dir()
-        self._write_metadata(run_config, summary, status)
+        # Captured once and threaded through -- metadata.json and
+        # replay_command.txt must agree on git_sha/git_dirty by
+        # construction (one source of truth), not by two independent
+        # subprocess calls that could theoretically observe different
+        # states if the tree changed between them.
+        git_sha, git_dirty = _capture_git_provenance()
+        self._write_metadata(run_config, summary, status, git_sha, git_dirty)
         self._write_config(
             run_config, policy_spec, config_name,
             benchmark_id, benchmark_scenario,
@@ -151,6 +190,7 @@ class BundleWriter:
         self._write_policy(summary)
         self._write_summary(summary)
         self._write_report(run_config, summary, all_events, config_name)
+        self._write_replay_command(run_config, config_name, git_sha, git_dirty)
         # Manifest is written last so checksums cover all content files.
         write_manifest(self._dir)
         return self._dir
@@ -183,8 +223,9 @@ class BundleWriter:
         run_config: RunConfig,
         summary: RunSummary,
         status: Literal["sealed", "interrupted", "partial"],
+        git_sha: str,
+        git_dirty: bool | None,
     ) -> None:
-        git_sha, git_dirty = _capture_git_provenance()
         metadata = ResultBundleMetadata(
             schema_version=BUNDLE_FORMAT_VERSION,
             run_id=run_config.run_id,
@@ -253,3 +294,68 @@ class BundleWriter:
         path = self._dir / "report.md"
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(report)
+
+    def _write_replay_command(
+        self,
+        run_config: RunConfig,
+        config_name: str,
+        git_sha: str,
+        git_dirty: bool | None,
+    ) -> None:
+        """Write ``replay_command.txt`` -- structural provenance, not a
+        behavioral replay mechanism (docs/adr/0003-replay-semantics.md Q4).
+
+        Human-readable text, not JSON: this file is for a person deciding
+        whether a bundle is still trustworthy to compare against, not a
+        machine-parsed contract. ``git_dirty`` and an unavailable
+        ``git_sha``/Azure resource name are rendered as explicit,
+        unambiguous values -- never blank, never omitted -- per
+        ``ResultBundleMetadata``'s own docstring: *"cannot determine" must
+        never read as a match by omission*.
+        """
+        dirty_str = "unknown" if git_dirty is None else str(git_dirty)
+        lines = [
+            "# replay_command.txt -- structural provenance for this bundle.",
+            "#",
+            "# This does NOT re-execute the run (no agents, models, tools,",
+            "# or benchmarks). It is what `agentevalops validate-bundle`",
+            "# reads to check whether this bundle's own files are still",
+            "# internally consistent, plus enough provenance for a human to",
+            "# judge whether the code that produced it has since changed.",
+            "# Behavioral replay is not yet implemented -- see",
+            "# docs/adr/0003-replay-semantics.md.",
+            "#",
+            "# Reconstructable invocation (point --output at a NEW,",
+            "# empty directory -- do not overwrite this bundle):",
+            "#",
+            f"#   agentevalops run --config {config_name or '<unknown>'} "
+            "--output <new-directory>",
+            "#",
+            "# The resolved configuration that actually produced this run",
+            "# is recorded in this bundle's own config.json, not duplicated",
+            "# here -- a YAML file on disk can be edited after the fact;",
+            "# config.json cannot.",
+            "",
+            f"run_id: {run_config.run_id}",
+            f"platform_version: {__version__}",
+            "# platform_version alone is too coarse to answer \"did the code",
+            "# change\": every bundle this repo has produced to date records",
+            "# the same value across dozens of intervening commits. git_sha",
+            "# below is the field that actually answers that question.",
+            f"git_sha: {git_sha}",
+            f"git_dirty: {dirty_str}",
+        ]
+        if run_config.model is not None:
+            lines.append(f"model: {run_config.model}")
+        if run_config.deployment is not None:
+            endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+            resource = (
+                _azure_resource_name_from_endpoint(endpoint)
+                if endpoint
+                else None
+            )
+            lines.append(f"azure_resource: {resource or _GIT_SHA_UNAVAILABLE}")
+
+        path = self._dir / REPLAY_COMMAND_FILENAME
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")

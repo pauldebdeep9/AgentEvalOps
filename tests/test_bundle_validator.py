@@ -8,8 +8,10 @@ from pathlib import Path
 import pytest
 
 from agentevalops.bundles.constants import (
+    BUNDLE_FORMAT_VERSION,
     MANIFEST_FILENAME,
     REQUIRED_BUNDLE_FILES,
+    required_files_for_version,
 )
 from agentevalops.bundles.validator import (
     BundleValidationResult,
@@ -139,9 +141,16 @@ def test_valid_bundle_checked_files_positive(tmp_path: Path) -> None:
 def test_valid_bundle_checked_files_equals_required_file_count(
     tmp_path: Path,
 ) -> None:
+    """BundleWriter always writes at the current (0.4+) format version, so
+    the checked-file count is the 0.4 required set (REQUIRED_BUNDLE_FILES
+    plus replay_command.txt), not the pre-0.4 flat tuple -- see
+    docs/adr/0003-replay-semantics.md, D3.
+    """
     bundle_dir = _make_bundle(tmp_path)
     result = validate_bundle(bundle_dir)
-    assert result.checked_files == len(REQUIRED_BUNDLE_FILES)
+    assert result.checked_files == len(
+        required_files_for_version(BUNDLE_FORMAT_VERSION)
+    )
 
 
 # ---------------------------------------------------------------------------

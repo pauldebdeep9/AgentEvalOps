@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING, Any, Literal
 import typer
 
 if TYPE_CHECKING:
+    from agentevalops.bundles.validator import BundleValidationResult
     from agentevalops.config.loader import LoadedRunConfig
     from agentevalops.core.schemas import RunSummary, TraceEvent
-    from agentevalops.replay.local import ReplaySummary
 
 from agentevalops import __version__
 
@@ -324,26 +324,25 @@ def replay(
         help="Path to a result bundle directory.",
     ),
 ) -> None:
-    """Replay and verify a saved result bundle."""
-    from agentevalops.bundles.reader import BundleReader
-    from agentevalops.core.errors import BundleError
-    from agentevalops.replay.local import LocalReplayVerifier
+    """[Deprecated] Alias for validate-bundle -- structural checks only.
 
-    if not bundle.exists():
-        typer.echo(f"Bundle path not found: {bundle}", err=True)
-        raise typer.Exit(code=1)
-
-    try:
-        loaded = BundleReader(bundle).read()
-    except BundleError as exc:
-        typer.echo(f"Bundle read error: {exc}", err=True)
-        raise typer.Exit(code=1)
-
-    replay_summary = LocalReplayVerifier(loaded).verify()
-    _print_replay_summary(replay_summary)
-
-    if not replay_summary.checks_passed:
-        raise typer.Exit(code=1)
+    ``replay`` historically meant bundle *verification* (checksums,
+    cross-file consistency), never behavioral re-execution -- see
+    docs/adr/0003-replay-semantics.md, Q1. ``validate-bundle`` is now the
+    single, honestly-named structural entry point; this command delegates
+    to the exact same check and produces identical output and exit codes.
+    The ``replay`` name is reserved for behavioral replay once it ships;
+    using it today for a structural check it doesn't perform is the
+    confusion ADR-0003 exists to stop.
+    """
+    typer.echo(
+        "Warning: `agentevalops replay` is deprecated and now an alias "
+        "for `validate-bundle` (structural checks only -- no behavioral "
+        "re-execution). The `replay` name is reserved for behavioral "
+        "replay once it ships; see docs/adr/0003-replay-semantics.md.",
+        err=True,
+    )
+    _run_validate_bundle(bundle)
 
 
 @app.command("validate-bundle")
@@ -355,7 +354,18 @@ def validate_bundle(
         help="Path to a result bundle directory.",
     ),
 ) -> None:
-    """Validate the integrity of a saved result bundle."""
+    """Validate the structural integrity of a saved result bundle."""
+    _run_validate_bundle(bundle)
+
+
+def _run_validate_bundle(bundle: Path) -> None:
+    """Shared body for ``validate-bundle`` and its ``replay`` alias.
+
+    Kept as one function (not two commands each calling ``validate_bundle``
+    independently) so the two can never drift into two different output
+    formats or exit-code rules under maintenance -- ``replay``'s whole
+    purpose here is to behave identically, not similarly.
+    """
     from agentevalops.bundles.validator import validate_bundle as _validate
 
     if not bundle.exists():
@@ -363,14 +373,7 @@ def validate_bundle(
         raise typer.Exit(code=1)
 
     result = _validate(bundle)
-    typer.echo(f"Bundle:        {bundle.resolve()}")
-    typer.echo(f"Files checked: {result.checked_files}")
-    status = "PASS" if result.valid else "FAIL"
-    typer.echo(f"Status:        {status}")
-    for warning in result.warnings:
-        typer.echo(f"  W {warning}")
-    for error in result.errors:
-        typer.echo(f"  ! {error}", err=True)
+    _print_validation_result(bundle, result)
     if not result.valid:
         raise typer.Exit(code=1)
 
@@ -398,24 +401,33 @@ def _print_summary(summary: object) -> None:
         typer.echo(f"Policy  : {verdict}  ({checker})")
 
 
-def _print_replay_summary(rs: ReplaySummary) -> None:
-    """Print a concise replay verification summary to stdout."""
-    typer.echo("Replay summary")
-    typer.echo(f"Bundle:        {rs.bundle_path}")
-    typer.echo(f"Run ID:        {rs.run_id}")
-    if rs.bundle_format_version is not None:
-        typer.echo(f"Format:        {rs.bundle_format_version}")
-    if rs.manifest_valid is not None:
-        mstatus = "PASS" if rs.manifest_valid else "FAIL"
+def _print_validation_result(bundle: Path, result: BundleValidationResult) -> None:
+    """Print a bundle validation result to stdout (errors to stderr).
+
+    Shared by ``validate-bundle`` and its ``replay`` alias -- both commands
+    call this with the exact same ``BundleValidationResult``, so their
+    stdout is identical by construction, not by coincidentally-matching
+    formatting code maintained twice.
+    """
+    typer.echo(f"Bundle:        {bundle.resolve()}")
+    if result.run_id is not None:
+        typer.echo(f"Run ID:        {result.run_id}")
+    if result.bundle_format_version is not None:
+        typer.echo(f"Format:        {result.bundle_format_version}")
+    if result.manifest_valid is not None:
+        mstatus = "PASS" if result.manifest_valid else "FAIL"
         typer.echo(f"Manifest:      {mstatus}")
-    typer.echo(f"Trace events:  {rs.trace_event_count}")
-    typer.echo(f"Evaluations:   {rs.evaluation_count}")
-    if rs.policy_verdict is not None:
-        typer.echo(f"Policy:        {rs.policy_verdict.upper()}")
-    status = "PASS" if rs.checks_passed else "FAIL"
-    typer.echo(f"Replay status: {status}")
-    for failure in rs.failures:
-        typer.echo(f"  ! {failure}", err=True)
+    typer.echo(f"Trace events:  {result.trace_event_count}")
+    typer.echo(f"Evaluations:   {result.evaluation_count}")
+    if result.policy_verdict is not None:
+        typer.echo(f"Policy:        {result.policy_verdict.upper()}")
+    typer.echo(f"Files checked: {result.checked_files}")
+    status = "PASS" if result.valid else "FAIL"
+    typer.echo(f"Status:        {status}")
+    for warning in result.warnings:
+        typer.echo(f"  W {warning}")
+    for error in result.errors:
+        typer.echo(f"  ! {error}", err=True)
 
 
 def main() -> None:

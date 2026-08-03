@@ -9,6 +9,78 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Row 12b — `replay_command.txt`, structural replay folded into
+  `validate-bundle`** (`docs/adr/0003-replay-semantics.md`). Bundle format
+  bumped **`0.3` → `0.4`** (`replay_command.txt`, the first bump to add a
+  new *required file* rather than a field; `"0.3"` joins the legacy-accept
+  set).
+  - **`replay_command.txt`**: a real, required-at-`"0.4"` bundle file
+    written by `BundleWriter` — the reconstructable invocation (pointing at
+    the bundle's own `config.json` rather than duplicating it), `git_sha`/
+    `git_dirty`, `platform_version` (with its own coarseness noted inline),
+    `run_id`, the resolved model id for model-backed runners, and — new,
+    closing the gap the row 13b ticket's D5 deliberately left open — the
+    Azure **resource name** (the endpoint's subdomain only, never the full
+    URL — a bundle is portable/shareable, DESIGN.md) for `azure-openai`
+    runs, or the same `"unavailable"` sentinel `git_sha` already uses if
+    `AZURE_OPENAI_ENDPOINT` is unset. Human-readable text, not JSON: read by
+    a person deciding whether a bundle is still comparable, not parsed by a
+    machine.
+  - **Q1 decided**: `validate-bundle` is the single structural entry point;
+    `agentevalops replay` becomes a deprecated alias delegating to the
+    identical code path (same arguments, same output, same exit codes),
+    with a stderr-only deprecation notice — not renamed to `verify`, not
+    removed, so the name stays available and unambiguous for behavioral
+    replay once it ships.
+  - **`ReplaySummary` deleted**; `LocalReplayVerifier` (`replay/local.py`)
+    is now an internal cross-file-consistency helper `validate_bundle()`
+    calls and merges findings from, rather than a class with its own
+    parallel summary type. Every field `ReplaySummary` carried (`run_id`,
+    `trace_event_count`, `evaluation_count`, `policy_verdict`,
+    `bundle_format_version`, `manifest_valid`) is now on
+    `BundleValidationResult` instead — closing the exact "two things
+    sharing one name" confusion ADR-0003's Context section names. The
+    import direction reverses cleanly: `replay/local.py` no longer imports
+    `bundles.validator` back, so `bundles.validator` importing
+    `replay.local` introduces no cycle.
+  - **Required-file set became version-aware**
+    (`bundles/constants.py`'s new `required_files_for_version()`): a bundle
+    declaring format `"0.3"` still validates cleanly without
+    `replay_command.txt`; one declaring `"0.4"` but missing it fails the
+    same way one missing `report.md` would. Both directions fail-first
+    verified — guard disabled, confirmed the specific failure, restored —
+    not just asserted. The frozen `partial-infra-failure-2026-08-03`
+    incident fixture still fails for its exact original pinned reason (the
+    same 7-item missing-file list, no new entry for `replay_command.txt`),
+    checked directly against `validate_bundle()`; its never-regenerate rule
+    (docs/adr/0003 Q5) needed no exception. `bundles/reader.py`'s
+    `BundleReader` picks the same version-aware required set.
+  - **Code-drift is a `validate-bundle` warning, never an error** (docs/adr/
+    0003 D5): a bundle's recorded `git_sha` compared against the current
+    checkout surfaces as a warning when they differ or either side is
+    undeterminable (dirty tree, no checkout, missing provenance on a
+    pre-`git_sha` bundle), but never changes `valid` or the exit code — a
+    bundle written six months ago is still structurally valid today.
+  - **`run_id` auto-generation explicitly not implemented** (docs/adr/0003
+    D6) — `ARCHITECTURE.md` §5's stale UUIDv7 claim corrected via an inline
+    callout instead; the real, unchanged behavior is `config/loader.py`
+    taking `run_id` verbatim from YAML. Implementing the documented
+    behavior would introduce a nondeterministic field into exactly the
+    bundle-comparison work this row builds toward.
+  - **`MATCH`/`DIFFER`/`CODE_CHANGED` and `ReplayRunner` deliberately not
+    built** — adding that vocabulary now, with nothing to construct it
+    yet, would repeat the "vocabulary exists, nothing constructs it"
+    pattern this project has already hit three times (`INFRA_FAILURE`,
+    `Verdict.WARN` before their fixes, `EVALUATOR_SCORE`/`POLICY_VERDICT`,
+    still open). Both remain W12c/W29, real and unstarted.
+  - **Tests**: `tests/test_replay_command.py` (new, 26 tests covering D3's
+    version-aware required set, D4's content/sentinel fields, D5's drift
+    warning); `tests/test_replay.py` rewritten for the new
+    `LocalReplayVerifier.check() -> (errors, warnings)` API;
+    `tests/test_bundle_validator.py`/`tests/test_example_configs.py`
+    updated for the version-aware checked-file count. Full suite green,
+    97% coverage; `lint-imports` unaffected (6/6 kept).
+
 - **Row 13b — `AzureOpenAIRunner`** (`runner_id: "azure-openai"`), Axis B of
   `docs/adr/0004-cloud-backend-two-axes.md`. Subclasses `OpenAIRunner` (no
   shared provider base class, per D1; `_gen` untouched) overriding only

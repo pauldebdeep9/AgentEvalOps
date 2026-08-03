@@ -19,6 +19,11 @@ from agentevalops.evaluators.deterministic import DeterministicEvaluator
 from agentevalops.orchestration.local import LocalOrchestrator
 from agentevalops.policy.basic_checker import BasicPolicyChecker
 from agentevalops.replay.local import LocalReplayVerifier
+
+# NOTE: LocalReplayVerifier.check() returns (errors, warnings) -- a bare
+# cross-file consistency check, not the deleted ReplaySummary type (see
+# docs/adr/0003-replay-semantics.md, D2). These tests only need "no
+# structural findings," so an empty errors list is the assertion.
 from agentevalops.stores.memory import InMemoryTraceStore
 
 # ---------------------------------------------------------------------------
@@ -117,8 +122,8 @@ def test_smoke_bundle_written(tmp_path: Path) -> None:
 def test_smoke_replay_passes(tmp_path: Path) -> None:
     _, bundle_dir = _run_and_write(Path("configs/toy_smoke.yaml"), tmp_path)
     loaded_bundle = BundleReader(bundle_dir).read()
-    replay = LocalReplayVerifier(loaded_bundle).verify()
-    assert replay.checks_passed, replay.failures
+    replay_errors, _ = LocalReplayVerifier(loaded_bundle).check()
+    assert replay_errors == []
 
 
 # ---------------------------------------------------------------------------
@@ -154,8 +159,8 @@ def test_failure_bundle_written(tmp_path: Path) -> None:
 def test_failure_replay_passes(tmp_path: Path) -> None:
     _, bundle_dir = _run_and_write(Path("configs/toy_failure.yaml"), tmp_path)
     loaded_bundle = BundleReader(bundle_dir).read()
-    replay = LocalReplayVerifier(loaded_bundle).verify()
-    assert replay.checks_passed, replay.failures
+    replay_errors, _ = LocalReplayVerifier(loaded_bundle).check()
+    assert replay_errors == []
 
 
 # ---------------------------------------------------------------------------
@@ -192,8 +197,8 @@ def test_policy_violation_replay_passes(tmp_path: Path) -> None:
         Path("configs/toy_policy_violation.yaml"), tmp_path
     )
     loaded_bundle = BundleReader(bundle_dir).read()
-    replay = LocalReplayVerifier(loaded_bundle).verify()
-    assert replay.checks_passed, replay.failures
+    replay_errors, _ = LocalReplayVerifier(loaded_bundle).check()
+    assert replay_errors == []
 
 
 # ---------------------------------------------------------------------------
@@ -237,8 +242,8 @@ def test_trace_limit_replay_passes(tmp_path: Path) -> None:
         Path("configs/toy_trace_limit.yaml"), tmp_path
     )
     loaded_bundle = BundleReader(bundle_dir).read()
-    replay = LocalReplayVerifier(loaded_bundle).verify()
-    assert replay.checks_passed, replay.failures
+    replay_errors, _ = LocalReplayVerifier(loaded_bundle).check()
+    assert replay_errors == []
 
 
 # ---------------------------------------------------------------------------
@@ -281,5 +286,5 @@ def test_mixed_bundle_written(tmp_path: Path) -> None:
 def test_mixed_replay_passes(tmp_path: Path) -> None:
     _, bundle_dir = _run_and_write(Path("configs/toy_mixed.yaml"), tmp_path)
     loaded_bundle = BundleReader(bundle_dir).read()
-    replay = LocalReplayVerifier(loaded_bundle).verify()
-    assert replay.checks_passed, replay.failures
+    replay_errors, _ = LocalReplayVerifier(loaded_bundle).check()
+    assert replay_errors == []

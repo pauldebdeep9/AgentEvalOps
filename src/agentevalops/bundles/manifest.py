@@ -30,7 +30,7 @@ from agentevalops import __version__
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
     MANIFEST_FILENAME,
-    REQUIRED_BUNDLE_FILES,
+    required_files_for_version,
 )
 
 
@@ -80,9 +80,13 @@ def _extract_run_fields(bundle_dir: Path) -> dict[str, Any]:
 def generate_manifest(bundle_dir: Path) -> dict[str, Any]:
     """Generate a manifest dict for the bundle at *bundle_dir*.
 
-    All *REQUIRED_BUNDLE_FILES* that exist in *bundle_dir* are checksummed.
-    Files that are missing are omitted from the ``"files"`` section (the
-    validator will later report them as missing).
+    The manifest always declares the current ``BUNDLE_FORMAT_VERSION`` --
+    ``BundleWriter`` only ever produces bundles at the latest version, never
+    an older one -- so the required-file set checksummed here is
+    ``required_files_for_version(BUNDLE_FORMAT_VERSION)``, which includes
+    ``replay_command.txt`` starting at "0.4". Files that are missing are
+    omitted from the ``"files"`` section (the validator will later report
+    them as missing).
 
     Parameters
     ----------
@@ -95,8 +99,9 @@ def generate_manifest(bundle_dir: Path) -> dict[str, Any]:
     dict
         A plain-Python dict suitable for JSON serialization.
     """
+    required = required_files_for_version(BUNDLE_FORMAT_VERSION)
     files: dict[str, dict[str, Any]] = {}
-    for filename in REQUIRED_BUNDLE_FILES:
+    for filename in required:
         path = bundle_dir / filename
         if path.exists():
             size = path.stat().st_size
@@ -107,7 +112,7 @@ def generate_manifest(bundle_dir: Path) -> dict[str, Any]:
         "bundle_format_version": BUNDLE_FORMAT_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "manifest_filename": MANIFEST_FILENAME,
-        "required_files": sorted(REQUIRED_BUNDLE_FILES),
+        "required_files": sorted(required),
         "files": dict(sorted(files.items())),
         "run": _extract_run_fields(bundle_dir),
         "writer": {

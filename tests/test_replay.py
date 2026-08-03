@@ -1,4 +1,12 @@
-"""Tests for LocalReplayVerifier and the CLI replay command."""
+"""Tests for LocalReplayVerifier and the CLI replay/validate-bundle commands.
+
+docs/adr/0003-replay-semantics.md, D1/D2: ``LocalReplayVerifier`` is now an
+internal cross-file-consistency helper folded into
+``bundles.validator.validate_bundle()`` -- it returns raw ``(errors,
+warnings)``, not a standalone ``ReplaySummary`` (deleted). ``replay`` is a
+deprecated CLI alias for ``validate-bundle``, delegating to the identical
+code path.
+"""
 
 from __future__ import annotations
 
@@ -24,7 +32,7 @@ from agentevalops.core.schemas import (
     Verdict,
 )
 from agentevalops.core.types import BACKEND_LOCAL, AgentId, RunId, TaskId
-from agentevalops.replay.local import LocalReplayVerifier, ReplaySummary
+from agentevalops.replay.local import LocalReplayVerifier
 
 runner = CliRunner()
 _CONFIG = (
@@ -112,41 +120,11 @@ def _load(bundle_dir: Path) -> LoadedBundle:
 # ---------------------------------------------------------------------------
 
 
-def test_replay_passes_on_valid_bundle(tmp_path: Path) -> None:
+def test_check_passes_on_valid_bundle(tmp_path: Path) -> None:
     loaded = _load(_make_valid_bundle(tmp_path))
-    result = LocalReplayVerifier(loaded).verify()
-    assert isinstance(result, ReplaySummary)
-    assert result.checks_passed
-
-
-def test_replay_summary_includes_run_id(tmp_path: Path) -> None:
-    loaded = _load(_make_valid_bundle(tmp_path))
-    result = LocalReplayVerifier(loaded).verify()
-    assert result.run_id == "replay-test-001"
-
-
-def test_replay_summary_includes_trace_event_count(tmp_path: Path) -> None:
-    loaded = _load(_make_valid_bundle(tmp_path))
-    result = LocalReplayVerifier(loaded).verify()
-    assert result.trace_event_count == 2
-
-
-def test_replay_summary_includes_evaluation_count(tmp_path: Path) -> None:
-    loaded = _load(_make_valid_bundle(tmp_path))
-    result = LocalReplayVerifier(loaded).verify()
-    assert result.evaluation_count == 1
-
-
-def test_replay_summary_policy_verdict_is_pass(tmp_path: Path) -> None:
-    loaded = _load(_make_valid_bundle(tmp_path))
-    result = LocalReplayVerifier(loaded).verify()
-    assert result.policy_verdict == "pass"
-
-
-def test_replay_failures_empty_on_valid_bundle(tmp_path: Path) -> None:
-    loaded = _load(_make_valid_bundle(tmp_path))
-    result = LocalReplayVerifier(loaded).verify()
-    assert result.failures == []
+    errors, warnings = LocalReplayVerifier(loaded).check()
+    assert errors == []
+    assert warnings == []
 
 
 # ---------------------------------------------------------------------------
@@ -154,17 +132,16 @@ def test_replay_failures_empty_on_valid_bundle(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_replay_fails_when_traces_empty(tmp_path: Path) -> None:
+def test_check_fails_when_traces_empty(tmp_path: Path) -> None:
     bundle_dir = _make_valid_bundle(tmp_path)
     # Overwrite traces.jsonl with empty content
     (bundle_dir / "traces.jsonl").write_text("", encoding="utf-8")
     loaded = _load(bundle_dir)
-    result = LocalReplayVerifier(loaded).verify()
-    assert not result.checks_passed
-    assert any("no events" in f for f in result.failures)
+    errors, _ = LocalReplayVerifier(loaded).check()
+    assert any("no events" in e for e in errors)
 
 
-def test_replay_fails_when_summary_trace_count_mismatches(
+def test_check_fails_when_summary_trace_count_mismatches(
     tmp_path: Path,
 ) -> None:
     bundle_dir = _make_valid_bundle(tmp_path)
@@ -179,12 +156,11 @@ def test_replay_fails_when_summary_trace_count_mismatches(
         json.dumps(summary_data), encoding="utf-8"
     )
     reloaded = _load(bundle_dir)
-    result = LocalReplayVerifier(reloaded).verify()
-    assert not result.checks_passed
-    assert any("mismatch" in f for f in result.failures)
+    errors, _ = LocalReplayVerifier(reloaded).check()
+    assert any("mismatch" in e for e in errors)
 
 
-def test_replay_fails_when_run_id_missing_from_metadata(
+def test_check_fails_when_run_id_missing_from_metadata(
     tmp_path: Path,
 ) -> None:
     import json
@@ -196,26 +172,16 @@ def test_replay_fails_when_run_id_missing_from_metadata(
         json.dumps(meta), encoding="utf-8"
     )
     loaded = _load(bundle_dir)
-    result = LocalReplayVerifier(loaded).verify()
-    assert not result.checks_passed
+    errors, _ = LocalReplayVerifier(loaded).check()
+    assert errors  # non-empty: missing run_id is a real finding
 
 
-def test_replay_fails_when_evaluations_empty(tmp_path: Path) -> None:
+def test_check_fails_when_evaluations_empty(tmp_path: Path) -> None:
     bundle_dir = _make_valid_bundle(tmp_path)
     (bundle_dir / "evaluations.json").write_text("[]", encoding="utf-8")
     loaded = _load(bundle_dir)
-    result = LocalReplayVerifier(loaded).verify()
-    assert not result.checks_passed
-
-
-def test_replay_policy_verdict_is_none_when_policy_null(
-    tmp_path: Path,
-) -> None:
-    bundle_dir = _make_valid_bundle(tmp_path)
-    (bundle_dir / "policy.json").write_text("null", encoding="utf-8")
-    loaded = _load(bundle_dir)
-    result = LocalReplayVerifier(loaded).verify()
-    assert result.policy_verdict is None
+    errors, _ = LocalReplayVerifier(loaded).check()
+    assert errors
 
 
 # ---------------------------------------------------------------------------
@@ -223,17 +189,17 @@ def test_replay_policy_verdict_is_none_when_policy_null(
 # ---------------------------------------------------------------------------
 
 
-def test_replay_does_not_create_new_files(tmp_path: Path) -> None:
+def test_check_does_not_create_new_files(tmp_path: Path) -> None:
     bundle_dir = _make_valid_bundle(tmp_path)
     files_before = set(bundle_dir.iterdir())
     loaded = _load(bundle_dir)
-    LocalReplayVerifier(loaded).verify()
+    LocalReplayVerifier(loaded).check()
     files_after = set(bundle_dir.iterdir())
     assert files_after == files_before
 
 
 # ---------------------------------------------------------------------------
-# CLI replay command
+# CLI replay command (deprecated alias for validate-bundle, D1)
 # ---------------------------------------------------------------------------
 
 
@@ -243,10 +209,10 @@ def test_cli_replay_exits_zero_on_valid_bundle(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
 
 
-def test_cli_replay_output_includes_replay_status(tmp_path: Path) -> None:
+def test_cli_replay_output_includes_status(tmp_path: Path) -> None:
     bundle_dir = _make_valid_bundle(tmp_path)
     result = runner.invoke(app, ["replay", "--bundle", str(bundle_dir)])
-    assert "Replay status" in result.output
+    assert "Status" in result.output
 
 
 def test_cli_replay_output_includes_pass(tmp_path: Path) -> None:
@@ -307,4 +273,41 @@ def test_cli_replay_end_to_end_via_run_then_replay(
     )
     assert replay_result.exit_code == 0, replay_result.output
     assert "PASS" in replay_result.output
-    assert "Replay status" in replay_result.output
+    assert "Status" in replay_result.output
+
+
+# ---------------------------------------------------------------------------
+# D1: replay is a true alias -- deprecation notice on stderr only, identical
+# stdout and exit code to validate-bundle for the same bundle.
+# ---------------------------------------------------------------------------
+
+
+def test_cli_replay_deprecation_notice_on_stderr_not_stdout(
+    tmp_path: Path,
+) -> None:
+    bundle_dir = _make_valid_bundle(tmp_path)
+    result = runner.invoke(app, ["replay", "--bundle", str(bundle_dir)])
+    assert "deprecated" in result.stderr.lower()
+    assert "deprecated" not in result.stdout.lower()
+
+
+def test_cli_replay_and_validate_bundle_agree_on_exit_code(
+    tmp_path: Path,
+) -> None:
+    bundle_dir = _make_valid_bundle(tmp_path)
+    replay_result = runner.invoke(app, ["replay", "--bundle", str(bundle_dir)])
+    validate_result = runner.invoke(
+        app, ["validate-bundle", "--bundle", str(bundle_dir)]
+    )
+    assert replay_result.exit_code == validate_result.exit_code
+
+
+def test_cli_replay_and_validate_bundle_identical_stdout(
+    tmp_path: Path,
+) -> None:
+    bundle_dir = _make_valid_bundle(tmp_path)
+    replay_result = runner.invoke(app, ["replay", "--bundle", str(bundle_dir)])
+    validate_result = runner.invoke(
+        app, ["validate-bundle", "--bundle", str(bundle_dir)]
+    )
+    assert replay_result.stdout == validate_result.stdout

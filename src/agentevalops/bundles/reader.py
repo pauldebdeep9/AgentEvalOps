@@ -20,7 +20,12 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from agentevalops.bundles.constants import MANIFEST_FILENAME, REQUIRED_BUNDLE_FILES
+from agentevalops.bundles.constants import (
+    MANIFEST_FILENAME,
+    REQUIRED_BUNDLE_FILES,
+    peek_declared_format_version,
+    required_files_for_version,
+)
 from agentevalops.core.errors import BundleError
 
 # Backward-compat alias used by tests that imported BUNDLE_FILES from writer.
@@ -133,9 +138,14 @@ class BundleReader:
             )
 
     def _validate_files_present(self) -> None:
-        missing = [
-            f for f in BUNDLE_FILES if not (self._path / f).exists()
-        ]
+        # Which files count as "required" depends on the bundle's own
+        # declared format version (peeked from manifest.json, best-effort,
+        # never raising here) -- a "0.3" bundle is not missing anything by
+        # lacking replay_command.txt; a "0.4" one is. See
+        # bundles/constants.py's required_files_for_version.
+        declared_version = peek_declared_format_version(self._path)
+        required = required_files_for_version(declared_version)
+        missing = [f for f in required if not (self._path / f).exists()]
         if missing:
             raise BundleError(
                 f"Bundle '{self._path}' is missing required files: "
