@@ -9,6 +9,45 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **`docs/adr/0004-cloud-backend-two-axes.md` + doc sync — "Azure support" is
+  two independent axes, not one.** Documentation only, no code. Axis B
+  (Azure OpenAI as an `AgentRunner`) needs no `DESIGN.md` positioning
+  change — already covered by the existing "not bound to one model
+  provider" non-goal — and is off the critical path (new `ROADMAP.md` row
+  13b, optional, `not yet started`). Axis A (Azure as a `CloudBackend`)
+  stays out of v0.5 scope and does not start before `AwsBackend` exists,
+  since `CloudBackend` has zero implementations today, not even
+  `LocalBackend` (new `ROADMAP.md` row 16b names this prerequisite, filling
+  a hole §0 already flagged: `LocalBackend` was in the v0.5 scope list with
+  no assigned week). The ADR records the AWS/Azure primitive mapping table
+  and three protocol-shaped asymmetries now, deliberately before
+  `AwsBackend`'s design, as the counter-measure to designing against exactly
+  one cloud.
+  - Verified, not assumed, before writing: the five job-related schema types
+    ARCHITECTURE.md §2.8's code block shows (`JobSpec`/`JobHandle`/
+    `JobStatus`/`ContainerSpec`/`SecretRef`) don't exist anywhere in `src/`
+    or `tests/` (real protocol uses `dict[str, Any]`/`str`); `registry.py`
+    has no `KIND_BACKEND` at all, so `config/loader.py`'s
+    `_SUPPORTED_BACKENDS` has no registry allowlist to be out of parity
+    with, unlike `_SUPPORTED_RUNNERS`; `backend_id` reaches bundle metadata
+    and the markdown report but nothing dispatches on it; `core/types.py`
+    defines only `BACKEND_LOCAL`/`BACKEND_AWS`; the existing "openai
+    confined to agents/" import-linter contract already covers Azure OpenAI
+    (`openai.AzureOpenAI` is inside the same `openai` top-level module the
+    contract already forbids outside `agents/`), so no new contract is
+    implied by Axis B.
+  - `DESIGN.md` §8/§9, `ARCHITECTURE.md` §2.8/§3/§6, and `ROADMAP.md`
+    §0/§1/§2 updated to cross-reference the ADR and correct stale claims
+    found along the way: `ARCHITECTURE.md` §3's schema list asserted seven
+    names (`ArtifactRef`, `ReportArtifact`, `JobSpec`, `JobHandle`,
+    `JobStatus`, `ContainerSpec`, `SecretRef`) are defined in
+    `core/schemas.py` when they aren't; `ROADMAP.md` §1's runner list was
+    stale, missing the already-shipped `OpenAIRunner`.
+  - Deliberately not done in this session, per its own explicit scope:
+    `core/protocols.py`'s `CloudBackend` docstring and `core/types.py`'s
+    `BackendId` constants are unchanged — both are accurate today and only
+    become wrong the day `AzureBackend` itself lands, not before.
+
 - **W12a — outcome taxonomy, model provenance, and best-effort finalize**
   (`docs/adr/0002-outcome-taxonomy.md`, implemented in full; closes the
   remaining gap in `docs/adr/0001-openai-runner-chat-completions.md` §3).

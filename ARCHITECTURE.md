@@ -271,7 +271,7 @@ A future `ReportGenerator` implementation that uses an LLM (e.g. a failure-analy
 
 The cloud-neutrality boundary. All cloud-specific operations go through this protocol; everything else in the codebase is cloud-agnostic.
 
-**Status as of v0.1.0: defined, mock-only — no `LocalBackend` either.** Despite what earlier drafts of this section said, there is no `LocalBackend` implementation today, not even for local execution: `LocalOrchestrator` runs tasks directly against `AgentRunner`/`BenchmarkAdapter`/etc. without going through any `CloudBackend.submit_job`-style call at all. `backend_id` on `RunConfig` is just a string (`"local"`) carried through for bundle metadata, not a dispatch key to a real backend object. The `AwsBackend` (and a real `LocalBackend` to match it) are planned for the AWS phase (ROADMAP W17+); until then only a test-only mock satisfies this protocol.
+**Status as of v0.1.0: defined, mock-only — no `LocalBackend` either.** Despite what earlier drafts of this section said, there is no `LocalBackend` implementation today, not even for local execution: `LocalOrchestrator` runs tasks directly against `AgentRunner`/`BenchmarkAdapter`/etc. without going through any `CloudBackend.submit_job`-style call at all. `backend_id` on `RunConfig` is carried through into bundle metadata and the markdown report, but nothing dispatches on it — `grep -rn "backend_id" src/` shows exactly those two write/print sites and no branch. The five job-related schema types this section's code block shows below (`JobSpec`, `JobHandle`, `JobStatus`, `ContainerSpec`, `SecretRef`) do not exist anywhere in `src/` or `tests/`; the real protocol signatures (`core/protocols.py`) use plain `dict[str, Any]`/`str` throughout. The `AwsBackend` (and a real `LocalBackend` to match it) are planned for the AWS phase (ROADMAP W17+); until then only a test-only mock satisfies this protocol. See `docs/adr/0004-cloud-backend-two-axes.md` for the Azure-vs-AWS primitive mapping recorded ahead of `AwsBackend`'s design, and for why "Azure support" splits into two independent axes (a model-provider runner concern, separate from this backend concern).
 
 > **Note on `ResourceLimits` vs. `PolicySpec`.** `ResourceLimits` (on `AgentConfig`) are *runtime controls* — the runner enforces them during execution and will stop the agent if a limit is reached. `PolicySpec` is a *post-run compliance check* — the `PolicyChecker` evaluates the completed trace after the fact and produces a verdict. They are separate concerns with separate enforcement points.
 
@@ -354,6 +354,8 @@ class PolicyChecker(Protocol):
 All schemas are Pydantic v2 models defined in `src/agentevalops/core/schemas.py`. They are versioned via a top-level `schema_version` field on the result bundle's `metadata.json`, and a compatibility-test suite ensures bundles produced by older platform versions remain readable.
 
 The schema set is deliberately flat — TaskSpec, AgentConfig, RunConfig, EnvHandle, TraceEvent, AgentResult, GradeReport, EvaluatorScore, EvaluatorContext, RunSummary, ArtifactRef, ReportArtifact, JobSpec, JobHandle, JobStatus, ContainerSpec, SecretRef, PolicySpec, PolicyVerdict, Trace, RunId, ResourceLimits. Anything more nested becomes hard to evolve.
+
+**Correction, verified by `grep -n "^class " src/agentevalops/core/schemas.py`:** seven of the names above are not defined in `core/schemas.py`, or anywhere in `src/`/`tests/` — `ArtifactRef`, `ReportArtifact`, `JobSpec`, `JobHandle`, `JobStatus`, `ContainerSpec`, `SecretRef`. The first two are `ArtifactStore`'s target types (§2.6 already notes the real signature is plain `bytes`/`str`); the last five are `CloudBackend`'s target types (§2.8, and `docs/adr/0004-cloud-backend-two-axes.md`). Every other name in the list above is real, though sometimes under a different name than shown in this document's protocol code blocks (e.g. the real dataclass is `AgentOutput`, not `AgentResult`) — that broader naming drift is out of this correction's scope.
 
 A few schemas worth calling out specifically:
 
@@ -548,7 +550,7 @@ Specific choices and the reasons for them:
 
 **Bedrock AgentCore** is future work beyond the initial AWS backend phase and is not part of the `AwsBackend` planned implementation. It will be added as a separate `AgentRunner` adapter when relevant.
 
-**Azure and GCP** are future roadmap items. The `CloudBackend` protocol is the extension point; they are not active development and have no placeholder modules in the current codebase.
+**Azure and GCP as `CloudBackend` implementations** are future roadmap items. The `CloudBackend` protocol is the extension point; they are not active development and have no placeholder modules in the current codebase. Azure specifically splits into two independent axes that should not be conflated — see `docs/adr/0004-cloud-backend-two-axes.md` for the full split, the primitive-mapping table (AWS's planned ECS/S3/DynamoDB/Secrets Manager/CloudWatch topology above, against Azure's Container Apps Jobs/Blob Storage/Table Storage/Key Vault/Azure Monitor equivalents), and the asymmetries that constrain `AwsBackend`'s eventual design.
 
 ---
 

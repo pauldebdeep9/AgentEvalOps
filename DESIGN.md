@@ -123,7 +123,7 @@ This section is the most important section of this document, because it is where
 
 **It is not bound to one model provider.** Anthropic, OpenAI, Bedrock, Ollama, and OpenAI-compatible endpoints are all first-class. The platform does not optimize for any one provider's features at the cost of provider-neutrality in the core.
 
-**It is not bound to one cloud provider.** AWS is the planned cloud backend, isolated behind the `CloudBackend` interface in `src/agentevalops/cloud/aws/`. The core platform is cloud-neutral. Azure and GCP are future roadmap items, not active development. AWS itself is not required for v0.1 — local execution is the default.
+**It is not bound to one cloud provider.** AWS is the planned cloud backend, isolated behind the `CloudBackend` interface in `src/agentevalops/cloud/aws/`. The core platform is cloud-neutral. "Cloud provider" in this paragraph means a `CloudBackend` implementation — the compute/secrets/telemetry plane a run executes on. Consuming a cloud vendor's *model endpoint* (Bedrock, Azure OpenAI) is a different concern, already governed by the "not bound to one model provider" non-goal directly above: it's a runner, not a backend, and admitting one requires no change to this paragraph's position. `CloudBackend` implementations for Azure and GCP are future roadmap items, not active development. AWS itself is not required for v0.1 — local execution is the default. See `docs/adr/0004-cloud-backend-two-axes.md` for the full two-axis split and why the distinction matters in practice.
 
 **It is not Kubernetes-first.** ECS Fargate (and equivalent managed container services on other clouds) is the deployment target. Kubernetes is supported only via the same container interface; no Helm charts, no operators, no CRDs in the v1 timeframe.
 
@@ -147,7 +147,7 @@ These are the load-bearing decisions. They are not implementation details — ch
 
 **The result bundle is the contract.** Every other surface — dashboards, comparisons, reports, future products — consumes bundles. The bundle format is versioned, documented, and backwards-compatible. If the platform's code disappeared tomorrow, bundles produced today would still be analyzable.
 
-**AWS-first for cloud, cloud-neutral core.** AWS-specific code is quarantined to `src/agentevalops/cloud/aws/` and `infra/aws/`. A grep for `boto3` outside those directories is a build failure. AWS backend is planned but not required for v0.1; local execution is the default. The first port to another cloud should be a two-week project, not a rewrite.
+**AWS-first for cloud, cloud-neutral core.** AWS-specific code is quarantined to `src/agentevalops/cloud/aws/` and `infra/aws/`. A grep for `boto3` outside those directories is a build failure. AWS backend is planned but not required for v0.1; local execution is the default. The first port to another cloud should be a two-week project, not a rewrite — this claim is currently untested, since `CloudBackend` has no implementations at all yet (not even a `LocalBackend`); `docs/adr/0004-cloud-backend-two-axes.md` is what sets up the eventual measurement, by recording the Azure primitive mapping before `AwsBackend` is designed rather than after.
 
 **Reproducibility is a tested property, not a hope.** The CI suite includes a "replay test" that takes a recorded bundle, runs the `replay_command.txt`, and asserts the new bundle matches the original on a defined set of fields. If replay breaks, the build breaks.
 
