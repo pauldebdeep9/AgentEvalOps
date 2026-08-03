@@ -206,7 +206,7 @@ def test_price_table_unknown_model_uses_fallback() -> None:
 
 def test_default_model_and_agent_id() -> None:
     runner = OpenAIRunner(agent_factory=_factory([]))
-    assert runner._model == DEFAULT_MODEL
+    assert runner._model_id == DEFAULT_MODEL
     assert runner.agent_id == f"openai-chat:{DEFAULT_MODEL}"
 
 
@@ -217,7 +217,7 @@ def test_explicit_model_in_agent_id() -> None:
 
 def test_none_model_falls_back_to_default() -> None:
     runner = OpenAIRunner(model=None, agent_factory=_factory([]))
-    assert runner._model == DEFAULT_MODEL
+    assert runner._model_id == DEFAULT_MODEL
 
 
 def test_openai_model_env_var_has_no_effect(
@@ -231,7 +231,7 @@ def test_openai_model_env_var_has_no_effect(
     # DEFAULT_MODEL; setting OPENAI_MODEL must do nothing at all.
     monkeypatch.setenv("OPENAI_MODEL", "gpt-4o-mini")
     runner = OpenAIRunner(agent_factory=_factory([]))
-    assert runner._model == DEFAULT_MODEL
+    assert runner._model_id == DEFAULT_MODEL
     assert runner.agent_id == f"openai-chat:{DEFAULT_MODEL}"
 
 

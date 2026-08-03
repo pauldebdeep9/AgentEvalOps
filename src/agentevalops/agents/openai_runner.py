@@ -110,6 +110,19 @@ def _cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
 
 
 # ---------------------------------------------------------------------------
+# NOTE (docs/adr/0004-cloud-backend-two-axes.md, Axis B / D2): a single
+# ``model`` string used to serve three jobs at once -- the API's ``model=``
+# parameter, the pricing-table key, and the ``agent_id`` provenance string.
+# Azure OpenAI keys requests by *deployment name*, not model id, splitting
+# the first job from the other two. ``OpenAIRunner`` below is refactored to
+# carry ``_api_model``/``_model_id`` as two attributes (both set to the same
+# string here, so behaviour is unchanged) precisely so ``AzureOpenAIRunner``
+# (``azure_openai_runner.py``) can override each independently without
+# duplicating this class's loop.
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
 # Lightweight tools (same tool set as langgraph_runner._TOOLS, re-expressed in
 # OpenAI's {"type": "function", "function": {...}} shape)
 # ---------------------------------------------------------------------------
@@ -292,7 +305,9 @@ class OpenAIRunner:
         max_steps: int = 6,
         system_prompt: str | None = None,
     ) -> None:
-        self._model = model or DEFAULT_MODEL
+        resolved_model = model or DEFAULT_MODEL
+        self._api_model = resolved_model  # -> the API's `model=` parameter
+        self._model_id = resolved_model  # -> pricing table key + agent_id
         self._agent_factory = agent_factory
         self._max_steps = max(1, int(max_steps))
         self._system_prompt = system_prompt or (
@@ -302,7 +317,7 @@ class OpenAIRunner:
             "answer string and nothing else."
         )
         self._client: Any = None
-        self.agent_id = AgentId(f"openai-chat:{self._model}")
+        self.agent_id = AgentId(f"openai-chat:{self._model_id}")
 
     # ------------------------------------------------------------------
     # Client construction
@@ -365,7 +380,7 @@ class OpenAIRunner:
         """Call the model once; wrap API failures as infrastructure errors."""
         try:
             response = client.chat.completions.create(
-                model=self._model,
+                model=self._api_model,
                 messages=messages,
                 tools=_TOOLS,
             )
@@ -376,6 +391,18 @@ class OpenAIRunner:
                 f"Model API call failed: {exc}"
             ) from exc
         return _ParsedResponse(response)
+
+    def _compute_step_cost(
+        self, model_id: str, input_tokens: int, output_tokens: int
+    ) -> float:
+        """Return the USD cost of one model response.
+
+        Overridden by :class:`~agentevalops.agents.azure_openai_runner.
+        AzureOpenAIRunner`, which prices against its own Azure table instead
+        of this module's OpenAI-direct one (docs/adr/0004, D3) -- the seam
+        that lets a subclass repriced a call without touching :meth:`_gen`.
+        """
+        return _cost_usd(model_id, input_tokens, output_tokens)
 
     # ------------------------------------------------------------------
     # run()
@@ -405,7 +432,7 @@ class OpenAIRunner:
         client: Any,
     ) -> AsyncGenerator[TraceEvent, None]:
         start = time.monotonic()
-        model = self._model
+        model_id = self._model_id
         total_tokens = 0
         total_cost = 0.0
         step = 0
@@ -457,8 +484,8 @@ class OpenAIRunner:
 
             # --- cost / token accounting for this response ----------------
             step_tokens = parsed.input_tokens + parsed.output_tokens
-            step_cost = _cost_usd(
-                model, parsed.input_tokens, parsed.output_tokens
+            step_cost = self._compute_step_cost(
+                model_id, parsed.input_tokens, parsed.output_tokens
             )
             total_tokens += step_tokens
             total_cost += step_cost
