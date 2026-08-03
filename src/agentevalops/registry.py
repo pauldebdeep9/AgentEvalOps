@@ -252,6 +252,7 @@ def _register_builtins(reg: Registry) -> None:
     """Register the components that ship inside this package."""
     # Imports are local to avoid import cycles and to keep module import cheap
     # for callers that don't actually run anything.
+    from agentevalops.agents.azure_openai_runner import AzureOpenAIRunner
     from agentevalops.agents.langgraph_runner import LangGraphRunner
     from agentevalops.agents.mock_runner import MockAgentRunner
     from agentevalops.agents.openai_runner import OpenAIRunner
@@ -261,12 +262,15 @@ def _register_builtins(reg: Registry) -> None:
 
     reg.register(KIND_BENCHMARK, "toy", ToyBenchmarkAdapter)
     reg.register(KIND_RUNNER, "mock", MockAgentRunner)
-    # Registering the langgraph/openai runners does NOT import
+    # Registering the langgraph/openai/azure-openai runners does NOT import
     # anthropic/langgraph/openai — those deps are imported lazily inside the
     # runner methods, so the registry stays importable with only the core
     # dependencies present.
     reg.register(KIND_RUNNER, "langgraph", LangGraphRunner)
     reg.register(KIND_RUNNER, "openai", OpenAIRunner)
+    # Axis B of docs/adr/0004-cloud-backend-two-axes.md -- a model-provider
+    # concern only; unrelated to the (out-of-scope) CloudBackend Azure axis.
+    reg.register(KIND_RUNNER, "azure-openai", AzureOpenAIRunner)
     reg.register(KIND_EVALUATOR, "deterministic", DeterministicEvaluator)
     reg.register(KIND_POLICY, "basic", BasicPolicyChecker)
 

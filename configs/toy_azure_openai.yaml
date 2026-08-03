@@ -1,0 +1,69 @@
+# AgentEvalOps — Azure OpenAI-backed runner (docs/adr/0004-cloud-backend-
+# two-axes.md, Axis B)
+#
+# `runner_id: azure-openai` IS registered (src/agentevalops/registry.py) and
+# selects `AzureOpenAIRunner` — a real, model-backed agent that calls Azure
+# OpenAI instead of OpenAI directly, reusing `OpenAIRunner`'s loop, parsing,
+# and agent_factory test-injection seam (see agents/azure_openai_runner.py's
+# module docstring and the ADR for the full design rationale). This is Axis
+# B only: a model-provider concern, unrelated to Axis A (Azure as a
+# CloudBackend, out of v0.5 scope). It is optional and off the critical path
+# (ROADMAP.md row 13b).
+#
+# This path is NOT exercised in CI, costs real money, and is never run
+# without being asked to.
+#
+# To use it:
+#
+#   1. Install the optional LLM extra:
+#        pip install -e ".[llm]"
+#   2. Export your Azure OpenAI resource's endpoint and API key (never
+#      commit either):
+#        export AZURE_OPENAI_ENDPOINT=https://<your-resource>.openai.azure.com
+#        export AZURE_OPENAI_API_KEY=...
+#   3. Run:
+#        agentevalops run --config configs/toy_azure_openai.yaml --output runs/azoai
+#
+# A missing AZURE_OPENAI_ENDPOINT/AZURE_OPENAI_API_KEY surfaces as a clean
+# CLI exit (ConfigurationError), not a crash. As of 2026-08-03 this path has
+# never actually been run — live verification is explicitly blocked on
+# Azure subscription quota, the same class of blocker that stopped
+# OpenAIRunner's live run on 2026-08-03 (ROADMAP.md §0), not a new one.
+
+run_id: "toy-azure-openai-001"
+agent_id: "azure-openai-chat"
+backend_id: "local"
+max_concurrent_tasks: 1
+
+# Selects the Azure OpenAI runner. Default (omitted) would be "mock".
+runner_id: "azure-openai"
+
+# Model id: used for pricing (agents/azure_openai_runner.py's own Azure
+# price table) and agent_id provenance -- NOT sent as the API's `model=`
+# parameter. Required, same as for `openai`/`langgraph`: config/loader.py
+# raises ConfigurationError at load time if a model-backed runner_id omits
+# this field.
+model: "gpt-4.1-mini-2025-04-14"
+
+# Azure-only fields, required for runner_id: azure-openai (config/loader.py
+# rejects them for every other runner_id rather than silently ignoring
+# them). `deployment` is what actually gets sent as the API's `model=`
+# parameter -- Azure OpenAI keys requests by deployment name, not model id.
+# Replace with your own Azure resource's deployment name; the value below
+# is illustrative only.
+deployment: "gpt-4.1-mini-deployment"
+api_version: "2024-10-21"
+
+# Real-LLM runs cost money and use real tokens, so give the limits headroom
+# relative to the mock configs but keep them bounded for a toy run.
+resource_limits:
+  max_tokens: 20000
+  max_wall_seconds: 120.0
+  max_cost_usd: 1.0
+
+benchmark_id: "toy"
+benchmark_scenario: smoke
+
+policy:
+  policy_id: "default"
+  max_cost_usd: 1.0

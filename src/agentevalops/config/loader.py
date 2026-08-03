@@ -37,9 +37,10 @@ _SUPPORTED_BACKENDS: frozenset[str] = frozenset({"local", "aws"})
 _SUPPORTED_BENCHMARKS: frozenset[str] = frozenset({"toy"})
 #: Agent runners selectable from a config's ``runner_id``.  ``"mock"`` is the
 #: default and the only runner required for the v0.1 demo path; ``"langgraph"``
-#: is the real Claude-backed runner (ROADMAP W8) and ``"openai"`` is the real
+#: is the real Claude-backed runner (ROADMAP W8), ``"openai"`` is the real
 #: OpenAI-backed runner (docs/adr/0001-openai-runner-chat-completions.md),
-#: both registered separately.
+#: and ``"azure-openai"`` is the Azure OpenAI-backed runner (docs/adr/0004-
+#: cloud-backend-two-axes.md, Axis B) -- all registered separately.
 #:
 #: This frozenset duplicates the registry's set of registered runner names
 #: (``registry.names(registry.KIND_RUNNER)``) instead of querying it
@@ -60,7 +61,9 @@ _SUPPORTED_BENCHMARKS: frozenset[str] = frozenset({"toy"})
 #: checking against import-linter's layers contract (config/ and registry.py
 #: are already in the same middle tier, so this is expected to be
 #: uncontroversial, just unverified until someone actually does it).
-_SUPPORTED_RUNNERS: frozenset[str] = frozenset({"mock", "langgraph", "openai"})
+_SUPPORTED_RUNNERS: frozenset[str] = frozenset(
+    {"mock", "langgraph", "openai", "azure-openai"}
+)
 
 # ---------------------------------------------------------------------------
 # Public types
@@ -124,6 +127,20 @@ class LoadedRunConfig:
         """
         return self.run_config.model
 
+    @property
+    def deployment(self) -> str | None:
+        """Azure deployment name for ``runner_id: azure-openai``, or
+        ``None`` for every other runner.  Same read-only-view pattern as
+        :attr:`model` above -- not a second stored field."""
+        return self.run_config.deployment
+
+    @property
+    def api_version(self) -> str | None:
+        """Azure OpenAI API version for ``runner_id: azure-openai``, or
+        ``None`` for every other runner.  Same read-only-view pattern as
+        :attr:`model` above -- not a second stored field."""
+        return self.run_config.api_version
+
 
 # ---------------------------------------------------------------------------
 # Public function
@@ -157,6 +174,8 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         - ``backend_id`` is not one of the supported values.
         - ``benchmark_id`` is not one of the supported values.
         - ``mock_cost_per_task_usd`` is negative.
+        - ``runner_id: azure-openai`` omits ``deployment`` or ``api_version``.
+        - ``deployment``/``api_version`` are set for any other ``runner_id``.
     """
     # ------------------------------------------------------------------
     # File-system checks
@@ -230,10 +249,21 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         )
 
     # ------------------------------------------------------------------
-    # model (parsed early so run_config can carry it -- see below)
+    # model / deployment / api_version (parsed early so run_config can
+    # carry them -- see below). deployment/api_version are azure-openai-
+    # only fields; validated against runner_id further down, once runner_id
+    # itself has been parsed.
     # ------------------------------------------------------------------
     model_raw = raw.get("model")
     model = str(model_raw) if model_raw is not None else None
+
+    deployment_raw = raw.get("deployment")
+    deployment = str(deployment_raw) if deployment_raw is not None else None
+
+    api_version_raw = raw.get("api_version")
+    api_version = (
+        str(api_version_raw) if api_version_raw is not None else None
+    )
 
     # ------------------------------------------------------------------
     # run_config
@@ -245,6 +275,8 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         max_concurrent_tasks=int(raw.get("max_concurrent_tasks", 1)),
         resource_limits=resource_limits,
         model=model,
+        deployment=deployment,
+        api_version=api_version,
     )
 
     # ------------------------------------------------------------------
@@ -351,6 +383,35 @@ def load_run_config(path: Path) -> LoadedRunConfig:
             "fallback for a config-driven run -- this is what makes the "
             "bundle's recorded config the single source of truth for which "
             "model produced it."
+        )
+
+    # ``deployment``/``api_version`` are azure-openai-only fields
+    # (docs/adr/0004-cloud-backend-two-axes.md, Axis B). Required for
+    # azure-openai; REJECTED (not silently ignored) for every other
+    # runner_id. Silently tolerating them elsewhere would let a stale field
+    # survive a runner switch undetected -- exactly the shape of bug this
+    # project's history keeps finding (docs/adr/0002's "vocabulary exists,
+    # never wired" pattern; the 2026-08-03 _SUPPORTED_RUNNERS parity bug
+    # above). Fail loudly instead, the same way an omitted 'model' does.
+    if runner_id == "azure-openai":
+        if deployment is None:
+            raise ConfigurationError(
+                "runner_id 'azure-openai' requires an explicit 'deployment' "
+                "field -- Azure OpenAI keys API requests by deployment "
+                "name, not model id (docs/adr/0004-cloud-backend-two-"
+                "axes.md, Axis B)."
+            )
+        if api_version is None:
+            raise ConfigurationError(
+                "runner_id 'azure-openai' requires an explicit 'api_version' "
+                "field -- Azure OpenAI has no OpenAI-API equivalent default "
+                "(docs/adr/0004-cloud-backend-two-axes.md, Axis B)."
+            )
+    elif deployment is not None or api_version is not None:
+        raise ConfigurationError(
+            "'deployment'/'api_version' are only valid with runner_id: "
+            f"azure-openai (got runner_id: '{runner_id}'). Remove them or "
+            "set runner_id: azure-openai."
         )
 
     return LoadedRunConfig(

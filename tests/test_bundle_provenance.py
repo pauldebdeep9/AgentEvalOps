@@ -80,6 +80,72 @@ def test_loaded_model_property_matches_run_config_model() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Azure OpenAI-only fields (docs/adr/0004-cloud-backend-two-axes.md, Axis B):
+# deployment/api_version must reach the bundle the same way model does --
+# both determine behaviour (which Azure resource/API version is called), so
+# both must be recorded, not just estimated after the fact.
+# ---------------------------------------------------------------------------
+
+
+def test_azure_openai_bundle_names_deployment_and_api_version(
+    tmp_path: Path,
+) -> None:
+    from agentevalops.config.loader import load_run_config
+
+    loaded = load_run_config(Path("configs/toy_azure_openai.yaml"))
+    assert loaded.run_config.deployment is not None
+    assert loaded.run_config.api_version is not None
+
+    bundle_dir = tmp_path / "azure-openai-bundle"
+    BundleWriter(bundle_dir).write(
+        run_config=loaded.run_config,
+        summary=RunSummary(run_id=loaded.run_config.run_id),
+        all_events=[],
+        policy_spec=loaded.policy_spec,
+    )
+
+    config_data = json.loads(
+        (bundle_dir / "config.json").read_text(encoding="utf-8")
+    )
+    assert (
+        config_data["run_config"]["deployment"] == loaded.run_config.deployment
+    )
+    assert (
+        config_data["run_config"]["api_version"]
+        == loaded.run_config.api_version
+    )
+
+
+def test_non_azure_bundle_records_no_deployment(tmp_path: Path) -> None:
+    """A non-Azure bundle should say deployment/api_version are null, not
+    omit the keys -- same "explicit absence, not a missing key" convention
+    as the mock runner's model field above.
+    """
+    run_config = RunConfig(
+        run_id=RunId("openai-001"),
+        agent_id=AgentId("openai-chat"),
+        backend_id=BACKEND_LOCAL,
+        resource_limits=ResourceLimits(),
+        model="gpt-4.1-mini-2025-04-14",
+    )
+    assert run_config.deployment is None
+    assert run_config.api_version is None
+
+    bundle_dir = tmp_path / "openai-bundle"
+    BundleWriter(bundle_dir).write(
+        run_config=run_config,
+        summary=RunSummary(run_id=run_config.run_id),
+        all_events=[],
+        policy_spec=PolicySpec(policy_id="default"),
+    )
+    config_data = json.loads(
+        (bundle_dir / "config.json").read_text(encoding="utf-8")
+    )
+    assert config_data["run_config"]["deployment"] is None
+    assert config_data["run_config"]["api_version"] is None
+
+
+# ---------------------------------------------------------------------------
 # Task 3: git provenance
 # ---------------------------------------------------------------------------
 

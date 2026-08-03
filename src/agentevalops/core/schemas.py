@@ -109,6 +109,17 @@ class RunConfig:
     whole ``RunConfig`` object is what gets serialized, so a new field here
     needs no separate write-back path to reach the bundle (docs/adr/0001 §3,
     closed 2026-08-05).
+
+    ``deployment``/``api_version``: Azure OpenAI-only fields (``runner_id:
+    azure-openai``, docs/adr/0004-cloud-backend-two-axes.md, Axis B).
+    ``deployment`` is the Azure resource's deployment name -- Azure OpenAI
+    keys API requests by deployment name, not model id, so this is a
+    different value from ``model`` above, not a duplicate of it.
+    ``api_version`` is the Azure OpenAI API version, which has no
+    OpenAI-API equivalent default. Both additive, default ``None``, same
+    shape ``model`` took in W12a: ``config/loader.py`` requires both when
+    ``runner_id == "azure-openai"`` and rejects them for every other
+    ``runner_id`` rather than silently ignoring stale state.
     """
 
     run_id: RunId
@@ -117,6 +128,8 @@ class RunConfig:
     max_concurrent_tasks: int = 1
     resource_limits: ResourceLimits = field(default_factory=ResourceLimits)
     model: str | None = None
+    deployment: str | None = None
+    api_version: str | None = None
 
 
 # ---------------------------------------------------------------------------

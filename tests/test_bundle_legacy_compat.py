@@ -153,3 +153,115 @@ def test_legacy_v01_bundle_still_reads() -> None:
         assert loaded.metadata.get("status") is None
         assert loaded.summary.get("not_evaluated_tasks") is None
         assert loaded.evaluations[0].get("evaluated") is None
+
+
+# ---------------------------------------------------------------------------
+# "0.2"-format bundles (predate RunConfig.deployment/.api_version, added in
+# this session -- docs/adr/0004-cloud-backend-two-axes.md, Axis B).  Unlike
+# the "0.1" bundle above, a "0.2" bundle already has every 2026-08-05
+# taxonomy/provenance field (status/git_sha/git_dirty/not_evaluated_tasks/
+# evaluated) -- only config.json's run_config lacks deployment/api_version,
+# and the two version-string literals read "0.2" instead of the current
+# BUNDLE_FORMAT_VERSION.
+# ---------------------------------------------------------------------------
+
+
+def _write_legacy_v02_bundle(tmp_path: Path) -> Path:
+    """Write a real, current-format bundle, then downgrade it in place to
+    look exactly like a pre-Axis-B ("0.2") one: strip deployment/api_version
+    from config.json's run_config, and roll both version-string literals
+    back to "0.2" -- recomputing checksums against the *edited* content by
+    hand, same discipline as _write_legacy_bundle above.
+    """
+    run_id = RunId("legacy-v02-001")
+    run_config = RunConfig(
+        run_id=run_id,
+        agent_id=AgentId("mock-agent-v1"),
+        backend_id=BACKEND_LOCAL,
+        resource_limits=ResourceLimits(),
+    )
+    output = AgentOutput(
+        success=True, termination_reason=TerminationReason.COMPLETED
+    )
+    evaluation = EvaluationResult(
+        evaluator_id="ev", evaluator_kind="deterministic", score=1.0, passed=True
+    )
+    summary = RunSummary(
+        run_id=run_id,
+        task_results=[
+            TaskRunResult(
+                task_id=TaskId("t-1"), output=output, evaluation=evaluation,
+                event_count=1,
+            )
+        ],
+        total_tasks=1,
+        passed_tasks=1,
+        trace_event_count=1,
+    )
+    events = [
+        TraceEvent(
+            run_id=run_id, step_index=0, kind=TraceEventKind.AGENT_TERMINAL,
+            payload={"success": True},
+        )
+    ]
+
+    bundle_dir = tmp_path / "legacy-v02-bundle"
+    BundleWriter(bundle_dir).write(
+        run_config=run_config,
+        summary=summary,
+        all_events=events,
+        policy_spec=PolicySpec(policy_id="default"),
+    )
+
+    # --- downgrade metadata.json: "0.2" instead of the current version ---
+    meta_path = bundle_dir / "metadata.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["schema_version"] = "0.2"
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+
+    # --- downgrade config.json: no deployment/api_version on run_config ---
+    config_path = bundle_dir / "config.json"
+    config_data = json.loads(config_path.read_text(encoding="utf-8"))
+    config_data["run_config"].pop("deployment", None)
+    config_data["run_config"].pop("api_version", None)
+    config_path.write_text(
+        json.dumps(config_data, indent=2) + "\n", encoding="utf-8"
+    )
+
+    # --- regenerate manifest by hand: "0.2", checksums matching the edited
+    # content above (not a fresh write_manifest() call, which would put the
+    # current version string right back) ---
+    manifest_path = bundle_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["bundle_format_version"] = "0.2"
+    for filename in manifest["files"]:
+        file_path = bundle_dir / filename
+        manifest["files"][filename] = {
+            "size_bytes": file_path.stat().st_size,
+            "sha256": _sha256_file(file_path),
+        }
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    return bundle_dir
+
+
+def test_legacy_v02_bundle_still_validates() -> None:
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle_dir = _write_legacy_v02_bundle(Path(tmp))
+        result = validate_bundle(bundle_dir)
+        assert result.valid is True, result.errors
+
+
+def test_legacy_v02_bundle_still_reads() -> None:
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle_dir = _write_legacy_v02_bundle(Path(tmp))
+        loaded = BundleReader(bundle_dir).read()
+        assert loaded.metadata["schema_version"] == "0.2"
+        assert "deployment" not in loaded.config["run_config"]
+        assert "api_version" not in loaded.config["run_config"]

@@ -9,6 +9,64 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Row 13b — `AzureOpenAIRunner`** (`runner_id: "azure-openai"`), Axis B of
+  `docs/adr/0004-cloud-backend-two-axes.md`. Subclasses `OpenAIRunner` (no
+  shared provider base class, per D1; `_gen` untouched) overriding only
+  `_build_real_client` (`openai.AzureOpenAI`, endpoint/key from
+  `AZURE_OPENAI_ENDPOINT`/`AZURE_OPENAI_API_KEY`), price resolution, and
+  `agent_id` (`azure-openai-chat:` prefix). Bundle format bumped **`0.2` →
+  `0.3`** (`RunConfig.deployment`/`.api_version`, additive; `"0.2"` joins
+  the legacy-accept set).
+  - **Prerequisite refactor, proved behavior-preserving before anything else
+    was built (D2)**: `OpenAIRunner._model` — one string serving three jobs
+    (the API's `model=` parameter, the pricing-table key, `agent_id`
+    provenance) — split into `_api_model`/`_model_id`. For `OpenAIRunner`
+    both are set to the same value; `tests/test_openai_runner.py` ran
+    completely unmodified before and after (35/35 both times) to prove it.
+    `_compute_step_cost` added to `OpenAIRunner` as the price-resolution
+    seam `AzureOpenAIRunner` overrides, so no per-provider branch was needed
+    inside the shared loop.
+  - **Own price table, fails loud instead of guessing**: Azure gets
+    `_AZURE_PRICE_PER_1M_USD`, deliberately not sharing `OpenAIRunner`'s
+    `_FALLBACK_PRICE_PER_1M_USD` — Azure keys requests by deployment name,
+    so an unknown model id could never coincidentally match a model-id-keyed
+    table the way an occasional OpenAI miss might. `AzureOpenAIRunner.
+    __init__` raises `ConfigurationError` at construction time for an
+    unpriced model id, never a per-call silent default. Table seeded with
+    one model (`gpt-4.1-mini-2025-04-14`, $0.40/$1.60 per 1M input/output) —
+    Azure's own pricing page renders via client-side JavaScript and
+    couldn't be scraped directly, so sourced from two independent secondary
+    articles (cloudzero.com, redresscompliance.com, both checked
+    2026-08-03, both reporting identical Global Standard-tier figures, which
+    happen to match OpenAI's own direct-API rate for this model — not
+    copied from it), with model availability cross-confirmed via
+    Microsoft's own model-availability doc.
+  - **Config**: `RunConfig.deployment`/`.api_version` (additive, default
+    `None`, same shape `model` took in W12a). `config/loader.py` requires
+    both for `runner_id: azure-openai` and *rejects* — not silently ignores
+    — them for every other `runner_id`, since a stale field surviving a
+    runner switch is exactly the shape of bug this project's history keeps
+    finding. `configs/toy_azure_openai.yaml` added, mirroring
+    `toy_openai.yaml`.
+  - **Registered as `azure-openai`**, added to `_SUPPORTED_RUNNERS` —
+    closing `test_supported_runners_matches_registry`'s guard (the parity
+    test written after the 2026-08-03 `openai` incident) exactly as
+    designed, rather than repeating that incident a second time.
+  - **Tests**: 49 offline tests total (14 new in
+    `tests/test_azure_openai_runner.py`, 35 inherited unmodified from
+    `test_openai_runner.py`), no network, no `llm` extra required. Two
+    specifically fail-first verified — guard disabled, failure confirmed,
+    then restored — not just written and assumed correct: the seam that
+    sends the deployment name to the API while pricing off the model id,
+    and construction-time price-table enforcement for an unknown model.
+  - **No new import-linter contract**: confirmed the existing "openai
+    confined to agents/" contract already covers `openai.AzureOpenAI` (same
+    top-level module) — 6/6 contracts still kept.
+  - **Live verification not attempted** — remains blocked on Azure
+    subscription quota, the same class of blocker as `OpenAIRunner`'s
+    2026-08-03 attempt, not a new one. `DefaultAzureCredential`/AAD
+    authentication is explicitly out of scope (D6): API-key auth only.
+
 - **`docs/adr/0004-cloud-backend-two-axes.md` + doc sync — "Azure support" is
   two independent axes, not one.** Documentation only, no code. Axis B
   (Azure OpenAI as an `AgentRunner`) needs no `DESIGN.md` positioning

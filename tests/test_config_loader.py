@@ -335,6 +335,73 @@ def test_example_openai_config_loads() -> None:
     assert result.model is not None
 
 
+def test_azure_openai_runner_id_accepted(tmp_path: Path) -> None:
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\n"
+        'runner_id: azure-openai\nmodel: "gpt-4.1-mini-2025-04-14"\n'
+        'deployment: "my-deployment"\napi_version: "2024-10-21"\n',
+    )
+    result = load_run_config(p)
+    assert result.runner_id == "azure-openai"
+    assert result.model == "gpt-4.1-mini-2025-04-14"
+    assert result.deployment == "my-deployment"
+    assert result.api_version == "2024-10-21"
+
+
+def test_example_azure_openai_config_loads() -> None:
+    result = load_run_config(Path("configs/toy_azure_openai.yaml"))
+    assert result.runner_id == "azure-openai"
+    assert result.model is not None
+    assert result.deployment is not None
+    assert result.api_version is not None
+
+
+def test_azure_openai_runner_requires_deployment(tmp_path: Path) -> None:
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\n"
+        'runner_id: azure-openai\nmodel: "gpt-4.1-mini-2025-04-14"\n'
+        'api_version: "2024-10-21"\n',
+    )
+    with pytest.raises(ConfigurationError, match="deployment"):
+        load_run_config(p)
+
+
+def test_azure_openai_runner_requires_api_version(tmp_path: Path) -> None:
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\n"
+        'runner_id: azure-openai\nmodel: "gpt-4.1-mini-2025-04-14"\n'
+        'deployment: "my-deployment"\n',
+    )
+    with pytest.raises(ConfigurationError, match="api_version"):
+        load_run_config(p)
+
+
+def test_deployment_rejected_for_non_azure_runner(tmp_path: Path) -> None:
+    # A deployment/api_version field surviving a switch away from
+    # runner_id: azure-openai is very likely stale state, not intentional --
+    # rejected loudly rather than silently ignored (docs/adr/0004, D4).
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\n"
+        'runner_id: openai\nmodel: "gpt-4.1-mini-2025-04-14"\n'
+        'deployment: "leftover-deployment"\n',
+    )
+    with pytest.raises(ConfigurationError, match="azure-openai"):
+        load_run_config(p)
+
+
+def test_api_version_rejected_for_mock_runner(tmp_path: Path) -> None:
+    p = _write(
+        tmp_path,
+        'run_id: r1\nbenchmark_id: toy\napi_version: "2024-10-21"\n',
+    )
+    with pytest.raises(ConfigurationError, match="azure-openai"):
+        load_run_config(p)
+
+
 def test_supported_runners_matches_registry() -> None:
     """Guards against the 2026-08-03 parity bug: a runner registered in
     ``registry.py`` (``openai``) was left out of this module's

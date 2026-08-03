@@ -231,6 +231,12 @@ def _build_runner(loaded: LoadedRunConfig) -> Any:
             should_fail=loaded.mock_fail,
             cost_per_task_usd=loaded.mock_cost_per_task_usd,
         )
+    if loaded.runner_id == "azure-openai":
+        return runner_cls(
+            model=loaded.model,
+            deployment=loaded.deployment,
+            api_version=loaded.api_version,
+        )
     return runner_cls(model=loaded.model)
 
 
