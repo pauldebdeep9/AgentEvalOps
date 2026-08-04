@@ -7,19 +7,31 @@ this session, not by upstream's docs or by assumption. Where a claim
 couldn't be verified this session, it's marked as such rather than
 asserted.
 
-**Status: decision recorded, exit criterion met 2026-08-05 (follow-up
-session).** The first session's spike (2026-08-04) did not grade an
-instance and, on the evidence available at the time, reasonably concluded
-that upstream's default image registry was unreliable on x86_64. A
-follow-up session (2026-08-05) diagnosed that conclusion directly rather
-than working around it: the registry was never the problem — the original
-404 was a transient network/CDN timeout that `docker-py` surfaced as a
-misleading `ImageNotFound` — and a single SWE-bench Verified instance
-(`psf__requests-1921`) was graded end to end using upstream's documented
-default (no `--namespace ''`, no local build). See "Follow-up session
-(2026-08-05)" below for the diagnosis and "Upstream repository drift" for
-why the original workaround, had it been pursued further, would have
-traded a likely-transient problem for a structural one.
+**Status: decision recorded, exit criterion genuinely validated 2026-08-05
+(close-out session).** Three sessions, each correcting the last:
+
+1. **First session (2026-08-04):** spike did not grade an instance —
+   `sympy__sympy-20590` hit a 404 pulling its prebuilt image, the fallback
+   to a local build then hit real upstream repository drift (`sympy`'s
+   `1.7` branch had been deleted). Reasonably concluded upstream's default
+   registry was unreliable.
+2. **Follow-up session (2026-08-05):** diagnosed that conclusion directly
+   instead of repeating the workaround. The registry was never broken —
+   the 404 was a transient network/CDN timeout that `docker-py` surfaced
+   as a misleading `ImageNotFound`. Graded `psf__requests-1921` end to
+   end, no local build — but its **gold patch came back unresolved**,
+   traced to a live `httpbin.org` call inside a 2013-era test. Marked row
+   14 Met on the strength of this run — premature, corrected next.
+3. **Close-out session (2026-08-05):** an unresolved gold is diagnosis,
+   not validation — gold must resolve, by construction. `psf__requests-1921`
+   disqualified (not hermetic — see "Grading hermeticity", the sharper of
+   this document's two structural findings). A second instance,
+   `pallets__flask-5014`, screened for network dependence first, graded
+   **`resolved: true`**, cleanly. Row 14 is genuinely closed on this
+   evidence, not on the previous session's.
+
+See "Grading hermeticity" for the sharper finding, "Upstream repository
+drift" for the first, and "Row 14 close-out" for the validating run.
 
 ## Step 0 — hardware gate
 
@@ -361,6 +373,60 @@ below:** row 14's exit criterion is met — grading works, demonstrated
 against a different instance, using upstream's documented default (no
 local build).
 
+## Grading hermeticity: some SWE-bench Verified instances are not hermetic, and freezing the image doesn't fix it
+
+This is the sharper of the two findings this document records, and it sits
+above the repository-drift section below deliberately — that finding is
+about *building* an instance image; this one is about *what the instance
+does once it's running*, and it survives every mitigation the drift finding
+suggests.
+
+**The finding.** `psf__requests-1921`'s `test_basicauth_with_netrc` (one of
+its six `FAIL_TO_PASS` tests) calls `httpbin('basic-auth', 'user', 'pass')`
+— a live HTTP request to `httpbin.org` — during grading, confirmed directly
+from `test_output.txt` in the graded run (see "Follow-up session" below).
+This is not a build-time dependency on GitHub's current state, the way the
+sympy branch-drift finding is. It's a **run-time** dependency: the
+container is fully built, frozen, self-contained — and the test inside it
+still reaches out to the public internet the moment it executes.
+
+**Why freezing the image doesn't help, unlike the drift finding.** Pulling
+a prebuilt image instead of building locally makes the *environment
+construction* reproducible (see below) — the container's filesystem is
+identical every time. But `test_basicauth_with_netrc` doesn't care whether
+its filesystem is reproducible; it cares whether `httpbin.org` answers,
+right now, from wherever the container happens to be running. Registry
+freezing is a complete fix for repository drift and no fix at all for
+this. **Grading verdicts on affected instances depend on third-party
+service availability, and a single network blip — httpbin.org down, rate
+limiting, a sandbox with restricted egress, a DNS hiccup — can flip a
+`resolved` result to `unresolved` with nothing wrong with the patch.**
+This is not hypothetical: it is exactly what happened in the graded run
+this document already records.
+
+**The downstream consequence, stated because it constrains this repo's own
+future work, not just upstream's:** whenever this project selects a
+SWE-bench instance to promote to a golden fixture — the W12c/W29 replay
+fixtures, or any instance used as a CI-adjacent smoke check — **that
+instance must be screened for network dependence first**, the same way
+Step 3 below screens before grading. A golden fixture's entire premise is
+that replaying it produces the same result every time; a fixture whose
+underlying instance makes a live network call inherits `httpbin.org`'s
+uptime as a hidden dependency of this project's own replay determinism,
+undetectable by anything `docs/adr/0003-replay-semantics.md`'s Q3 currently
+enumerates (see "Report" in this session's own accounting for why that
+enumeration now looks incomplete beyond just this one case).
+
+**One more finding, one line: `docker-py`'s `ImageNotFound` does not mean
+"the image is absent."** The previous session's `ImageNotFound` traced back
+to `http+docker://localhost/v1.51/images/.../json` — the local Docker
+Engine API, not a registry endpoint — and cost that session a 20-minute
+local build chasing a problem that turned out to be a transient CloudFront
+blob-fetch timeout on the very first pull attempt (see "Follow-up session"
+below for the full diagnosis). Worth remembering the next time this
+harness reports a 404: check the registry directly before trusting the
+error message's apparent cause.
+
 ## Upstream repository drift: a first-class reproducibility finding
 
 This is promoted to its own section, not left as a footnote to why one
@@ -577,6 +643,121 @@ question but a correctness one — an instance can go from `resolved` to
 `unresolved` purely because of network reachability, independent of
 patch quality.
 
+**Correction, close-out session (2026-08-05): the paragraph above claimed
+row 14's exit criterion was met on the strength of this run. That
+conflated "the harness produces *a* verdict" with "the harness produces
+the *right* verdict" — gold is the human-authored fix; it must resolve,
+by construction, or something is wrong with either the grading or the
+instance. An unresolved gold is not validating evidence, even when (as
+here) its cause is fully diagnosed and external to the harness. See "Row
+14 close-out" below for the second, disqualifying screen and the clean
+gold run that actually validates the criterion.**
+
+## Row 14 close-out (2026-08-05): screening, then a clean gold run
+
+`psf__requests-1921` is disqualified from both roles it might otherwise
+have played — a row 14 validation run and a future golden-fixture
+candidate — for the same reason: its grading is not hermetic (see
+"Grading hermeticity" above). Closing row 14 honestly requires a second
+instance, screened first, whose gold patch actually resolves.
+
+**Screening, before pulling anything.** Candidates were ranked by patch
+length (smallest first, via `datasets`, offline/cache-only — see below)
+among SWE-bench Verified instances outside `psf/requests` (disqualified)
+and outside the scientific stack (`sympy`, `scikit-learn`, `scipy`,
+`numpy`, `pandas`, `matplotlib`, `astropy`, `pydata/xarray`,
+`mwaskom/seaborn` — heavy, large images, per the original spike ticket's
+own steer). Three candidates' `test_patch` diffs were read in full, not
+just their test names:
+
+| Instance | `FAIL_TO_PASS` test | What it does |
+|---|---|---|
+| `pallets__flask-5014` | `test_empty_name_not_allowed` | Asserts `ValueError` on `Blueprint("", __name__)` — pure input validation, in-process |
+| `pylint-dev__pylint-7080` | `test_ignore_path_recursive_current_dir` | Runs pylint against a local fixture directory, checks exit code — filesystem only |
+| `pytest-dev__pytest-6202` | `test_example_items1` | In-process test-collection introspection via pytest's own `testdir` fixture |
+
+All three: zero hits for a keyword screen (`http`, `socket`, `requests.`,
+`urlopen`, `dns`, `connect(`, `getaddrinfo`, `smtp`, `.com`, `.org`,
+`.net`, `urllib`) against the actual diff text, and a manual read of each
+diff confirms no network I/O, no external fixtures, no live-service
+dependency. **Picked `pallets__flask-5014`**: smallest patch (390
+characters), single-assertion test, Flask's own dependency footprint is
+small and pure-Python (no compiled extensions), keeping the instance image
+closer to `psf/requests`' size than to the scientific-stack instances.
+
+**Checked, not assumed, before trusting this method: would the same screen
+have caught `psf__requests-1921`?** Verified directly against
+`psf__requests-1921`'s own `test_patch` — and the answer is more nuanced
+than "yes," worth stating precisely rather than glossing over:
+`test_basicauth_with_netrc` (the test that actually failed) **is not in
+the `test_patch` diff at all** — it's a pre-existing test in the full
+`test_requests.py` file, already present before this instance's patch,
+never touched by the diff. A diff-only screen would have missed it
+entirely. What the screen *would* have caught is a coincidence, not a
+save: the diff's own newly-added `FAIL_TO_PASS` test
+(`test_headers_on_session_with_None_are_not_sent`) happens to also
+reference `http://httpbin.org/get` — but only to build a `PreparedRequest`
+object locally (`ses.prepare_request(req)` performs no I/O in the
+`requests` library), not to make a live call. The keyword hit is real; the
+reason it would have fired is not the reason the instance is actually
+disqualified.
+
+**The real limitation this surfaces:** a screen limited to the
+`test_patch` diff only sees tests the patch *adds or modifies* — it is
+blind to network dependence in the rest of a `FAIL_TO_PASS`/`PASS_TO_PASS`
+list that the diff doesn't touch, which is common (`psf__requests-1921`
+itself: 6 `FAIL_TO_PASS` tests, only 1 introduced by the diff). A
+rigorous screen needs the full test file content at the relevant commit
+for every named test, not just the diff — not done this session, for any
+of the three candidates above, and recorded as a real gap in "What's
+still open" rather than papered over.
+
+**The run — same `ImageNotFound` misreading, caught immediately this
+time.** The first invocation (no `--namespace ''`, upstream's documented
+default) failed with the identical error shape as the sympy 404:
+`docker.errors.ImageNotFound` against the local Engine API socket for
+`swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest`. Per the
+finding recorded above, this was checked directly rather than trusted:
+`docker manifest inspect` confirmed the image exists (15 layers, real
+manifest); a direct `docker pull` then succeeded — slower this time
+(5m15s, a larger image with a 435MB layer) but with no retry needed, so
+this wasn't even a timeout, just a first-attempt cold pull the harness's
+own pull call apparently didn't wait out. The harness was re-run
+immediately after with the image now local.
+
+```
+$ HF_HUB_OFFLINE=1 ~/scratch/swebench-spike/bin/python -m swebench.harness.run_evaluation \
+    --predictions_path gold --max_workers 1 \
+    --dataset_name princeton-nlp/SWE-bench_Verified \
+    --instance_ids pallets__flask-5014 --run_id validate-flask-gold-2
+```
+
+(`HF_HUB_OFFLINE=1` avoids an unrelated, separately-encountered problem:
+a plain `datasets.load_dataset` call against the already-fully-cached
+Verified dataset was hanging — multiple attempts timed out at 60s and
+180s — apparently on a HEAD-request cache-revalidation call against
+`huggingface.co`. Forcing cache-only mode resolved it instantly. Not
+investigated further; recorded because it's a second, independent case
+this session of a network call hanging or misbehaving in a way that
+looked at first like something else was broken.)
+
+**Duration:** container created 00:54:39, `Test runtime: 8.33 seconds`,
+container removed 00:55:05 — **~26 seconds** end to end for the graded
+run itself (image already local). Including the one-time image pull:
+~5m41s total.
+
+**Disk:** one new image, `swebench/sweb.eval.x86_64.pallets_1776_flask-5014`,
+3.99GB (1.515GB shared base layer, 2.476GB unique). `docker system df`:
+7 images, **6.96GB, 100% reclaimable**. No containers left running.
+
+**Verdict: `resolved: true`.** From the per-instance `report.json`:
+`patch_successfully_applied: true`; `FAIL_TO_PASS`: 1/1 success, 0
+failures; `PASS_TO_PASS`: 59/59 success, 0 failures. **Gold resolves,
+cleanly, with no ambiguity.** This is the validating run row 14's exit
+criterion actually required — not "the harness produces a verdict" but
+"the harness produces the correct one" for the one case (gold) where the
+correct answer is known in advance.
+
 ## Disk reclamation (first session, 2026-08-04)
 
 All spike-created Docker images were removed after the spike:
@@ -632,6 +813,31 @@ swebench/sweb.eval.x86_64.sympy_1776_sympy-20590:latest
 swebench/sweb.eval.x86_64.psf_1776_requests-1921:latest` — left for the
 user to run if desired.
 
+**Update: the user reclaimed the sympy image between sessions** (confirmed
+at the start of the close-out session — only `psf/requests-1921` remained,
+0B shared-layer accounting since it was now the sole image referencing
+those layers). See "Disk state (close-out session)" below for the
+close-out session's own before/after.
+
+## Disk state (close-out session, 2026-08-05) — nothing deleted, by instruction
+
+Same instruction, same discipline: this session's new image
+(`swebench/sweb.eval.x86_64.pallets_1776_flask-5014`) was not deleted
+either — the decision belongs to the user. `docker system df` at session
+start: 6 images, 5.15GB — `psf/requests-1921`'s image (3.58GB) was still
+present, untouched since the prior session; only the sympy image had been
+reclaimed by the user in between (confirmed above). At session end:
+**7 images, 6.96GB, 100% reclaimable** (`docker system df` summary) —
+`psf/requests-1921` (3.58GB) and the newly-pulled `pallets__flask-5014`
+(3.99GB, 1.515GB of it shared with `psf/requests-1921`'s base layer).
+`docker ps -a` empty throughout.
+
+Given `psf/requests-1921` is now disqualified from any future use (not
+hermetic), it's the one most worth reclaiming; `pallets__flask-5014` is
+the one worth keeping, being the row's own validating instance. Left for
+the user to decide: `docker rmi
+swebench/sweb.eval.x86_64.psf_1776_requests-1921:latest`.
+
 ## Reproduction
 
 ```
@@ -666,27 +872,60 @@ inspect` / a retried `docker pull`.
 
 ## What's still open
 
-- **`swebench==4.1.0` is confirmed as a working pin** — it graded a real
-  SWE-bench Verified instance end to end this session. Whether an older,
-  no-Modal release would be a *better* pin (smaller dependency tree, no
-  `cbor2`/Rust finding to route around) remains unexplored — `3.0.17`'s
-  wheel metadata still lists `modal` as a hard dependency, so downgrading
-  wouldn't avoid the constraint by itself. Not blocking; `4.1.0` +
-  `cbor2<6` works.
+- **Row 14's exit criterion is now genuinely validated, not just
+  exercised.** `pallets__flask-5014`'s gold patch resolved cleanly
+  (close-out session, 2026-08-05). Nothing further needed to close this
+  row specifically.
+- **`swebench==4.1.0` is confirmed as a working pin** — it graded two real
+  SWE-bench Verified instances, one to a clean `resolved: true`. Whether
+  an older, no-Modal release would be a *better* pin (smaller dependency
+  tree, no `cbor2`/Rust finding to route around) remains unexplored —
+  `3.0.17`'s wheel metadata still lists `modal` as a hard dependency, so
+  downgrading wouldn't avoid the constraint by itself. Not blocking;
+  `4.1.0` + `cbor2<6` works.
 - **D1's `pyproject.toml` extra is still not added**, now deliberately
   rather than provisionally — see D1 above. Low-risk next step whenever
   someone touches `pyproject.toml` for this row again.
 - **Registry coverage across the full instance set is unmeasured.** This
-  session confirmed 2 of 500 Verified images pull successfully. Whether
+  session confirmed 3 of 500 Verified images pull successfully. Whether
   every instance has a published image, or some meaningful fraction would
   fall back to a local build (and thus be exposed to the repository-drift
   finding above), is unknown.
+- **Hermeticity screening across the full instance set is unmeasured, and
+  this session's screening method has a known, confirmed blind spot.** A
+  diff-only screen (reading `test_patch`, keyword-matching) only sees
+  tests the patch adds or modifies — it cannot see network dependence in
+  the rest of a `FAIL_TO_PASS`/`PASS_TO_PASS` list, which is common (see
+  "Row 14 close-out"'s direct check against `psf__requests-1921`: 6
+  `FAIL_TO_PASS` tests, only 1 touched by the diff; the actual failing
+  test wasn't in the diff at all). This session's three screened
+  candidates (`flask-5014`, `pylint-7080`, `pytest-6202`) were cleared by
+  diff-reading only — `flask-5014`'s clean **run result** is real,
+  independent evidence its patch doesn't trigger a network call in
+  practice, but the screening *method* itself was not validated as
+  complete, only as good enough this once. A rigorous screen needs full
+  test-file content at the relevant commit for every named test. What
+  fraction of the 500 Verified instances make live network calls during
+  grading — and whether a full, automated screen is worth building before
+  W29's golden fixtures are selected — is real, unstarted follow-up work.
 - **Live-network-dependent tests inside graded instances** (the
-  `test_basicauth_with_netrc` finding) are a new, real consideration for
-  rows 23–25's Fargate network-egress design — not investigated further
-  this session beyond the one instance that surfaced it.
+  `test_basicauth_with_netrc` finding, now promoted to its own section)
+  are a new, real consideration for rows 23–25's Fargate network-egress
+  design, and for W29's fixture selection — not investigated further this
+  session beyond the two instances that surfaced and confirmed it.
+- **`docs/adr/0003-replay-semantics.md`'s Q3 nondeterminism enumeration
+  now looks incomplete** — it enumerates sources of nondeterminism in
+  *this platform's own* bundle contents (model output, token counts,
+  wall-clock time), not in a *benchmark's* grading step itself. A live
+  network call inside a SWE-bench test is a nondeterminism source ADR-0003
+  has no category for: it isn't runner nondeterminism (Q3's real-model
+  table) and isn't AgentEvalOps-internal timing (Q3's mock-runner table)
+  — it's third-party-service nondeterminism, introduced by the benchmark
+  adapter, not the agent runner. Flagged here, per this session's explicit
+  instruction not to edit ADR-0003 itself; revisiting the enumeration is
+  real work for whenever W29's golden fixtures actually land.
 - **Docker Desktop's RAM allocation (7.66GiB) remains below upstream's
   16GB recommendation.** Flagged for the user as a manual action (Docker
   Desktop → Settings → Resources) before rows 15/16 attempt anything
-  heavier than the single lightweight instance graded this session; this
-  session could not change it itself.
+  heavier than the lightweight instances graded so far; this session could
+  not change it itself.

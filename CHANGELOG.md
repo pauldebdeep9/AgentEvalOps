@@ -9,6 +9,52 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Row 14 close-out — grading hermeticity finding, then a validated gold
+  run** (2026-08-05, `docs/benchmark_adapters.md`). Corrects the entry
+  below: row 14 was marked ✅ Met on a run whose gold patch came back
+  *unresolved* — diagnosis, not validation. Gold must resolve, by
+  construction.
+  - **New structural finding, the sharper of this document's two**:
+    `psf__requests-1921`'s `test_basicauth_with_netrc` makes a live HTTP
+    call to `httpbin.org` **during grading**, inside an otherwise frozen
+    container. Unlike repository drift, freezing the image doesn't fix
+    this — the dependency is on a live service reachable at run time, not
+    on repo state fixed at build time. Consequence stated explicitly: any
+    SWE-bench instance promoted to a golden fixture (W12c/W29) must be
+    screened for network dependence first, or replay determinism
+    silently inherits httpbin's uptime. `docs/adr/0003-replay-semantics.md`'s
+    Q3 nondeterminism enumeration has no category for this yet
+    (third-party-service nondeterminism, introduced by the benchmark
+    adapter, not the runner) — flagged, not fixed, per this session's
+    explicit instruction not to edit ADR-0003.
+  - **`psf__requests-1921` disqualified**, for both roles it might have
+    played (row 14 validation and a future fixture candidate).
+  - **Second instance screened, then graded**: 3 candidates
+    (`pallets__flask-5014`, `pylint-dev__pylint-7080`,
+    `pytest-dev__pytest-6202`) had their `test_patch` diffs read directly
+    and keyword-matched for network I/O — zero hits, all three
+    disqualification-clean. `pallets__flask-5014` picked (smallest patch,
+    pure-Python). Graded gold: **`resolved: true`**, 1/1 `FAIL_TO_PASS`,
+    59/59 `PASS_TO_PASS`, ~26s once its image was local (registry pull
+    needed 5m15s first — the identical `ImageNotFound`-from-a-transient-pull
+    pattern as the sympy 404, this time caught and verified immediately
+    via `docker manifest inspect` rather than trusted).
+  - **Screening-method limitation found and reported, not glossed over**:
+    checked directly whether the same diff-only screen would have caught
+    `psf__requests-1921` — it would not have. The actually-failing test
+    wasn't in that instance's `test_patch` at all (a pre-existing,
+    untouched test); a diff-only screen is structurally blind to network
+    dependence anywhere in a `FAIL_TO_PASS`/`PASS_TO_PASS` list beyond
+    what the diff itself touches. `flask-5014`'s clean run stands as real
+    evidence for that one instance; the screening method itself is not
+    validated as complete.
+  - `ROADMAP.md` row 14: the prior ✅ annotated as premature and corrected
+    in place (not deleted — the reasoning at the time is left visible); a
+    new §0 entry records the hermeticity finding as standing, not scoped
+    to one instance.
+  - Committed and pushed twice this session (start and end), both CI +
+    Package Actions runs green.
+
 - **Row 14 follow-up — registry diagnosis, then the graded run** (2026-08-05,
   `docs/benchmark_adapters.md`). **Row 14's exit criterion is now met** —
   corrects the prior entry below, which recorded it as unmet.
