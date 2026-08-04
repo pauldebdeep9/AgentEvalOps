@@ -298,6 +298,15 @@ forbidden_modules = ["opentelemetry"]
 # confined to or excluded from, so this contract is vacuous today -- it
 # has nothing to check. It becomes load-bearing the moment W17 creates
 # cloud/ and something outside it imports boto3.
+# Note, corrected 2026-08-05 (docs/benchmark_adapters.md D2): this
+# contract's vacuousness is about the *source* side (no cloud/ package
+# exists to check) and says nothing about forbidden_modules tolerating an
+# *uninstalled destination* module -- boto3 itself is installed in this
+# env. That distinct question (does a `forbidden` contract error if its
+# forbidden module isn't installed, the way an `independence` contract
+# errors on a nonexistent source module per the comment above) was tested
+# directly by the swebench contract below, with swebench genuinely
+# absent: it does not error.
 # allow_indirect_imports = true: same reasoning as the two contracts
 # above. Once cloud/ exists and is registry-resolved like every other
 # adapter family, indirect reach through registry.py would otherwise
@@ -359,3 +368,40 @@ source_modules = [
     "agentevalops.stores",
 ]
 forbidden_modules = ["openai"]
+
+# ROADMAP row 14 / docs/benchmark_adapters.md D2: the upstream SWE-bench
+# harness is invoked as a subprocess against its documented CLI
+# (`python -m swebench.harness.run_evaluation`) and never imported -- unlike
+# anthropic/openai/opentelemetry/boto3 above, there is no package this is
+# confined *to*; no source module is omitted from the list below, because no
+# module in this codebase is allowed to import it at all.
+# Empirically verified before adding (docs/benchmark_adapters.md D2): unlike
+# the `independence` contract type (which errors if a listed *internal*
+# module doesn't exist, per the agentevalops.cloud comment above), this
+# `forbidden` contract does not error when `swebench` itself isn't
+# installed in the environment running `lint-imports` -- confirmed by
+# running it with swebench absent (KEPT, vacuously) and with a direct
+# `import swebench` injected into a source file (BROKEN, correctly), then
+# reverting both. CI never installs `swebench` (D1), so this contract
+# stays meaningful there.
+[[tool.importlinter.contracts]]
+name = "swebench never imported (docs/benchmark_adapters.md D2) -- subprocess only"
+type = "forbidden"
+source_modules = [
+    "agentevalops.agents",
+    "agentevalops.benchmarks",
+    "agentevalops.bundles",
+    "agentevalops.cli",
+    "agentevalops.config",
+    "agentevalops.core",
+    "agentevalops.evaluators",
+    "agentevalops.observability",
+    "agentevalops.orchestration",
+    "agentevalops.policy",
+    "agentevalops.registry",
+    "agentevalops.replay",
+    "agentevalops.reports",
+    "agentevalops.scorers",
+    "agentevalops.stores",
+]
+forbidden_modules = ["swebench"]

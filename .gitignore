@@ -45,3 +45,10 @@ env/
 # .claude/settings.json stays trackable for future shared project settings.
 .claude/settings.local.json
 .claude/worktrees/
+
+# Print-edition generated outputs (build_print_edition.py's output, not the
+# script itself — see repo root for the untracked script; whether it
+# belongs in the repo is a separate call, not made here).
+AgentEvalOps-print-edition.html
+print-file-sizes.txt
+print-manifest-*.txt

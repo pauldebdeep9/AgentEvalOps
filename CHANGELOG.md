@@ -9,6 +9,102 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Row 14 follow-up — registry diagnosis, then the graded run** (2026-08-05,
+  `docs/benchmark_adapters.md`). **Row 14's exit criterion is now met** —
+  corrects the prior entry below, which recorded it as unmet.
+  - **Diagnosed, not worked around**: the previous session's 404 pulling
+    a prebuilt image (default namespace, x86_64) was traced directly
+    rather than repeating the `--namespace ''` fallback. `docker manifest
+    inspect` and a direct `docker pull` (retried once after a transient
+    CloudFront timeout) both confirmed the image genuinely exists and
+    pulls cleanly — **the registry was never broken**; the original 404
+    was `docker-py` surfacing a transient network condition as a
+    misleading `ImageNotFound`.
+  - **Graded run**: `psf__requests-1921` (SWE-bench Verified, gold
+    predictions, upstream's documented default, no local build) — patch
+    applied cleanly, 106/106 `PASS_TO_PASS` held, 5/6 `FAIL_TO_PASS`
+    passed. The one failure (`test_basicauth_with_netrc`) is a live
+    `httpbin.org` HTTP call inside a 2013-era test, traced via
+    `test_output.txt` — a network-dependent flake, not a grading defect.
+    ~3m9s end to end, zero infrastructure/build errors. New risk surfaced
+    for rows 23–25: some instances' tests make live outbound HTTP calls,
+    so grading-sandbox network egress is a correctness concern, not just
+    a security one.
+  - **New first-class finding, promoted to its own section**: local
+    instance-image builds re-run `git clone --branch` against **live**
+    upstream repo state (confirmed mechanism, not just the sympy
+    symptom), so their reproducibility depends on upstream not having
+    pruned a branch since the dataset was built — registry pulls are
+    frozen at push time and structurally immune to this. Registry-first
+    is now the recorded preference, not just the default.
+  - **D1**: `swebench==4.1.0` (+ `cbor2<6`) confirmed as a working pin —
+    graded a real instance successfully. Extra still not added to
+    `pyproject.toml`, now deliberately (out of this session's explicit
+    scope) rather than provisionally.
+  - **D2/D3/D4 confirmed unchanged**, stated explicitly: import-linter
+    still 7/7; the two-sandbox split (D3) was directly reinforced by
+    watching the harness own every step of the grading container's
+    lifecycle itself; the CI constraint (D4) is underscored by a single
+    lightweight instance still taking ~3 minutes.
+  - `pyproject.toml`: boto3 contract comment corrected — it only ever
+    demonstrated *source*-side vacuousness (no `cloud/` package), not
+    that `forbidden` contracts tolerate an *uninstalled destination*
+    module (that's the swebench contract's finding, from last session,
+    now cross-referenced explicitly).
+  - `.gitignore`: added the print-edition build's generated outputs
+    (`AgentEvalOps-print-edition.html`, `print-file-sizes.txt`,
+    `print-manifest-*.txt`); `build_print_edition.py` itself left alone
+    and flagged for the user, not decided here.
+  - Docker images from this session (2 × SWE-bench instance images,
+    6.721GB total, 100% reclaimable) deliberately **not deleted** —
+    useful for rows 15/16, left for the user to reclaim if desired.
+    `Sai2511` `pip freeze` confirmed byte-identical before/after;
+    `swebench` installed only in the reused throwaway venv.
+
+- **Row 14 — SWE-bench harness decision + spike** (`docs/benchmark_adapters.md`).
+  Decision, not implementation — no `SWEBenchAdapter`, nothing under
+  `src/agentevalops/benchmarks/`.
+  - **D1**: pip-install extra, not vendored/submodule. **Not added to
+    `pyproject.toml` this session** — the spike didn't clear its own bar
+    (see below), and an unpinnable-in-practice dependency isn't a
+    dependency yet. `swebench==4.1.0` does install cleanly in a throwaway
+    venv with a `cbor2<6` constraint (`cbor2>=6`, pulled in transitively
+    via `modal`, needs a Rust toolchain this laptop doesn't have; `5.9.0`
+    still ships a pure-Python wheel).
+  - **D2**: subprocess invocation only (`python -m
+    swebench.harness.run_evaluation`), never imported. A 7th import-linter
+    contract (`"swebench never imported ... subprocess only"`) was
+    empirically proven addable — unlike the pre-existing boto3
+    `independence`-type contract's comment (about an internal module not
+    existing), a `forbidden`-type contract does **not** error when the
+    forbidden third-party module itself is uninstalled; proven both ways
+    (KEPT with `swebench` absent, BROKEN against a reverted injected
+    violation) before being added for real. **7/7 contracts kept.**
+  - **D3**: two sandboxes, not one — corrects rows 15/16 in `ROADMAP.md`.
+    The agent's workspace (plain git clone, no Docker) is what
+    `prepare_environment`/`teardown` own; the grading sandbox is entirely
+    harness-owned and never touched by this codebase. Row 15's risk
+    downgraded H → L; row 16's `teardown` no longer means container
+    cleanup.
+  - **D4**: SWE-bench grading cannot run in this project's CI (§0 entry in
+    `ROADMAP.md`) — upstream's ~120GB/16GB RAM/8-core floor is far beyond
+    GitHub-hosted runners. First hard requirement for a real
+    `CloudBackend`; cross-references `docs/adr/0004`'s two-axis framing.
+  - **Spike: row 14's own exit criterion not met.** Upstream's documented
+    install-smoke-test instance (`sympy__sympy-20590`) failed — not a
+    harness defect (base+env Docker images built successfully from
+    scratch once `--namespace ''` forced local builds instead of a 404
+    Docker Hub pull, itself a finding, on x86_64 where that flag wasn't
+    expected to be needed) but real upstream repository drift:
+    `sympy/sympy` no longer has a `1.7` branch (confirmed via `git
+    ls-remote`; only the `sympy-1.7` tag survives), so `setup_repo.sh`'s
+    `git clone --branch 1.7` fails before the test suite ever runs. Per
+    the ticket's own stop condition, the SWE-bench Verified run (run 2)
+    was not attempted. `Sai2511`'s `pip freeze` confirmed byte-identical
+    before/after (`swebench` installed only in a throwaway venv outside
+    the repo); spike Docker images removed, `docker system df` back to
+    pre-spike baseline.
+
 - **Row 12b — `replay_command.txt`, structural replay folded into
   `validate-bundle`** (`docs/adr/0003-replay-semantics.md`). Bundle format
   bumped **`0.3` → `0.4`** (`replay_command.txt`, the first bump to add a
