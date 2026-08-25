@@ -109,12 +109,12 @@ mode produces a distinguishable trace.
 
 ---
 
-## W4 — Toy benchmark · 3 prompts · ~90 lines
+## W4 — Toy benchmark · 3 prompts · ~110 lines
 
 `src/minieval/benchmarks/toy.py`. A plain function returning
 `list[TaskSpec]` — not a Protocol, not an adapter class.
 
-Eight tasks, and the distribution matters more than the count:
+Nine tasks, and the distribution matters more than the count:
 
 | Task | What it proves |
 |---|---|
@@ -123,17 +123,22 @@ Eight tasks, and the distribution matters more than the count:
 | T06 | trips the policy deny-list |
 | T07 | exceeds `max_steps` |
 | T08 | raises `InfrastructureError` → `not_evaluated` |
+| T09 | flaky across repeats (`mock_pass_on`) |
 
 T08 is the one that earns the whole three-way partition. Without it the
-partition is untested vocabulary.
+partition is untested vocabulary. T09 needs its own slot rather than
+riding on an existing task: folding `mock_pass_on` into T01–T03 would
+consume a clean pass, leaving fewer than three tasks that reliably pass;
+folding it into T04 or T05 would give a task that fails for two
+independent reasons at once — the same defect that makes a test stop
+testing anything specific.
 
 1. T01–T05.
-2. T06–T08 plus a `nondeterministic` criterion for one task, so W5's
-   `repeats` has something that actually varies.
+2. T06–T09.
 3. Tests: task ids unique, every `criteria` key is one the mock runner reads
    (guards against criteria the runner silently ignores).
 
-**Exit:** running all eight through the mock runner produces at least one task
+**Exit:** running all nine through the mock runner produces at least one task
 in each of the four `Stability` classes.
 
 **Risk:** low.
@@ -322,9 +327,9 @@ plainly rather than tune away:
 
 | | Prompts | Source |
 |---|---|---|
-| W2–W10 | ~40 | ~830 |
+| W2–W10 | ~40 | ~850 |
 | W1 (done) | — | 264 |
-| **Total** | **~40** | **~1,100** |
+| **Total** | **~40** | **~1,120** |
 
 Against 6,684. Roughly a 6× reduction — less than the 10× first estimated,
 because `repeats`/`Stability` is a genuine addition rather than a retained
