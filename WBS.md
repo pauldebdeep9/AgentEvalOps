@@ -1,9 +1,9 @@
 # WBS — minieval
 
 A minimal agent-evaluation harness, reduced from AgentEvalOps (6,684 lines of
-package source, 10,600 of test) to roughly 900 and 700. Each work item below is
-one branch, sized to 3–7 prompts against Claude Code, ending at a green
-toolchain run.
+package source, 10,600 of test) to roughly 1,100 and 900. Each work item below
+is sized to 3–7 prompts against Claude Code, ending at a green toolchain run
+and a commit.
 
 **Definition of done, every item, no exceptions:**
 
@@ -12,8 +12,14 @@ ruff check . && ruff format --check . && mypy --strict src tests && pytest -q
 ```
 
 Chained with `&&` deliberately — a green pytest after a red ruff is not a green
-build. Run it *before* the commit. Then `git diff main...<branch>`, read it,
-and merge with `--no-ff`.
+build. Run it *before* the commit, and `git diff` before staging so nothing
+lands unread.
+
+**Git is deliberately loose: single branch, commit straight to `main`. Testing
+is not.** Every item ships tests in the same commit, covering the happy path,
+each failure mode by name, the boundary cases, and the distinction the module
+exists to preserve — with at least three tests per item fail-first verified
+(delete the check, watch it go red, restore it). See `CLAUDE.md`.
 
 **The standing constraint, restated in every item's first prompt:** do not add
 an enum member, dataclass field, protocol, or config key that nothing in the
@@ -316,7 +322,7 @@ plainly rather than tune away:
 
 | | Prompts | Source |
 |---|---|---|
-| W2–W10 | 40 | ~830 |
+| W2–W10 | ~40 | ~830 |
 | W1 (done) | — | 264 |
 | **Total** | **~40** | **~1,100** |
 

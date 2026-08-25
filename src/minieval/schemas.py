@@ -31,6 +31,23 @@ TaskId = NewType("TaskId", str)
 
 
 # ---------------------------------------------------------------------------
+# Payload keys
+# ---------------------------------------------------------------------------
+
+TOOL_NAME_PAYLOAD_KEY: str = "tool_name"
+"""Key a runner writes the tool name under in an ``AGENT_TOOL_CALL`` payload.
+
+The evaluator and the policy checker both read this key back out — the
+former to check ``required_tool_names``, the latter to check
+``deny_tool_names``. A hand-typed string on both the producer and consumer
+side can drift silently: a runner that writes ``"tool"`` while a checker
+reads ``"tool_name"`` would make every deny-list check pass, not because the
+tool was allowed, but because the checker never found the key at all. Import
+this constant on both sides instead of retyping the string.
+"""
+
+
+# ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
@@ -43,7 +60,7 @@ class TraceEventKind(StrEnum):
     emit.  Deliberately absent: ``evaluator.score`` and ``policy.verdict``
     (evaluation results are their own types, not trace events — putting
     them in the trace creates a second source of the same fact), and
-    ``cost.tick`` (cost is carried on every event by ``cost_delta_usd``;
+    ``cost.tick`` (cost is carried on every event by ``cost_usd``;
     a separate cost event would be that same second source).
     """
 
