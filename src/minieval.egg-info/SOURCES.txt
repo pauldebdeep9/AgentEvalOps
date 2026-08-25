@@ -1,7 +1,0 @@
-pyproject.toml
-src/minieval/__init__.py
-src/minieval/schemas.py
-src/minieval.egg-info/PKG-INFO
-src/minieval.egg-info/SOURCES.txt
-src/minieval.egg-info/dependency_links.txt
-src/minieval.egg-info/top_level.txt
