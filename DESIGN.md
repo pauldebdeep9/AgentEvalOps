@@ -224,21 +224,27 @@ than only the termination reason.
 
 The rule this project is built around: **do not add an enum member, field,
 protocol, or config key that nothing in the package constructs.** Applying it
-honestly to itself, the following are declared in `schemas.py` but not yet
-constructed anywhere, each with the item that will construct it:
+honestly to itself, `schemas.py` declared six items that nothing in the
+package constructed yet. Each is logged here with the item that closed it.
 
 | Vocabulary | Constructed by |
 |---|---|
 | `TerminationReason.AGENT_ERROR` | ✅ closed — W3, `MockRunner`'s `mock_fail="agent_error"` branch |
-| `TerminationReason.LIMIT_STEPS` / `LIMIT_COST` | W6 (orchestrator limits) |
-| `TerminationReason.INFRA_FAILURE` | W6 (per-attempt catch of `InfrastructureError` only — `ConfigurationError`, defined alongside it in W3's `errors.py`, is deliberately *not* caught per attempt; it aborts the run instead of producing N `evaluated=False` results) |
-| `Verdict.FAIL` / `Verdict.WARN` | W5 (policy checker) |
-| `Stability.*` | W6 (orchestrator), W8 (report) |
-| `PolicySpec.max_cost_usd` | W5 |
+| `TerminationReason.LIMIT_STEPS` / `LIMIT_COST` | ✅ closed — W6, the orchestrator's mid-stream limit check (`orchestrator.py::_collect`) |
+| `TerminationReason.INFRA_FAILURE` | ✅ closed — W6, the orchestrator's non-conforming-attempt branch (`orchestrator.py::_run_attempt`); `ConfigurationError`, defined alongside `InfrastructureError` in W3's `errors.py`, is deliberately *not* caught the same way — it aborts the run instead of producing N `evaluated=False` results |
+| `Verdict.FAIL` / `Verdict.WARN` | ✅ closed — W5, `policy.py`'s `check_policy` (deny-list and cost-ceiling branches); W6 also constructs `Verdict.WARN` directly when a trace is non-conforming |
+| `Stability.*` | ✅ closed — W6, `TaskResult.stability`'s property logic, exercised end to end across all four members by the nine-task run at `repeats=3` |
+| `PolicySpec.max_cost_usd` | ✅ closed — W5, `check_policy`'s cost-ceiling branch |
 
-**Checked at W10.** Anything still unconstructed then gets deleted, not
-deferred. A ledger that is never audited is how the source repo accumulated
-three open instances of the same defect.
+**Audited.** Scheduled for W10; passed at W6. Every enum member, field, and
+protocol declared in `schemas.py` is now constructed by real code, and the
+table above carries no open row. This section does not go away with it — it
+stays as a live checklist for anything declared later and not yet
+constructed, audited the same way each time. The source repo this project
+is reduced from carries three open instances of exactly this defect
+(`INFRA_FAILURE`, `Verdict.WARN`, `EVALUATOR_SCORE`/`POLICY_VERDICT`, per
+its own `ROADMAP.md`) — a ledger that stays clean because it is checked,
+not assumed, is the claim worth being able to make.
 
 ---
 

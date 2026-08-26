@@ -205,7 +205,7 @@ real numbers, and T08 lands in `NOT_EVALUATED` rather than `STABLE_FAIL`.
 
 ---
 
-## W7 — Bundle writer · 4 prompts · ~80 lines
+## W7 — Bundle writer · 4 prompts · ~155 lines
 
 `src/minieval/bundle.py`. Five files, flat, no manifest, no checksums, no
 format version, no legacy-version table, no validator. That family is ~1,380
@@ -327,9 +327,9 @@ plainly rather than tune away:
 
 | | Prompts | Source |
 |---|---|---|
-| W2–W10 | ~40 | ~850 |
+| W2–W10 | ~40 | ~925 |
 | W1 (done) | — | 264 |
-| **Total** | **~40** | **~1,120** |
+| **Total** | **~40** | **~1,190** |
 
 Against 6,684. Roughly a 6× reduction — less than the 10× first estimated,
 because `repeats`/`Stability` is a genuine addition rather than a retained
