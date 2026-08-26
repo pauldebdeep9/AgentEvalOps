@@ -159,6 +159,19 @@ some purposes: `stability` **ignores unevaluated attempts when classifying**.
 Two judged passes plus one infrastructure failure is `STABLE_PASS`, not
 `FLAKY` — absent evidence is not contrary evidence.
 
+**A finding from building it, not in the plan.** `AgentOutput.steps` needs a
+value on both of the mock runner's terminal branches (completed,
+`agent_error`). A first pass counted it separately on each — two counters,
+each internally consistent with its own tests, silently free to disagree
+with the other's definition of what counts as a step. They were replaced
+with one computation: `steps` is membership in a closed set of
+turn-initiating trace-event kinds (`AGENT_PLAN`, `AGENT_FINAL_ANSWER`),
+counted once from whatever the branch actually emitted. Two branches that
+each agree with themselves are not the same as two branches that agree with
+each other; only deriving the count from the trace made those the same
+claim. The same argument as `evaluated`/`passed` above, discovered a second
+time while writing the code rather than designed in ahead of it.
+
 ---
 
 ## 7. Vocabulary ledger
@@ -170,9 +183,9 @@ constructed anywhere, each with the item that will construct it:
 
 | Vocabulary | Constructed by |
 |---|---|
-| `TerminationReason.AGENT_ERROR` | W3 (mock runner failure modes) |
+| `TerminationReason.AGENT_ERROR` | ✅ closed — W3, `MockRunner`'s `mock_fail="agent_error"` branch |
 | `TerminationReason.LIMIT_STEPS` / `LIMIT_COST` | W6 (orchestrator limits) |
-| `TerminationReason.INFRA_FAILURE` | W6 (per-attempt catch) |
+| `TerminationReason.INFRA_FAILURE` | W6 (per-attempt catch of `InfrastructureError` only — `ConfigurationError`, defined alongside it in W3's `errors.py`, is deliberately *not* caught per attempt; it aborts the run instead of producing N `evaluated=False` results) |
 | `Verdict.FAIL` / `Verdict.WARN` | W5 (policy checker) |
 | `Stability.*` | W6 (orchestrator), W8 (report) |
 | `PolicySpec.max_cost_usd` | W5 |
