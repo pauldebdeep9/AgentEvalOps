@@ -186,8 +186,27 @@ class TaskSpec:
 class AgentOutput:
     """What one attempt produced.
 
-    Reconstructed from the ``AGENT_TERMINAL`` event's payload, so the trace
-    remains the single source of truth about what happened.
+    Reconstructed from the ``AGENT_TERMINAL`` event's payload via
+    ``from_payload``, so the trace remains the single source of truth
+    about what happened. ``to_payload``/``from_payload`` are the only
+    sanctioned crossing of that boundary, in either direction — a runner
+    building its terminal payload, or an orchestrator (and, from W7, a
+    bundle reader) reconstructing this dataclass from JSON.
+
+    That boundary bit once. ``AgentOutput(**payload)`` type-checks clean
+    under ``mypy --strict``, because a payload is ``dict[str, Any]`` and
+    ``Any`` unifies with anything — but a payload always carries
+    ``termination_reason`` as ``TerminationReason.value``, a plain
+    ``str``, because it has to survive a JSON round-trip. Unpacked
+    directly, ``AgentOutput.termination_reason`` held that plain string
+    instead of the enum member, and ``evaluate.py``'s completion check
+    (``is not TerminationReason.COMPLETED``, an identity comparison) read
+    every attempt as "did not complete" — a plain ``str`` is never
+    identical to the enum singleton. The result was not a crash: it was a
+    harness silently reporting 0/27 while behaving exactly as written.
+    ``from_payload`` exists so that conversion happens in exactly one
+    place, tested once, instead of being re-typed at every call site with
+    an even chance of getting it wrong.
     """
 
     success: bool
@@ -196,6 +215,40 @@ class AgentOutput:
     steps: int = 0
     cost_usd: float = 0.0
     error: str | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """Serialise to an ``AGENT_TERMINAL`` event payload.
+
+        ``termination_reason`` is written as its ``.value`` string, not
+        the enum member — the payload is ``dict[str, Any]`` and is
+        expected to survive a JSON round-trip, so the wire shape is the
+        string either way.
+        """
+        return {
+            "success": self.success,
+            "termination_reason": self.termination_reason.value,
+            "final_answer": self.final_answer,
+            "steps": self.steps,
+            "cost_usd": self.cost_usd,
+            "error": self.error,
+        }
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> AgentOutput:
+        """Reconstruct from an ``AGENT_TERMINAL`` event payload.
+
+        Explicitly converts ``termination_reason`` via
+        ``TerminationReason(...)`` — see the class docstring for why
+        ``cls(**payload)`` is the wrong shortcut.
+        """
+        return cls(
+            success=payload["success"],
+            termination_reason=TerminationReason(payload["termination_reason"]),
+            final_answer=payload.get("final_answer"),
+            steps=payload["steps"],
+            cost_usd=payload["cost_usd"],
+            error=payload.get("error"),
+        )
 
 
 def _utcnow() -> datetime:

@@ -157,6 +157,12 @@ class DeterministicEvaluator:
         citations: list[int] = []
         notes: list[str] = []
 
+        # `is not`, deliberately, never `!=`. AgentOutput.from_payload is the
+        # only sanctioned way to produce this field, and it guarantees a
+        # real TerminationReason member. Identity is what turned a payload-
+        # reconstruction bug into a loud AttributeError instead of a report
+        # silently reading 0/27 — `==` would have compared string-equal
+        # against a stray str and hidden it.
         if output.termination_reason is not TerminationReason.COMPLETED:
             passed = False
             notes.append(

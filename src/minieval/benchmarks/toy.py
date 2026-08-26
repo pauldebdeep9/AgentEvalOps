@@ -150,11 +150,11 @@ _TASKS: list[TaskSpec] = [
             "required_tool_names": ["search"],
             "mock_pass_on": [0, 2],
             # Deterministic given the attempt index, not random: passes on
-            # attempts 0 and 2, gets " (wrong)" appended on every other
-            # attempt. Under repeats=3 this is the only task that
-            # classifies FLAKY — the reason repeats and Stability exist,
-            # and why results are reported k/n rather than as a single
-            # outcome.
+            # attempts 0 and 2; every other attempt gets MockRunner's fixed
+            # MOCK_WRONG_ANSWER instead of mock_answer. Under repeats=3
+            # this is the only task that classifies FLAKY — the reason
+            # repeats and Stability exist, and why results are reported
+            # k/n rather than as a single outcome.
         },
     ),
 ]

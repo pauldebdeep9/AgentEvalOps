@@ -15,7 +15,7 @@ import re
 
 from minieval.benchmarks import toy
 from minieval.errors import InfrastructureError
-from minieval.runners.mock import MockRunner
+from minieval.runners.mock import MOCK_WRONG_ANSWER, MockRunner
 from minieval.schemas import (
     ResourceLimits,
     RunId,
@@ -215,4 +215,4 @@ def test_t09_final_answers_differ_across_attempts_per_pass_on() -> None:
         if attempt in pass_on:
             assert final_answer == base_answer
         else:
-            assert final_answer == f"{base_answer} (wrong)"
+            assert final_answer == MOCK_WRONG_ANSWER

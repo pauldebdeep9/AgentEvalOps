@@ -19,12 +19,13 @@ auditable by grep alone, without reading either side's implementation.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from minieval.errors import ConfigurationError, InfrastructureError
 from minieval.schemas import (
     TOOL_NAME_PAYLOAD_KEY,
+    AgentOutput,
     ResourceLimits,
     RunId,
     TaskSpec,
@@ -51,6 +52,20 @@ counted once from the events actually emitted — never a separate counter
 that could disagree with what the trace shows.
 """
 
+MOCK_WRONG_ANSWER: str = "mock runner: deliberately incorrect answer"
+"""Returned verbatim, ignoring ``mock_answer`` entirely, on a non-passing
+``mock_pass_on`` attempt.
+
+The wrong variant must not *contain* the right one. An earlier version
+built it by appending to the correct answer (``f"{answer} (wrong)"``), but
+appending can never remove a substring: any containment-based check (such
+as the evaluator's ``expected_substring``) would still find the correct
+text inside the "wrong" one and pass regardless of ``mock_pass_on``, which
+makes ``Stability.FLAKY`` unreachable. A fixed, unrelated string closes
+that gap unconditionally, for every task that uses ``mock_pass_on``, not
+just the one that first exposed it.
+"""
+
 _PLACEHOLDER_ANSWER = "MOCK_ANSWER_NOT_SET"
 _EXTRA_STEP_TOOL_NAME = "noop"
 _RECOGNISED_FAIL_MODES = frozenset({"infra", "agent_error"})
@@ -73,7 +88,7 @@ class MockRunner:
 
     async def run(
         self, task: TaskSpec, limits: ResourceLimits
-    ) -> AsyncIterator[TraceEvent]:
+    ) -> AsyncGenerator[TraceEvent, None]:
         """Emit one AGENT_PLAN per tool round, immediately before that
         round's AGENT_TOOL_CALL — a task with no tools emits no plan at
         all, going straight to AGENT_FINAL_ANSWER, because that is what a
@@ -97,7 +112,7 @@ class MockRunner:
         extra_steps: int = task.criteria.get("mock_extra_steps", 0)
         pass_on = task.criteria.get("mock_pass_on")
         if pass_on is not None and self._attempt not in pass_on:
-            answer = f"{answer} (wrong)"
+            answer = MOCK_WRONG_ANSWER
 
         emitted: list[TraceEvent] = []
 
@@ -140,14 +155,14 @@ class MockRunner:
         if fail_mode == "agent_error":
             yield build(
                 TraceEventKind.AGENT_TERMINAL,
-                {
-                    "success": False,
-                    "termination_reason": TerminationReason.AGENT_ERROR.value,
-                    "final_answer": None,
-                    "steps": turns(),
-                    "cost_usd": cost_including_terminal(),
-                    "error": "mock runner: simulated agent error",
-                },
+                AgentOutput(
+                    success=False,
+                    termination_reason=TerminationReason.AGENT_ERROR,
+                    final_answer=None,
+                    steps=turns(),
+                    cost_usd=cost_including_terminal(),
+                    error="mock runner: simulated agent error",
+                ).to_payload(),
             )
             return
 
@@ -156,11 +171,11 @@ class MockRunner:
 
         yield build(
             TraceEventKind.AGENT_TERMINAL,
-            {
-                "success": True,
-                "termination_reason": TerminationReason.COMPLETED.value,
-                "final_answer": answer,
-                "steps": turns(),
-                "cost_usd": cost_including_terminal(),
-            },
+            AgentOutput(
+                success=True,
+                termination_reason=TerminationReason.COMPLETED,
+                final_answer=answer,
+                steps=turns(),
+                cost_usd=cost_including_terminal(),
+            ).to_payload(),
         )

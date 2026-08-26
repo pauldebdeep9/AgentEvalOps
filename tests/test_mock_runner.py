@@ -16,7 +16,7 @@ import pytest
 
 from minieval.errors import ConfigurationError, InfrastructureError
 from minieval.protocols import AgentRunner
-from minieval.runners.mock import MockRunner
+from minieval.runners.mock import MOCK_WRONG_ANSWER, MockRunner
 from minieval.schemas import (
     TOOL_NAME_PAYLOAD_KEY,
     AgentOutput,
@@ -187,9 +187,9 @@ def test_terminal_cost_equals_sum_of_all_event_costs(
 
 def test_terminal_payload_reconstructs_agent_output_on_happy_path() -> None:
     events = _events({"mock_answer": "42", "mock_tools": ["search"]})
-    output = AgentOutput(**events[-1].payload)
+    output = AgentOutput.from_payload(events[-1].payload)
     assert output.success is True
-    assert output.termination_reason == TerminationReason.COMPLETED
+    assert output.termination_reason is TerminationReason.COMPLETED
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +298,7 @@ def test_mock_pass_on_returns_verbatim_answer_only_on_listed_attempts() -> None:
     }
     assert final_answers[0] == "42"
     assert final_answers[2] == "42"
-    assert final_answers[1] == "42 (wrong)"
+    assert final_answers[1] == MOCK_WRONG_ANSWER
 
 
 def test_mock_pass_on_wrong_answer_still_reports_success() -> None:
@@ -309,7 +309,7 @@ def test_mock_pass_on_wrong_answer_still_reports_success() -> None:
     project is built around stops meaning anything."""
     events = _events({"mock_answer": "42", "mock_pass_on": [0]}, attempt=1)
     terminal = events[-1]
-    assert terminal.payload["final_answer"] == "42 (wrong)"
+    assert terminal.payload["final_answer"] == MOCK_WRONG_ANSWER
     assert terminal.payload["success"] is True
 
 
@@ -328,5 +328,5 @@ def test_empty_criteria_produces_well_formed_terminal() -> None:
     terminal = events[-1]
     assert terminal.kind is TraceEventKind.AGENT_TERMINAL
     assert terminal.payload["termination_reason"] == TerminationReason.COMPLETED
-    output = AgentOutput(**terminal.payload)
+    output = AgentOutput.from_payload(terminal.payload)
     assert output.success is True

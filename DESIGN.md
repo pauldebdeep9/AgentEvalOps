@@ -77,6 +77,18 @@ absorb what was never judged. The orchestrator sets `evaluated`, not the
 evaluator: an evaluator's job is to grade a result, not to special-case the
 absence of one.
 
+That same honesty applies to a malformed trace, not just an
+`InfrastructureError`. An attempt is judged only if its trace conforms to
+the runner contract above: exactly one `AGENT_TERMINAL`, and it is the last
+event. Zero, or more than one, is not judged — `evaluated=False`, with a
+note naming the specific violation — rather than the orchestrator
+reconstructing an `AgentOutput` from whatever event happens to be last, or
+picking one of several disagreeing `AGENT_TERMINAL`s. Either would fabricate
+a judgement from a trace the harness does not actually understand, which is
+the one thing `evaluated=False` exists to rule out. A malformed trace and a
+genuine `InfrastructureError` both land in `NOT_EVALUATED`; only the note
+tells them apart in the report.
+
 **Post-hoc policy is distinct from in-run limits.** `ResourceLimits` is
 enforced by the orchestrator mid-stream and stops an attempt. `PolicySpec` is
 graded after the attempt ends and produces `PASS`/`FAIL`/`WARN` with citations
@@ -171,6 +183,40 @@ each agree with themselves are not the same as two branches that agree with
 each other; only deriving the count from the trace made those the same
 claim. The same argument as `evaluated`/`passed` above, discovered a second
 time while writing the code rather than designed in ahead of it.
+
+**A second finding, from writing W6's tests before its implementation.**
+`MockRunner`'s `mock_pass_on` originally built its wrong answer by appending
+to the correct one (`f"{answer} (wrong)"`). Appending can never remove a
+substring, so `expected_substring` — a containment check — passed on every
+attempt regardless of `mock_pass_on`, for any task that used it, not only
+the one that exposed it. Had the orchestrator loop been built first, T09
+would have measured 3/3, a passing test would have been written to match
+it, and `Stability.FLAKY` would have been a class the harness could
+construct in `schemas.py` but never actually reach — the exact defect §7
+exists to catch, just not in the vocabulary it was watching. Writing the
+orchestrator's expectations against the documented Stability table, ahead
+of the loop that would have produced a self-consistent wrong answer, is
+what surfaced it. Fixed by replacing the appended suffix with a fixed,
+unrelated `MOCK_WRONG_ANSWER` constant that shares no substring with any
+real `mock_answer`.
+
+**A third finding, a near-miss caught only by fail-first verification.**
+`ResourceLimits.max_steps` counts model turns, not events and not tool
+calls — stated in its own docstring, the reason `mock.py` derives `steps`
+from turn-initiating events instead of a raw count, and the reason T07 was
+built with an event count that diverges from its turn count in the first
+place. The invariant was documented in three places and enforced by none:
+a version of the orchestrator's mid-stream limit check that counted every
+event instead of turns passed all 29 tests in `test_orchestrator.py`,
+including T07's. T07 lands `LIMIT_STEPS`/`STABLE_FAIL` under both
+interpretations, differing only in *where inside its trace* the limit
+actually fires — a difference nothing asserted. Assertion is not evidence;
+only running the fail-first check against this specific bug, deliberately,
+surfaced that the suite had a hole precisely where its own design (T07's
+diverging counts) was supposed to guarantee coverage. Closed by a test
+that pins the exact stopping point (`steps` and the trace's turn-event
+count both equal to `max_steps`, not merely "some limit fired") rather
+than only the termination reason.
 
 ---
 

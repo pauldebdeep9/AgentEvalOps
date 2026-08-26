@@ -10,7 +10,7 @@ that are actually swapped, so they are the two that stay Protocols.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Protocol, runtime_checkable
 
 from minieval.schemas import (
@@ -43,6 +43,12 @@ class AgentRunner(Protocol):
       ``cost_usd``, ``error``) — the trace stays the single source of truth
       about what happened, rather than a return value that could disagree
       with it.
+    - Implementations must be **async generators** — ``async def`` with
+      ``yield``, not merely something that satisfies ``AsyncIterator`` by
+      hand-rolling ``__aiter__``/``__anext__``. The orchestrator closes the
+      stream early when a limit fires mid-attempt, via ``aclose()``; a
+      runner holding a client (a socket, an open HTTP connection) needs
+      that call to release it.
 
     Whether the attempt was *evaluated* is deliberately not part of this
     contract. That is decided after the runner has finished or raised, by
@@ -53,7 +59,9 @@ class AgentRunner(Protocol):
 
     agent_id: str
 
-    def run(self, task: TaskSpec, limits: ResourceLimits) -> AsyncIterator[TraceEvent]:
+    def run(
+        self, task: TaskSpec, limits: ResourceLimits
+    ) -> AsyncGenerator[TraceEvent, None]:
         """Stream the trace of one attempt at ``task`` under ``limits``."""
         ...
 
