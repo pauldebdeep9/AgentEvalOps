@@ -470,11 +470,12 @@ _EXPECTED_FILES = {
     "config.json",
     "traces.jsonl",
     "results.json",
+    "report.md",
     "replay_command.txt",
 }
 
 
-def test_all_five_files_exist_and_no_sixth() -> None:
+def test_all_six_files_exist_and_no_seventh() -> None:
     summary = _build_summary()
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -494,7 +495,7 @@ def test_metadata_git_fields_are_all_strings() -> None:
     assert all(isinstance(v, str) for v in metadata["git"].values())
 
 
-def test_writing_twice_leaves_five_files_with_the_second_writes_content() -> None:
+def test_writing_twice_leaves_six_files_with_the_second_writes_content() -> None:
     first = _build_summary()
     second = _build_summary()
     second.task_results = second.task_results[:1]  # PASS only, distinguishable
@@ -506,9 +507,26 @@ def test_writing_twice_leaves_five_files_with_the_second_writes_content() -> Non
 
         names = {p.name for p in bundle_dir.iterdir()}
         results = json.loads((bundle_dir / "results.json").read_text())
+        report = (bundle_dir / "report.md").read_text()
 
     assert names == _EXPECTED_FILES
     assert [t["task_id"] for t in results["tasks"]] == [str(_PASS_TASK)]
+    assert "| `PASS` | passes |" in report
+    assert "`FAIL`" not in report
+
+
+def test_report_file_is_rendered_from_the_same_summary() -> None:
+    summary = _build_summary()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle_dir = bundle.write_bundle(summary, Path(tmp))
+        report = (bundle_dir / "report.md").read_text()
+
+    assert "- Total attempts: 4" in report
+    assert "- Passed attempts: 1" in report
+    assert "- Failed attempts: 2" in report
+    assert "- Not evaluated attempts: 1" in report
+    assert "| `NOTEVAL` | never evaluated | 0/1 | 0/1 | Not evaluated |" in report
 
 
 def test_returned_path_is_the_bundle_directory_and_exists() -> None:

@@ -1,8 +1,9 @@
-"""The run bundle: five flat files under ``root/<run_id>/`` plus the git
+"""The run bundle: six flat files under ``root/<run_id>/`` plus the git
 provenance they share. No manifest, no checksums, no format version, no
 legacy-version table, no validator — DESIGN.md §5 costs that family at
 ~1,380 lines in the source repo this project is reduced from and cuts
-every line of it.
+every line of it. ``report.md`` is a human projection of the same
+``RunSummary`` written to ``results.json``, not another persisted result model.
 
 git is invoked via ``subprocess``, no new dependency. Each provenance
 field is independently the literal ``"unavailable"`` — never ``None``,
@@ -21,6 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from minieval.report import render_report
 from minieval.schemas import Attempt, RunSummary
 
 _UNAVAILABLE = "unavailable"
@@ -137,6 +139,7 @@ def write_bundle(summary: RunSummary, root: Path) -> Path:
         )
     )
     _write_json(bundle_dir / "results.json", _results_payload(summary))
+    (bundle_dir / "report.md").write_text(render_report(summary))
     (bundle_dir / "replay_command.txt").write_text(
         "minieval run record -- not a runnable command\n"
         f"run_id:       {config.run_id}\n"

@@ -1,6 +1,6 @@
 # DESIGN.md — minieval
 
-> **Status:** v0.1 · **Last updated:** 2026-08-26
+> **Status:** v0.1 · **Last updated:** 2026-08-31
 > Source of truth for *what* minieval is and *what it deliberately is not*.
 > Anything here overrides code comments, README, or chat threads. Build
 > sequencing lives in `WBS.md`.
@@ -12,7 +12,7 @@
 **minieval is a deliberately small, offline-first harness for evaluating
 tool-using AI agents: a typed trace, a deterministic evaluator, a post-hoc
 policy check, repeat runs with stability classification, and a result bundle
-on disk.**
+on disk with a decision-ready Markdown report.**
 
 It is a learning artifact, reduced from
 [AgentEvalOps](https://github.com/) (6,684 lines of package source, 10,600 of
@@ -119,7 +119,8 @@ validator, serializers).** Checksums, `BUNDLE_FORMAT_VERSION`,
 `LEGACY_BUNDLE_FORMAT_VERSIONS`, `required_files_for_version()`, and a
 structural validator. All of it exists to read bundles written by older code.
 That problem is real when bundles outlive the code that wrote them and
-imaginary before then. Five flat files, no manifest, ~80 lines.
+imaginary before then. Six flat files, including one human-readable projection,
+with no manifest.
 
 Retained from that family: `replay_command.txt`, about fifteen lines, recording
 the invocation, `git_sha`, `git_dirty`, and the resolved model id. That is the
@@ -170,6 +171,20 @@ One judgement encoded there, worth knowing about because it may be wrong for
 some purposes: `stability` **ignores unevaluated attempts when classifying**.
 Two judged passes plus one infrastructure failure is `STABLE_PASS`, not
 `FLAKY` — absent evidence is not contrary evidence.
+
+**A decision-ready Markdown report.** A machine-readable bundle is necessary
+evidence and a poor review surface. `render_report()` projects the existing
+`RunSummary` into a header, a per-task `k/n` table, named stability groups, and
+attempt-level evaluation and policy findings with trace-step citations. It
+does not introduce a report schema or store any result twice: every value is
+read from the summary's derived properties.
+
+The report deliberately contains no percentages. Nine named toy tasks do not
+become a statistically meaningful population when rendered as “67%.” It also
+labels cost as not invoice-verified; summing trace values proves internal
+consistency, not agreement with provider billing. `report.md` is written into
+the run bundle beside `results.json`, making the machine and human records two
+views of the same in-memory result.
 
 **A finding from building it, not in the plan.** `AgentOutput.steps` needs a
 value on both of the mock runner's terminal branches (completed,

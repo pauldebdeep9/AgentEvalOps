@@ -33,9 +33,11 @@ Subtraction is the whole exercise; the agent's default gradient is addition.
 ## Sequencing
 
 ```
-W1 ──▶ W2 ──▶ W3 ──▶ W4 ──▶ W5 ──▶ W6 ──▶ W7 ──▶ W8 ──▶ W9
-(done)  docs   mock   toy   eval+   orch   bundle  report  cli   openai
-               runner  bench policy         +prov          +cfg  runner
+W1 ──▶ W2 ──▶ W3 ──▶ W4 ──▶ W5 ──▶ W6 ──▶ W7 ──▶ W8   ✅ complete
+                                                        │
+                                                        ▼
+                                         W9 CLI/config ──▶ W10 runner
+                                             next           optional
 ```
 
 W1–W8 need no network and no API key. That is deliberate: prove the harness
@@ -56,7 +58,7 @@ Carries the four load-bearing ideas: typed trace events as substrate, the
 
 ---
 
-## W2 — DESIGN.md and CLAUDE.md · 3 prompts · ~0 lines of code
+## W2 — DESIGN.md and CLAUDE.md ✅ done · 3 prompts · ~0 lines of code
 
 Do this before any more code. These two files are what stop the agent from
 rebuilding AgentEvalOps.
@@ -79,7 +81,7 @@ and the easiest to rationalise away.
 
 ---
 
-## W3 — Protocols and the mock runner · 5 prompts · ~110 lines
+## W3 — Protocols and the mock runner ✅ done · 5 prompts · ~110 lines
 
 `src/minieval/protocols.py` (~30) and `src/minieval/runners/mock.py` (~80).
 
@@ -109,7 +111,7 @@ mode produces a distinguishable trace.
 
 ---
 
-## W4 — Toy benchmark · 3 prompts · ~110 lines
+## W4 — Toy benchmark ✅ done · 3 prompts · ~110 lines
 
 `src/minieval/benchmarks/toy.py`. A plain function returning
 `list[TaskSpec]` — not a Protocol, not an adapter class.
@@ -145,7 +147,7 @@ in each of the four `Stability` classes.
 
 ---
 
-## W5 — Evaluator and policy checker · 5 prompts · ~120 lines
+## W5 — Evaluator and policy checker ✅ done · 5 prompts · ~120 lines
 
 `src/minieval/evaluate.py` (~70) and `src/minieval/policy.py` (~40).
 
@@ -172,7 +174,7 @@ the orchestrator's call, in W6.
 
 ---
 
-## W6 — Orchestrator · 6 prompts · ~120 lines
+## W6 — Orchestrator ✅ done · 6 prompts · ~120 lines
 
 `src/minieval/orchestrator.py`. The hard one, and the one where a subtly
 wrong implementation still produces green tests — because the same process
@@ -205,11 +207,12 @@ real numbers, and T08 lands in `NOT_EVALUATED` rather than `STABLE_FAIL`.
 
 ---
 
-## W7 — Bundle writer · 4 prompts · ~155 lines
+## W7 — Bundle writer ✅ done · 4 prompts · ~155 lines
 
-`src/minieval/bundle.py`. Five files, flat, no manifest, no checksums, no
-format version, no legacy-version table, no validator. That family is ~1,380
-lines in AgentEvalOps.
+`src/minieval/bundle.py`. Five machine/provenance files landed in W7; W8 adds
+`report.md` as the sixth current bundle file. The directory stays flat, with no
+manifest, checksums, format version, legacy-version table, or validator. That
+family is ~1,380 lines in AgentEvalOps.
 
 ```
 runs/<run_id>/
@@ -217,6 +220,7 @@ runs/<run_id>/
 ├── config.json          the RunConfig verbatim
 ├── traces.jsonl         every attempt's events, flattened
 ├── results.json         task results, k/n, stability
+├── report.md            human view of the same RunSummary (added in W8)
 └── replay_command.txt   invocation + git_sha + resolved model id
 ```
 
@@ -237,7 +241,7 @@ literal string `"unavailable"` outside a checkout, never `None`, never blank.
 
 ---
 
-## W8 — Markdown report · 3 prompts · ~70 lines
+## W8 — Markdown report ✅ done · 3 prompts · ~125 lines
 
 `src/minieval/report.py`.
 
@@ -247,17 +251,30 @@ name the members: stable pass, flaky, stable fail, not evaluated. Report
 not-evaluated separately from failed — the report is where the three-way
 partition either pays off or gets quietly re-collapsed into two numbers.
 
-1. Header block: run id, model, repeats, totals, cost.
-2. Per-task table with `k/n` and stability; stable-fail and flaky tasks named
-   in full.
-3. Test: a summary with a known partition renders counts that match, and
-   contains no percentage.
+1. Header block: run id, runner, model, repeats, the full attempt partition,
+   and cost explicitly labelled as not invoice-verified.
+2. Per-task table with `k/n`, evaluated count, stability, and policy-verdict
+   counts; all four stability groups name their tasks.
+3. Attempt-level findings preserve evaluator/policy notes and their trace-step
+   citations, including policy failures on tasks that passed evaluation.
+4. `write_bundle()` writes the rendered document as `report.md`, from the same
+   `RunSummary` used for `results.json`.
+5. Eight direct report tests plus bundle integration coverage exercise all
+   stability classes, the zero-task boundary, Markdown escaping, citations,
+   the absence of percentages, and overwrite behavior.
+
+The increase from the original ~70-line estimate buys the explicitly requested
+policy/citation detail and Markdown-safe rendering. It adds no schema, protocol,
+configuration key, or runtime dependency.
 
 **Exit:** the report of an all-mock run is something you would actually paste
 into a decision memo.
 
 **Risk:** low. Higher value than its size suggests — this is the artifact a
 funding decision reads.
+
+**Fail-first verified:** unevaluated attempts are not absorbed into failures;
+task results remain `k/n`; trace-step citations cannot disappear silently.
 
 ---
 
@@ -327,9 +344,9 @@ plainly rather than tune away:
 
 | | Prompts | Source |
 |---|---|---|
-| W2–W10 | ~40 | ~925 |
+| W2–W10 | ~40 | ~980 |
 | W1 (done) | — | 264 |
-| **Total** | **~40** | **~1,190** |
+| **Total** | **~40** | **~1,245** |
 
 Against 6,684. Roughly a 6× reduction — less than the 10× first estimated,
 because `repeats`/`Stability` is a genuine addition rather than a retained
