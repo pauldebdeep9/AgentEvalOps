@@ -223,6 +223,10 @@ this session could not and did not change it).
 
 ### D5. Environment lifecycle methods on `BenchmarkAdapter`
 
+**Status: implemented 2026-09-15.** `EnvHandle` (`bf782dd`), the
+`BenchmarkAdapter` protocol change (`7961770`), and the orchestrator wiring
+(`fa90c0f`).
+
 Rows 15 and 16 need a place to put the agent's workspace clone (D3) and its
 cleanup, and `BenchmarkAdapter` (`core/protocols.py`) currently has only
 `list_tasks` and `grade` — no lifecycle hook exists. `prepare_environment`
@@ -261,7 +265,7 @@ is called *before* the try/finally described above, so the W12a catch —
 being inside that try/finally — does not cover it; without its own guard, an
 `InfrastructureError` raised here would escape `_run_task` uncaught, not
 degrade into a `not_evaluated` result. It therefore gets its own
-`try/except InfrastructureError, ConfigurationError` around just the
+`try/except (InfrastructureError, ConfigurationError)` around just the
 `prepare_environment` call, separate from the try/finally around the runner
 and evaluation. That except returns the same `not_evaluated`
 `TaskRunResult` the W12a catch already builds — both routed through one
@@ -322,6 +326,18 @@ contract every adapter is known to satisfy.
   workspace behind uncleaned. Accepted for now, because `teardown` being
   idempotent (decision 6 above) means a later run — or a manual sweep — can
   clean it up safely; it does not corrupt state, it just delays cleanup.
+- **`grade` may need the workspace.** For SWE-bench, the agent's patch is
+  in the workspace clone, and `teardown` deletes that clone. So either
+  `grade` receives the `EnvHandle`, or the patch is read into
+  `AgentOutput` before `teardown` runs. Decide in row 16. (The older
+  design in `ARCHITECTURE.md` §2.2 passed `env` to `grade`.)
+- **Cancelling a task while `prepare_environment` runs does not stop the
+  thread.** `asyncio.to_thread` cancels the *await*, but the clone keeps
+  running in its worker thread, its handle is never received by
+  `_run_task`, and `teardown` never runs, so the workspace stays on disk.
+  The SWE-bench adapter must handle this itself — for example by keeping
+  all workspaces under one run folder that is removed at the end of the
+  run.
 
 ## Spike results (2026-08-04, first session)
 

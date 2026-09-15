@@ -9,6 +9,32 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Row 15 part 1 — D5 environment lifecycle methods implemented**
+  (2026-09-15, `docs/benchmark_adapters.md`). `BenchmarkAdapter` gains
+  `prepare_environment`/`teardown` as required members; `LocalOrchestrator`
+  now actually calls both.
+  - **`EnvHandle`** (`core/schemas.py`): new frozen dataclass —
+    `task_id`, `workspace_path: Path | None`, `metadata` — deliberately
+    never enters a result bundle (a workspace path is machine-specific).
+  - **Protocol + all 4 implementers updated**: `ToyBenchmarkAdapter`,
+    `MockBenchmarkAdapter`, `_ToolCallAdapter`, `_OneTaskBenchmark` (the
+    last kept its pre-existing partial `type: ignore`, untouched).
+  - **`_run_task` wiring**: `prepare_environment` runs first, inside the
+    concurrency semaphore, via `asyncio.to_thread`; its own
+    `InfrastructureError`/`ConfigurationError` share the W12a
+    not-evaluated-result helper (moved, not copied) and skip `teardown`;
+    the runner/W12a-catch/`evaluate()` now run inside `try/finally`, so
+    `teardown` always fires — normal return, the W12a catch, an exception
+    out of `evaluate()`, and cancellation of a sibling task still waiting
+    inside its runner (fail-first tested, including 20 repeat runs of the
+    sibling-cancellation case).
+  - **Open questions recorded, not resolved**: whether `grade()` needs the
+    workspace before `teardown` deletes it (deferred to row 16), and that
+    a cancellation during `prepare_environment` itself leaves the clone's
+    worker thread running with no handle to ever tear down.
+  - Full gate green: mypy 44 files, `lint-imports` 7/7, pytest 705 passed
+    (96.90% coverage), `make smoke` unaffected (bundle format still `0.4`).
+
 - **Row 14 close-out — grading hermeticity finding, then a validated gold
   run** (2026-08-05, `docs/benchmark_adapters.md`). Corrects the entry
   below: row 14 was marked ✅ Met on a run whose gold patch came back

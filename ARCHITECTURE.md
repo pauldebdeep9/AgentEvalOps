@@ -76,8 +76,9 @@ The `AsyncIterator` return type is deliberate: it lets the platform stream trace
 Translates a benchmark (SWE-bench, MLE-bench, an internal workflow suite) into the platform's task model.
 
 ```python
-from typing import Protocol, Iterable
-from agentevalops.core.schemas import TaskSpec, EnvHandle, AgentResult, GradeReport
+from collections.abc import Iterable
+from typing import Any, Protocol
+from agentevalops.core.schemas import AgentOutput, EnvHandle, EvaluationResult, TaskSpec
 
 class BenchmarkAdapter(Protocol):
     """Bridges an external benchmark into the platform.
@@ -91,28 +92,33 @@ class BenchmarkAdapter(Protocol):
     benchmark_id: str  # e.g. "swebench-verified", "mlebench-lite"
     benchmark_version: str  # pinned upstream version
 
-    def list_tasks(self, filter_spec: dict | None = None) -> Iterable[TaskSpec]:
+    def list_tasks(
+        self, filter_spec: dict[str, Any] | None = None
+    ) -> Iterable[TaskSpec]:
         """Enumerate tasks. filter_spec is benchmark-specific (e.g. difficulty,
         repo subset, competition list)."""
         ...
 
-    async def prepare_environment(self, task: TaskSpec) -> EnvHandle:
-        """Set up the sandbox/repo/dataset state the agent will operate on.
-        Returns a handle the AgentRunner uses to interact with the environment."""
-        ...
-
-    def grade(self, task: TaskSpec, result: AgentResult, env: EnvHandle) -> GradeReport:
+    def grade(self, task: TaskSpec, output: AgentOutput) -> EvaluationResult:
         """Apply the benchmark's official grading. This is deterministic
         scoring only — soft criteria (LLM-judge, trace quality) are separate
         Evaluators, not the adapter's job."""
         ...
 
-    async def teardown(self, env: EnvHandle) -> None:
-        """Release sandbox resources. MUST be idempotent."""
+    def prepare_environment(self, task: TaskSpec) -> EnvHandle:
+        """Set up the sandbox/repo/dataset state the agent will operate on.
+        Returns a handle teardown() consumes. On failure, remove any partial
+        work created, then raise InfrastructureError (docs/benchmark_adapters.md D5)."""
+        ...
+
+    def teardown(self, handle: EnvHandle) -> None:
+        """Release resources prepare_environment() set up. MUST be idempotent."""
         ...
 ```
 
-The split between `grade` (deterministic, benchmark-native) and `Evaluator` (everything else) is deliberate. SWE-bench's "did the patch pass the hidden test suite?" is a `BenchmarkAdapter.grade` concern. "Did the agent take 47 unnecessary steps before getting there?" is a `TraceQualityEvaluator` concern. They run independently and produce independent scores.
+Both `prepare_environment` and `teardown` are synchronous, not `async` — matching `list_tasks`/`grade` (docs/benchmark_adapters.md D5: a plain git clone, not an async container API; `LocalOrchestrator` runs them via `asyncio.to_thread`).
+
+The split between `grade` (deterministic, benchmark-native) and `Evaluator` (everything else) is deliberate. SWE-bench's "did the patch pass the hidden test suite?" is a `BenchmarkAdapter.grade` concern. "Did the agent take 47 unnecessary steps before getting there?" is a `TraceQualityEvaluator` concern. They run independently and produce independent scores. **As of row 15 (D5), no production code calls `grade` at all** — `LocalOrchestrator` routes scoring through `Evaluator.evaluate()` exclusively; wiring a real `grade()` caller is row 16's job, and D5's open questions flag a real design gap it will need to resolve (whether `grade` needs the workspace `EnvHandle` before `teardown` deletes it).
 
 ### 2.3 `Evaluator`
 
@@ -505,6 +511,8 @@ It loads the `RunConfig` and resolves it into concrete protocol implementations 
 It calls `BenchmarkAdapter.list_tasks()` to enumerate tasks, applying any filters from the config. For each task in parallel (bounded by the configured concurrency limit), it calls `BenchmarkAdapter.prepare_environment()`, then `AgentRunner.run()`, streaming `TraceEvent`s into the `TraceStore` as they arrive. The `AgentRunner` is responsible for enforcing `ResourceLimits` (tokens, wall-clock seconds, cost) *during* execution — if a limit is reached, the runner stops the agent and emits a terminal `TraceEvent` with the appropriate `terminated_by` reason. The orchestrator does not intercept mid-run. When the agent emits a terminal event, the orchestrator captures the `AgentResult`.
 
 It then scores the run: in the target design this calls `BenchmarkAdapter.grade()` for the benchmark's official deterministic score *and* runs all configured `Evaluator`s in parallel against the trace (see the implementation note below for how the current `LocalOrchestrator` differs). It then runs all configured `PolicyChecker`s against the completed trace and `AgentResult`. `PolicyChecker`s evaluate post-run compliance against a `PolicySpec`; they do not affect execution. All results are written to `scores.json`. It calls `BenchmarkAdapter.teardown()` regardless of outcome.
+
+> **Note (`prepare_environment`/`teardown` failure handling, docs/benchmark_adapters.md D5, implemented row 15).** A `prepare_environment` failure (`InfrastructureError`/`ConfigurationError`) never reaches the runner at all — the task gets the same `not_evaluated` result the runner-infrastructure-failure path produces, and `teardown` is *not* called, since no `EnvHandle` was ever returned for it to act on. A `teardown` failure, by contrast, is only logged as a warning — it never changes the task's already-computed result, because a cleanup failure after a successful (or already-scored) run is not evidence the run itself failed.
 
 > **Note (current `LocalOrchestrator` implementation):** The current
 > `LocalOrchestrator` routes per-task scoring through `Evaluator`

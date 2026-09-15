@@ -11,6 +11,9 @@ Responsibilities
 * Load or construct task specs for the requested scenario.
 * Provide expected-output / acceptance metadata in each ``TaskSpec``.
 * Implement the benchmark's ``grade()`` method for post-hoc offline scoring.
+* Implement ``prepare_environment()`` (returns a handle with no filesystem
+  workspace — this benchmark has nothing to clone) and ``teardown()``
+  (does nothing, since there is nothing to clean up).
 
 Non-responsibilities
 --------------------

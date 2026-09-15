@@ -72,19 +72,19 @@ belongs to an abandoned strategy in a different project and is not
 agentevalops's problem; don't mistake it for something new, and don't fix it
 here.
 
-## Baseline (verified 2026-08-05)
+## Baseline (verified 2026-09-15)
 
 - ruff: clean
-- mypy: clean (43 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (44 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps
-- `lint-imports`: **6 kept, 0 broken** (6th contract added alongside
-  `OpenAIRunner`: "openai confined to agents/")
-- pytest: 639 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.51% branch
+- `lint-imports`: **7 kept, 0 broken** (7th contract added alongside
+  row 14's SWE-bench spike: "swebench never imported")
+- pytest: 705 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.90% branch
   coverage
 - CI floor: `--cov-fail-under=94`
-- Bundle format: `BUNDLE_FORMAT_VERSION = "0.2"` (`bundles/constants.py`);
+- Bundle format: `BUNDLE_FORMAT_VERSION = "0.4"` (`bundles/constants.py`);
   `"0.1"` bundles (incl. `runs/toy-smoke*` on disk) still validate/read —
   see `docs/adr/0002-outcome-taxonomy.md`
 
