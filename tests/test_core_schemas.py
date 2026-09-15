@@ -6,13 +6,16 @@ on disk.  A rename is a breaking change and requires a schema_version bump.
 
 from __future__ import annotations
 
+import dataclasses
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
+    EnvHandle,
     EvaluationResult,
     PolicySpec,
     PolicyVerdict,
@@ -166,6 +169,38 @@ class TestTaskSpec:
             metadata={"difficulty": "easy", "repo": "cpython"},
         )
         assert task.metadata["difficulty"] == "easy"
+
+
+# ---------------------------------------------------------------------------
+# EnvHandle
+# ---------------------------------------------------------------------------
+
+
+class TestEnvHandle:
+    def test_defaults(self) -> None:
+        handle = EnvHandle(task_id=TaskId("t-1"))
+        assert handle.workspace_path is None
+        assert handle.metadata == {}
+
+    def test_workspace_path_is_kept(self) -> None:
+        path = Path("/tmp/x")
+        handle = EnvHandle(task_id=TaskId("t-1"), workspace_path=path)
+        assert handle.workspace_path == path
+
+    def test_frozen(self) -> None:
+        handle = EnvHandle(task_id=TaskId("t-1"))
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            handle.workspace_path = Path("/tmp/y")  # type: ignore[misc]
+
+    def test_default_metadata_not_shared(self) -> None:
+        a = EnvHandle(task_id=TaskId("t-1"))
+        b = EnvHandle(task_id=TaskId("t-2"))
+        assert a.metadata is not b.metadata
+
+    def test_importable_from_core(self) -> None:
+        from agentevalops.core import EnvHandle as CoreEnvHandle
+
+        assert CoreEnvHandle is EnvHandle
 
 
 # ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ from agentevalops.core.protocols import (
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
+    EnvHandle,
     EvaluationResult,
     PolicySpec,
     PolicyVerdict,
@@ -83,6 +84,7 @@ __all__ = [
     # schemas
     "AgentInput",
     "AgentOutput",
+    "EnvHandle",
     "EvaluationResult",
     "PolicySpec",
     "PolicyVerdict",

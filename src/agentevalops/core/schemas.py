@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any, Literal
 
 from agentevalops.core.types import AgentId, BackendId, RunId, TaskId
@@ -144,6 +145,21 @@ class TaskSpec:
     task_id: TaskId
     benchmark_id: str
     description: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class EnvHandle:
+    """Opaque handle to a task's prepared workspace (docs/benchmark_adapters.md D5).
+
+    Returned by ``BenchmarkAdapter.prepare_environment`` and consumed by
+    ``BenchmarkAdapter.teardown``. ``workspace_path=None`` means this
+    adapter has no filesystem workspace for the task, not that preparation
+    was skipped or failed.
+    """
+
+    task_id: TaskId
+    workspace_path: Path | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
