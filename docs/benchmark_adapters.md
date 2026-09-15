@@ -221,6 +221,108 @@ already local, and Docker Desktop's RAM allocation on this laptop remains
 the follow-up session's ticket — flagged as a manual, user-side action;
 this session could not and did not change it).
 
+### D5. Environment lifecycle methods on `BenchmarkAdapter`
+
+Rows 15 and 16 need a place to put the agent's workspace clone (D3) and its
+cleanup, and `BenchmarkAdapter` (`core/protocols.py`) currently has only
+`list_tasks` and `grade` — no lifecycle hook exists. `prepare_environment`
+and `teardown` become **required** members of `BenchmarkAdapter`:
+`prepare_environment(task: TaskSpec) -> EnvHandle` and
+`teardown(handle: EnvHandle) -> None`. `EnvHandle` is a new frozen dataclass
+in `core/schemas.py`, alongside the existing `TaskSpec`/`AgentOutput`/etc.,
+with three fields: `task_id: TaskId`, `workspace_path: Path | None`, and
+`metadata: dict[str, Any]` for adapter-specific extras. An adapter with no
+workspace concept at all (the toy adapter) still implements both methods and
+returns `EnvHandle(task_id=..., workspace_path=None, metadata={})` — `None`
+means "no filesystem workspace for this task," not "not implemented."
+
+Both methods are synchronous, matching `list_tasks` and `grade` (D3: this is
+a plain git clone, not an async container API). `LocalOrchestrator` calls
+them through `asyncio.to_thread` so a slow clone on one task doesn't block
+the semaphore-bounded concurrency of sibling tasks in `run()`
+(`orchestration/local.py:125-126`).
+
+**Placement in `_run_task` (`orchestration/local.py:191-274`).**
+`prepare_environment` is called before the runner (before the current
+`trace_iter = await self._runner.run(...)` at L225). Everything from that
+point through evaluation — the runner call, the W12a
+`InfrastructureError`/`ConfigurationError` catch (L232-257), and the
+`evaluator.evaluate()` call (L264, currently unguarded by any
+try/except) — moves inside a `try/finally`, with `teardown` called in the
+`finally`. This is the only construct that covers every exit path
+out of `_run_task`: the normal return, the W12a catch, an exception
+propagating out of `evaluate()`, and cancellation (`asyncio.CancelledError`
+still runs a `finally` block on its way out, which is what makes this also
+correct for the `KeyboardInterrupt`/cancellation path in `run()` at
+L137-151).
+
+**`prepare_environment` failure is not a `teardown` case.** `prepare_environment`
+is called *before* the try/finally described above, so the W12a catch —
+being inside that try/finally — does not cover it; without its own guard, an
+`InfrastructureError` raised here would escape `_run_task` uncaught, not
+degrade into a `not_evaluated` result. It therefore gets its own
+`try/except InfrastructureError, ConfigurationError` around just the
+`prepare_environment` call, separate from the try/finally around the runner
+and evaluation. That except returns the same `not_evaluated`
+`TaskRunResult` the W12a catch already builds — both routed through one
+shared helper, not a second copy of that result-construction logic. If
+`prepare_environment` fails partway (for example a clone that got
+interrupted), it is responsible for removing whatever partial state it
+created itself before raising. The orchestrator does not call `teardown` on
+this path, because `prepare_environment` never returned a handle for it to
+act on; `teardown` only ever runs against a handle that was successfully
+produced.
+
+The try/finally's own `teardown` call is wrapped in its own
+`try/except Exception`, which logs a warning and does not re-raise. A bare
+`teardown()` call in a `finally` block would, if it raised, replace whatever
+exception was already unwinding through that `finally` — silently
+discarding, for instance, a genuine exception out of `evaluate()`. Guarding
+the call keeps a cleanup failure a logged, separate event that never
+overwrites or hides the task's real outcome.
+
+**`teardown` must be safe to call more than once**, and its own failure is
+never allowed to change a task's recorded result — the orchestrator logs a
+warning and moves on. A task that produced a valid evaluation should not be
+turned into a failure just because its workspace directory failed to
+delete afterward; that failure belongs in operational logs, not in the
+run's scored outcome.
+
+**Required members, not a separate optional protocol.** The alternative —
+an `EnvironmentAware` protocol that adapters opt into, checked with
+`isinstance()` at the call site — was rejected. Only four classes implement
+`BenchmarkAdapter` today (`ToyBenchmarkAdapter`,
+`MockBenchmarkAdapter` in `tests/test_core_protocols.py`, `_ToolCallAdapter`
+in `tests/test_policy_denylist_integration.py`, and the already-partial
+`_OneTaskBenchmark` in `tests/test_orchestration.py`, which is already
+carried under a `type: ignore[arg-type]` rather than fully implementing the
+protocol) — a small, known, in-repo set, cheap to update directly. A second
+protocol would instead add a hidden `isinstance` branch inside
+`LocalOrchestrator`, making "does this benchmark have a workspace"
+a runtime fact the orchestrator has to discover per task rather than a
+contract every adapter is known to satisfy.
+
+**Open questions**
+
+- **How the agent receives `workspace_path`.** Not decided in row 15.
+  `AgentInput` (`core/schemas.py:150-155`) currently carries only `task:
+  TaskSpec` and `context: dict[str, Any]` — there is no workspace field on
+  it today, and no runner reads or writes files: `MockAgentRunner`,
+  `LangGraphRunner`, and `OpenAIRunner`/`AzureOpenAIRunner` (which shares
+  `OpenAIRunner`'s tool set) expose only a `calculator` and a `finish` tool
+  (`agents/langgraph_runner.py:102-137`), neither of which touches a
+  filesystem. Whether `workspace_path` goes into `AgentInput.context`,
+  a new typed field, or a SWE-bench-specific runner concern is left open.
+- **Who calls `BenchmarkAdapter.grade()`.** Today, nobody in production
+  code — `orchestration/local.py:260-264` routes scoring through
+  `Evaluator.evaluate()`, and the comment there already documents `grade()`
+  as reserved for exactly this future use. To be decided in row 16, before
+  the SWE-bench `grade` implementation is built.
+- **A second cancellation arriving during `teardown` itself** may leave a
+  workspace behind uncleaned. Accepted for now, because `teardown` being
+  idempotent (decision 6 above) means a later run — or a manual sweep — can
+  clean it up safely; it does not corrupt state, it just delays cleanup.
+
 ## Spike results (2026-08-04, first session)
 
 ### Installation, and the cbor2/Rust finding
