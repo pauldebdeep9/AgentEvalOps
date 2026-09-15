@@ -31,7 +31,12 @@ from agentevalops.benchmarks.toy.scenarios import (
     SUPPORTED_SCENARIOS,
 )
 from agentevalops.core.errors import ConfigurationError
-from agentevalops.core.schemas import AgentOutput, EvaluationResult, TaskSpec
+from agentevalops.core.schemas import (
+    AgentOutput,
+    EnvHandle,
+    EvaluationResult,
+    TaskSpec,
+)
 
 
 class ToyBenchmarkAdapter:
@@ -102,3 +107,10 @@ class ToyBenchmarkAdapter:
             passed=passed,
             notes="toy-grade: agent success flag",
         )
+
+    def prepare_environment(self, task: TaskSpec) -> EnvHandle:
+        """No filesystem workspace: the toy benchmark has nothing to clone."""
+        return EnvHandle(task_id=task.task_id)
+
+    def teardown(self, handle: EnvHandle) -> None:
+        """No-op: nothing was created by ``prepare_environment``."""

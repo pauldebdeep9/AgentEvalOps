@@ -38,6 +38,7 @@ from agentevalops.core.protocols import (
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
+    EnvHandle,
     EvaluationResult,
     PolicySpec,
     PolicyVerdict,
@@ -142,6 +143,36 @@ class MockBenchmarkAdapter:
             evaluator_kind="deterministic",
             score=1.0 if output.success else 0.0,
             passed=output.success,
+        )
+
+    def prepare_environment(self, task: TaskSpec) -> EnvHandle:
+        return EnvHandle(task_id=task.task_id)
+
+    def teardown(self, handle: EnvHandle) -> None:
+        pass
+
+
+class _BenchmarkAdapterWithoutLifecycle:
+    """Matches the pre-D5 BenchmarkAdapter shape: list_tasks + grade only.
+
+    Used to assert that a class missing ``prepare_environment``/``teardown``
+    no longer satisfies the (runtime_checkable) protocol.
+    """
+
+    benchmark_id = "legacy"
+    benchmark_version = "0.0.0"
+
+    def list_tasks(
+        self, filter_spec: dict[str, Any] | None = None
+    ) -> Iterable[TaskSpec]:
+        return []
+
+    def grade(self, task: TaskSpec, output: AgentOutput) -> EvaluationResult:
+        return EvaluationResult(
+            evaluator_id="legacy-grade",
+            evaluator_kind="deterministic",
+            score=0.0,
+            passed=False,
         )
 
 
@@ -260,6 +291,14 @@ def test_mock_benchmark_adapter_isinstance() -> None:
     assert isinstance(MockBenchmarkAdapter(), BenchmarkAdapter)
 
 
+def test_adapter_without_lifecycle_methods_is_not_benchmark_adapter() -> None:
+    """docs/benchmark_adapters.md D5: prepare_environment/teardown are
+    required members, not optional — a class missing them does not
+    structurally satisfy BenchmarkAdapter, even if it has list_tasks/grade.
+    """
+    assert not isinstance(_BenchmarkAdapterWithoutLifecycle(), BenchmarkAdapter)
+
+
 def test_mock_scorer_isinstance() -> None:
     assert isinstance(MockScorer(), Scorer)
 
@@ -328,6 +367,19 @@ class TestBenchmarkAdapter:
         result = adapter.grade(task, output)
         assert result.passed is False
         assert result.score == pytest.approx(0.0)
+
+    def test_prepare_environment_returns_handle_with_task_id(self) -> None:
+        adapter = MockBenchmarkAdapter()
+        task = TaskSpec(TaskId("t-1"), "toy", "Fix bug")
+        handle = adapter.prepare_environment(task)
+        assert handle.task_id == task.task_id
+
+    def test_teardown_is_callable_twice(self) -> None:
+        adapter = MockBenchmarkAdapter()
+        task = TaskSpec(TaskId("t-1"), "toy", "Fix bug")
+        handle = adapter.prepare_environment(task)
+        adapter.teardown(handle)
+        adapter.teardown(handle)
 
 
 class TestScorer:

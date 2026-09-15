@@ -291,6 +291,28 @@ def test_grade_does_not_check_answer_content() -> None:
 
 
 # ---------------------------------------------------------------------------
+# prepare_environment() / teardown()
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_environment_returns_handle_with_same_task_id() -> None:
+    adapter = ToyBenchmarkAdapter()
+    task = list(adapter.list_tasks())[0]
+    handle = adapter.prepare_environment(task)
+    assert handle.task_id == task.task_id
+    assert handle.workspace_path is None
+    assert handle.metadata == {}
+
+
+def test_teardown_called_twice_raises_nothing() -> None:
+    adapter = ToyBenchmarkAdapter()
+    task = list(adapter.list_tasks())[0]
+    handle = adapter.prepare_environment(task)
+    adapter.teardown(handle)
+    adapter.teardown(handle)
+
+
+# ---------------------------------------------------------------------------
 # AgentInput preparation (simulate what orchestrator does)
 # ---------------------------------------------------------------------------
 

@@ -25,6 +25,7 @@ from typing import Any
 from agentevalops.agents.mock_runner import MockAgentRunner
 from agentevalops.core.schemas import (
     AgentOutput,
+    EnvHandle,
     EvaluationResult,
     PolicySpec,
     RunConfig,
@@ -74,6 +75,12 @@ class _ToolCallAdapter:
             passed=output.success,
             notes="integ-grade",
         )
+
+    def prepare_environment(self, task: TaskSpec) -> EnvHandle:
+        return EnvHandle(task_id=task.task_id)
+
+    def teardown(self, handle: EnvHandle) -> None:
+        pass
 
 
 def _build_orchestrator(

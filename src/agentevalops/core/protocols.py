@@ -8,9 +8,10 @@ modifying them.
 All protocols are decorated with ``@runtime_checkable`` so that
 ``isinstance`` checks work in tests.
 
-Protocol method signatures reference only schemas defined in WBS 1.
-Richer parameter types (EnvHandle, EvaluatorContext, etc.) will be added
-in later WBS phases alongside their implementations.
+Protocol method signatures reference only schemas defined in WBS 1, plus
+``EnvHandle`` (docs/benchmark_adapters.md D5). Richer parameter types
+(EvaluatorContext, etc.) will be added in later WBS phases alongside their
+implementations.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from typing import Any, Protocol, runtime_checkable
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
+    EnvHandle,
     EvaluationResult,
     PolicySpec,
     PolicyVerdict,
@@ -87,6 +89,24 @@ class BenchmarkAdapter(Protocol):
 
         Soft criteria (LLM-judge, trace quality) are separate ``Evaluator``
         concerns — not this method's responsibility.
+        """
+        ...
+
+    def prepare_environment(self, task: TaskSpec) -> EnvHandle:
+        """Prepare whatever this benchmark needs before the agent runs.
+
+        docs/benchmark_adapters.md D5: for benchmarks with no filesystem
+        workspace, return ``EnvHandle(task_id=task.task_id)`` (the default
+        ``workspace_path=None``). On failure, remove any partial work this
+        call created itself, then raise ``InfrastructureError`` — the
+        orchestrator does not call ``teardown`` when no handle was returned.
+        """
+        ...
+
+    def teardown(self, handle: EnvHandle) -> None:
+        """Clean up whatever ``prepare_environment`` set up.
+
+        docs/benchmark_adapters.md D5: MUST be safe to call more than once.
         """
         ...
 

@@ -7,6 +7,7 @@ import asyncio
 from agentevalops.agents.mock_runner import MockAgentRunner
 from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
 from agentevalops.core.schemas import (
+    EnvHandle,
     PolicySpec,
     ResourceLimits,
     RunConfig,
@@ -222,6 +223,12 @@ class _OneTaskBenchmark:
                 description="single task",
             )
         ]
+
+    def prepare_environment(self, task):  # type: ignore[no-untyped-def]
+        return EnvHandle(task_id=task.task_id)
+
+    def teardown(self, handle: EnvHandle) -> None:
+        pass
 
 
 class _InterruptingRunner:
