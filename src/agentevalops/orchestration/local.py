@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from agentevalops.core.errors import ConfigurationError, InfrastructureError
 from agentevalops.core.protocols import (
@@ -27,6 +28,8 @@ from agentevalops.core.schemas import (
 )
 from agentevalops.core.types import RunId
 from agentevalops.scorers.simple import SimpleScorer
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -71,6 +74,45 @@ def _output_from_terminal(terminal: TraceEvent | None) -> AgentOutput:
         total_cost_usd=float(p.get("total_cost_usd", 0.0)),
         total_tokens=int(p.get("total_tokens", 0)),
         wall_seconds=float(p.get("wall_seconds", 0.0)),
+    )
+
+
+def _not_evaluated_result(
+    task: TaskSpec,
+    exc: Exception,
+    events: list[TraceEvent],
+    evaluator: Evaluator,
+    *,
+    stage: str | None = None,
+) -> TaskRunResult:
+    """Build the shared not-evaluated result for an infra/config failure.
+
+    Used by both the W12a runner-failure catch and the
+    ``prepare_environment`` guard (docs/benchmark_adapters.md D5) so the two
+    paths share one construction site instead of two copies. ``stage``, when
+    given, is folded into the error/notes text so the two paths stay
+    distinguishable (e.g. "prepare_environment: <exc>") without adding any
+    new schema field.
+    """
+    detail = f"{stage}: {exc}" if stage else str(exc)
+    output = AgentOutput(
+        success=False,
+        termination_reason=TerminationReason.INFRA_FAILURE,
+        error=detail,
+    )
+    evaluation = EvaluationResult(
+        evaluator_id=evaluator.evaluator_id,
+        evaluator_kind=evaluator.evaluator_kind,
+        score=0.0,
+        passed=False,
+        evaluated=False,
+        notes=f"not evaluated: infrastructure failure before completion ({detail})",
+    )
+    return TaskRunResult(
+        task_id=task.task_id,
+        output=output,
+        evaluation=evaluation,
+        event_count=len(events),
     )
 
 
@@ -212,40 +254,71 @@ class LocalOrchestrator:
         (docs/adr/0002, Axis 4) is what handles *that*, distinctly, as a
         ``"partial"`` bundle rather than a normal one with some
         not-evaluated tasks in it.
+
+        ``BenchmarkAdapter.prepare_environment``/``teardown``
+        (docs/benchmark_adapters.md D5) bracket the runner/evaluate work.
+        ``prepare_environment`` runs first, inside the caller's concurrency
+        semaphore, via ``asyncio.to_thread`` (D5: synchronous, like
+        ``list_tasks``/``grade`` -- a git clone must not block the event
+        loop). A failure there is guarded the same narrow way as the W12a
+        runner catch, sharing ``_not_evaluated_result`` rather than copying
+        it, and never calls ``teardown`` (no handle was produced). Once a
+        handle exists, everything else -- the runner, the W12a catch, and
+        evaluation -- runs inside a ``try/finally`` so ``teardown`` always
+        runs: on the normal return, on the W12a catch, and on any exception
+        propagating out of ``evaluate()`` or a cancellation. ``teardown``
+        itself is guarded by a bare ``except Exception`` that only logs --
+        a cleanup failure must never replace or hide the task's real
+        outcome.
         """
         run_id: RunId = self._config.run_id
-        agent_input = AgentInput(
-            task=task,
-            context={"run_id": run_id},
-        )
-        limits = self._config.resource_limits
-
         events: list[TraceEvent] = []
+
         try:
-            trace_iter = await self._runner.run(agent_input, limits)
-            terminal: TraceEvent | None = None
-            async for event in trace_iter:
-                await self._trace_store.append(run_id, event)
-                events.append(event)
-                if event.kind == TraceEventKind.AGENT_TERMINAL:
-                    terminal = event
+            handle = await asyncio.to_thread(
+                self._benchmark.prepare_environment, task
+            )
         except (InfrastructureError, ConfigurationError) as exc:
-            output = AgentOutput(
-                success=False,
-                termination_reason=TerminationReason.INFRA_FAILURE,
-                error=str(exc),
-            )
-            evaluation = EvaluationResult(
-                evaluator_id=self._evaluator.evaluator_id,
-                evaluator_kind=self._evaluator.evaluator_kind,
-                score=0.0,
-                passed=False,
-                evaluated=False,
-                notes=(
-                    "not evaluated: infrastructure failure before "
-                    f"completion ({exc})"
+            return (
+                _not_evaluated_result(
+                    task,
+                    exc,
+                    events,
+                    self._evaluator,
+                    stage="prepare_environment",
                 ),
+                events,
             )
+
+        try:
+            agent_input = AgentInput(
+                task=task,
+                context={"run_id": run_id},
+            )
+            limits = self._config.resource_limits
+
+            try:
+                trace_iter = await self._runner.run(agent_input, limits)
+                terminal: TraceEvent | None = None
+                async for event in trace_iter:
+                    await self._trace_store.append(run_id, event)
+                    events.append(event)
+                    if event.kind == TraceEventKind.AGENT_TERMINAL:
+                        terminal = event
+            except (InfrastructureError, ConfigurationError) as exc:
+                return (
+                    _not_evaluated_result(task, exc, events, self._evaluator),
+                    events,
+                )
+
+            output = _output_from_terminal(terminal)
+            # Scoring is routed through the Evaluator (DeterministicEvaluator
+            # by default), not BenchmarkAdapter.grade().  grade() is the
+            # benchmark's own official grading and is reserved for future
+            # use when an upstream benchmark's deterministic test suite
+            # needs to run post-hoc.
+            evaluation = await self._evaluator.evaluate(task, output, events)
+
             return (
                 TaskRunResult(
                     task_id=task.task_id,
@@ -255,20 +328,12 @@ class LocalOrchestrator:
                 ),
                 events,
             )
-
-        output = _output_from_terminal(terminal)
-        # Scoring is routed through the Evaluator (DeterministicEvaluator by
-        # default), not BenchmarkAdapter.grade().  grade() is the benchmark's
-        # own official grading and is reserved for future use when an upstream
-        # benchmark's deterministic test suite needs to run post-hoc.
-        evaluation = await self._evaluator.evaluate(task, output, events)
-
-        return (
-            TaskRunResult(
-                task_id=task.task_id,
-                output=output,
-                evaluation=evaluation,
-                event_count=len(events),
-            ),
-            events,
-        )
+        finally:
+            try:
+                await asyncio.to_thread(self._benchmark.teardown, handle)
+            except Exception:  # noqa: BLE001 - cleanup failure must not mask the real outcome
+                logger.warning(
+                    "BenchmarkAdapter.teardown failed for task %s",
+                    task.task_id,
+                    exc_info=True,
+                )
