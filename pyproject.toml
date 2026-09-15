@@ -98,6 +98,18 @@ otel = [
     "opentelemetry-api>=1.27,<2",
     "opentelemetry-sdk>=1.27,<2",
 ]
+# SWE-bench harness + dataset export tooling (docs/benchmark_adapters.md D1,
+# D6). Never imported by agentevalops itself (D2) -- this extra is for
+# scripts/export_swebench_snapshot.py and row 16's harness subprocess, both
+# outside the package. cbor2<6 is load-bearing, not a style choice: cbor2>=6
+# (pulled in transitively via swebench's modal dependency) has no prebuilt
+# wheel for this platform and needs a Rust toolchain to build from source;
+# cbor2==5.9.0, which satisfies cbor2<6, was confirmed to still ship a
+# pure-Python wheel. NOT installed in CI or Sai2608.
+swebench = [
+    "swebench==4.1.0",
+    "cbor2<6",
+]
 
 [project.scripts]
 agentevalops = "agentevalops.cli:main"

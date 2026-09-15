@@ -339,6 +339,137 @@ contract every adapter is known to satisfy.
   all workspaces under one run folder that is removed at the end of the
   run.
 
+### D6. SWE-bench Verified snapshot, and what the agent may see
+
+`list_tasks` (row 15) needs a local snapshot of SWE-bench Verified to read
+from — D2 forbids `swebench`/`datasets` inside the AgentEvalOps process, so
+the snapshot has to be produced outside it, once, and read back as plain
+data.
+
+**Source.** `princeton-nlp/SWE-bench_Verified`, split `test`, HF revision
+`c104f840cc67f8b6eec6f759ebc8b2693d585d4a` (T2-P1, confirmed directly
+against the cached `hub/datasets--princeton-nlp--SWE-bench_Verified/refs/main`
+file), 500 instances. The cached parquet blob's 64-hex-char filename
+(`a45b1fe4e2f0c8390b2b2938ac83e92ed5979000856808f3679c07812e9e6dcd`) is
+confirmed to be that file's own SHA-256 — verified directly with `shasum -a
+256` against the blob, not assumed from the naming convention.
+
+**Format: JSONL, one instance per line, all 13 upstream fields, values
+unchanged** — `FAIL_TO_PASS`/`PASS_TO_PASS` stay JSON-encoded strings
+exactly as upstream stores them, not decoded into native lists; the harness
+decodes them itself (`test_spec/test_spec.py:195-205`'s `_from_json_or_obj`). Instances
+sorted by `instance_id`, written with fixed `json.dumps` settings (fixed key
+order, fixed separators, no floating-point fields to worry about) so the
+same input dataset always produces byte-identical output — a prerequisite
+for the manifest's SHA-256 check below to mean anything. This is not an
+arbitrary format choice: `load_swebench_dataset` (T2-P1;
+`swebench/harness/utils.py:143-146`, in the spike env, never imported into
+this process) accepts a local `.json`/`.jsonl` file in place of a HF dataset
+name. Row 16's `grade` passes this exact file as `--dataset_name`, so
+grading a real run never touches the network or HuggingFace at all.
+
+**Produced by `scripts/export_swebench_snapshot.py`, run with a separate
+interpreter that has `datasets` installed** — today, `~/scratch/swebench-spike`
+(T2-P1); any interpreter with `datasets` works, this repo's own env never
+needs it. The script never imports `agentevalops` — it is a one-way, offline
+export tool, not part of the package, and AgentEvalOps itself never imports
+`datasets` or `swebench` (D2, unchanged).
+
+**The data file is not committed** — about 7.7 MiB, a re-export on every
+upstream revision bump would grow git history without bound, and the
+dataset's own license has not been checked by this project. Default
+location `~/.cache/agentevalops/swebench/`, overridable by config (exact
+key TBD in row 15's implementation, not decided here). A small **manifest
+IS committed**, at `src/agentevalops/benchmarks/swebench/verified_manifest.json`:
+dataset name, split, revision, instance count, field list, the JSONL file's
+SHA-256, and the export script's name. `list_tasks` refuses to read a
+snapshot file whose SHA-256 doesn't match the manifest — a silently
+mismatched or hand-edited snapshot must fail loudly, not grade the wrong
+data quietly.
+
+*Wheel inclusion, checked directly (T2-P1):* `pyproject.toml`'s build
+backend is `hatchling.build` (`pyproject.toml:1-3`), and
+`[tool.hatch.build.targets.wheel]` (`pyproject.toml:111-112`) sets only
+`packages = ["src/agentevalops"]` — no `include`/`exclude`/`artifacts`
+override. Hatchling's documented default wheel file-selection includes
+every file under the selected `packages` that is **not ignored by
+`.gitignore`**, regardless of whether git actually tracks it — there is no
+`.py`-only restriction and no `package_data`-style opt-in the way
+setuptools requires, but also no requirement that the file be committed. A
+committed `verified_manifest.json` under
+`src/agentevalops/benchmarks/swebench/` would therefore ship in the wheel
+automatically — **and this is exactly why the JSONL data file must never
+be written under `src/`**: an ignore-list-based default, not a
+tracked-files-based one, would just as happily package an *untracked* 7.7
+MiB snapshot sitting in that directory into every wheel build, silently.
+**Not independently verified by an actual `python -m build`** — this
+session's own constraint was no installs; if row 15's implementation finds
+this reasoning wrong in practice, it must be fixed there, not assumed
+correct a second time.
+
+**What the agent may see.**
+
+- `TaskSpec.task_id = instance_id`; `TaskSpec.description = problem_statement`
+  — the issue text is the task, same as every other adapter in this
+  codebase.
+- `TaskSpec.metadata` carries `repo`, `base_commit`, `version`,
+  `environment_setup_commit`, `created_at`, `difficulty`. None of these is
+  the answer or leaks grading criteria, and `prepare_environment` needs
+  `repo`/`base_commit` regardless — its only input is the `TaskSpec` (its
+  signature is `prepare_environment(self, task: TaskSpec) -> EnvHandle`,
+  `core/protocols.py`), so these fields have to travel somewhere on it.
+- **Never in `TaskSpec`, not even in `metadata`: `patch`, `test_patch`,
+  `FAIL_TO_PASS`, `PASS_TO_PASS`.** T2-P1's own finding is why this is a
+  hard line, not a style preference: `TaskSpec.metadata` reaches every
+  runner through `AgentInput.task` (`orchestration/local.py:294-297`) —
+  today's real runners (`LangGraphRunner`, `OpenAIRunner`,
+  `AzureOpenAIRunner`) only ever read `task.description`, but nothing in
+  the `AgentRunner` protocol stops a future runner from reading
+  `task.metadata` too. Keeping the gold patch and the grading test lists
+  out of `TaskSpec` entirely — not "out of the prompt, but present in the
+  object" — is the only guarantee that holds regardless of what a future
+  runner chooses to read.
+- `hints_text` is not in `TaskSpec` by default (confirmed unused by the
+  harness itself — `test_spec.py:192`, `# Unused` — so there is no grading
+  reason to carry it; whether it belongs in `metadata` as agent-visible
+  context is a row-16-or-later product decision, not made here).
+
+**The agent's workspace must not contain git history after `base_commit`.**
+A normal `git clone` followed by a checkout of `base_commit` still has the
+full history available locally (`git log`, `git show`, a later `git
+checkout <newer-sha>`) — and a later commit in that history can be the
+actual upstream fix for the issue the agent is solving, handing it the
+answer. `prepare_environment` (row 15) must enforce this itself, with two
+rules, not one:
+
+- **Keep a `.git` folder, but make its only commit `base_commit`** — not an
+  unpacked, historyless snapshot. Row 16 needs `git diff` to work inside
+  the workspace to produce the agent's patch, and `git diff` needs a
+  repository to diff against.
+- **The workspace has no remote (no `origin`), no other local branches, and
+  no tags** — so there is nothing later than `base_commit` for the agent to
+  `git fetch`, `git checkout`, or otherwise reach, even though the `.git`
+  folder itself is real and usable for `diff`.
+
+Not implementable as a snapshot-format decision; recorded here because it's
+a direct consequence of D6's snapshot feeding row 15's
+`prepare_environment`, and must not be missed when that method is written.
+
+**The `swebench` extra is added now, per D1** (`swebench==4.1.0`,
+`cbor2<6` — see Step 1 above for D1's exact text). **Not installed in CI or
+in Sai2608** — CI installs only `.[dev]` (`.github/workflows/ci.yml:27,89`),
+and `pip show swebench` in Sai2608 finds nothing (T1-P1, T2-P1). Adding the
+extra makes `pip install .[swebench]` a real, working command for whoever
+next needs `swebench`/`datasets` locally (to run
+`scripts/export_swebench_snapshot.py`, or the row-16 harness itself) — it
+does not change what any CI job or this project's own dev env installs.
+**Which interpreter `grade` uses to actually invoke the harness subprocess
+is a row-16 decision, not made here** — D2 already settled that it's a
+subprocess, never an import; row 16 still has to decide where that
+subprocess's interpreter comes from (the `swebench` extra installed
+alongside AgentEvalOps, a separate pinned venv matching the spike's own
+`~/scratch/swebench-spike` pattern, or something else).
+
 ## Spike results (2026-08-04, first session)
 
 ### Installation, and the cbor2/Rust finding
