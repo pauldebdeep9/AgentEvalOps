@@ -30,6 +30,11 @@ and unstarted. See "Open questions" below for exactly what remains and why,
 replacing this ADR's previous dangling reference to a section that was never
 actually written.
 
+**Q6 extended 2026-10-10 by [0005](0005-agentic-assurance-rebaseline.md)
+D7** — an evaluation layer (`rescore`) between structural and behavioural
+comparison. This ADR's own decisions are unchanged; `ReplayRunner` (W12c) is
+deferred past v0.5 by the same ADR.
+
 This single ADR covers both the taxonomy-adjacent replay decisions and the
 detailed, evidence-based answers to the six W12 design questions — a
 separate "design section" file was considered and rejected: the six

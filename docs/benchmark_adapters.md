@@ -1,5 +1,7 @@
 # benchmark_adapters.md — SWE-bench harness: vendoring decision + spike
 
+> **Frozen 2026-10-10 by [ADR-0005](adr/0005-agentic-assurance-rebaseline.md) D3** — reference only; the rest of row 15 and row 16 are not scheduled.
+
 This is a decision document, not an ADR (per `ROADMAP.md` row 14's own
 wording) — it lives here, not in `docs/adr/`, but follows the same
 evidence-first voice: every claim below is backed by output actually seen

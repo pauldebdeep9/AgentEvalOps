@@ -6,6 +6,11 @@ Proposed — 2026-10-10. Documentation-only: no code changes accompany this
 ADR, and nothing was executed to write it (the code baseline cited below is
 `CLAUDE.md`'s 2026-09-15 figure, not re-verified).
 
+**Accepted — 2026-10-10.** `DESIGN.md` amended per "Required `DESIGN.md`
+edits", 0003's Status pointer and the `docs/benchmark_adapters.md` freeze
+banner added, in one docs commit (`ROADMAP.md` R22, part 1). ADR-0006 and
+catalogue v0 — the rest of R22 — are not started.
+
 - **Supersedes** `ROADMAP.md` §1's v0.5 scope and the forward plan in rows
   9, 10, 12c, 15 (remainder), 16, 16b and 17–34. The re-baselined plan is
   `ROADMAP.md` §2b, rows **R22–R34**, committed alongside this ADR. Old rows
