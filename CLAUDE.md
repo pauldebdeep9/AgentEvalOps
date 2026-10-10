@@ -84,8 +84,11 @@ in this repo.
   despite both SDKs being lazily-imported optional deps
 - `lint-imports`: **7 kept, 0 broken** (7th contract added alongside
   row 14's SWE-bench spike: "swebench never imported")
-- pytest: 705 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.90% branch
-  coverage
+- pytest: 705 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.73% branch
+  coverage on a clean checkout. Any untracked file raises it to 96.90%:
+  tests reach the code-drift "inconclusive" warning (`bundles/validator.py`,
+  `cli.py`) only through this checkout's own git state (`ROADMAP.md` §0,
+  2026-10-10 finding). Compare against the clean-checkout figure.
 - CI floor: `--cov-fail-under=94`
 - Bundle format: `BUNDLE_FORMAT_VERSION = "0.4"` (`bundles/constants.py`);
   `"0.1"` bundles (incl. `runs/toy-smoke*` on disk) still validate/read —
