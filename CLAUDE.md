@@ -6,8 +6,10 @@ This project uses an **existing conda environment. Do not create a venv, do not
 create a new conda env, do not use `uv`.**
 
 ```
-ENV=/Users/debdeeppaul/opt/anaconda3/envs/Sai2511
+ENV=/Users/debdeeppaul/opt/anaconda3/envs/Sai2608
 ```
+
+> Env moved from `Sai2511` to `Sai2608` on 2026-10-10. Passages below that name `Sai2511` describe incidents in that env and are kept as history.
 
 Invoke every tool by absolute path. Bare `python` / `pytest` / `mypy` / `ruff`
 resolve off `$PATH`, fall outside this project's permission allowlist, and may
@@ -60,19 +62,20 @@ $ENV/bin/pip check
 $ENV/bin/python -m pip list --format=freeze | grep -iE "^(typer|pyyaml|anthropic|pytest|mypy|ruff)="
 ```
 
-Known-good, as of 2026-08-02: `typer==0.27.0`, `PyYAML==6.0.3`,
-`anthropic==0.75.0`, `pytest==9.0.3`, `mypy==2.1.0`, `ruff==0.15.14`. If any of
+Known-good, as of 2026-10-10 (Sai2608): `typer==0.27.1`, `PyYAML==6.0.3`,
+`anthropic` not installed, `pytest==9.1.1`, `mypy==2.3.0`, `ruff==0.15.22`. If any of
 these print something markedly older (especially `typer` below `0.15.4`),
 suspect a sibling project's install and re-check before trusting any other
 command in this file.
 
-`pip check` will report pre-existing, unrelated breakage in this shared env —
-notably `python-a2a 0.5.10 requires langchain, which is not installed`. That
-belongs to an abandoned strategy in a different project and is not
-agentevalops's problem; don't mistake it for something new, and don't fix it
-here.
+`pip check` was clean in `Sai2608` on 2026-10-10 ("No broken requirements
+found"). In `Sai2511` it reported pre-existing, unrelated breakage —
+`python-a2a 0.5.10 requires langchain, which is not installed`, from an
+abandoned strategy in a different project. If `pip check` reports breakage
+here, assume a sibling project's install first, report it, and don't fix it
+in this repo.
 
-## Baseline (verified 2026-09-15)
+## Baseline (verified 2026-10-10, Sai2608)
 
 - ruff: clean
 - mypy: clean (44 source files) — dedicated `anthropic.*` and `openai.*`
