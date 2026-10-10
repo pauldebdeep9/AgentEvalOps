@@ -9,6 +9,44 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **ADR-0005 — v0.5 re-anchored on agentic assurance; `ROADMAP.md`
+  re-baselined; `DESIGN.md` synced** (2026-10-10,
+  `docs/adr/0005-agentic-assurance-rebaseline.md`). Docs only — no code
+  changes.
+  - **ADR-0005, accepted 2026-10-10**: v0.5 becomes "agentic baseline +
+    evidence pack" — MGF-Agentic §2.3.2's four test categories on a
+    harness-owned tool environment, and the result bundle as a signed,
+    re-scorable evidence pack mapped to AI Verify Testing Framework
+    process IDs. SWE-bench frozen; AWS, `LocalBackend`, `ReplayRunner` and
+    LLM-as-judge deferred past v0.5. Release week unchanged (Jan 4–10,
+    2027).
+  - **`ROADMAP.md`**: new §0 entry; §1 scope; superseded rows annotated
+    (⛔/⏸), not deleted; rows R22–R34 (§2b); external dependencies (§2c);
+    §3–§9 re-baselined. R22 is partially met — ADR-0005 accepted and
+    `DESIGN.md` synced; ADR-0006 and catalogue v0 not started.
+  - **Two findings recorded, not fixed** (scheduled in R25 and R23):
+    `PolicySpec.allowed_tool_ids` has no consumer, so row 11's "(cost
+    ceiling, allowlist)" ✅ never covered the allowlist (correction note
+    added to row 11); `_SUPPORTED_BENCHMARKS` has no registry-parity test.
+  - **`DESIGN.md`** §1, §3, §5 and §7–§11 amended per ADR-0005; §7's
+    bundle tree now matches the bundle as built. 0003's Status gains the
+    Q6 evaluation-layer pointer; `docs/benchmark_adapters.md` gains a
+    freeze banner.
+  - **Dev/test env is now `Sai2608`** (`CLAUDE.md`). Baseline re-verified
+    there: ruff clean, mypy 44 source files, `lint-imports` 7 kept /
+    0 broken, pytest 705 passed / 1 skipped. Coverage is 96.73% on a clean
+    checkout; the 96.90% recorded since 2026-09-15 was a dirty-tree
+    figure, because tests reach the code-drift "inconclusive" warning only
+    through this checkout's own git state. Finding and unassigned fix in
+    `ROADMAP.md` §0; `CLAUDE.md`'s baseline now says which figure to
+    compare against.
+  - **`build_print_edition.py` moved out of the repo** — personal
+    tooling, closing the item the "Row 14 follow-up" entry below left
+    open. Its outputs stay gitignored, and the `.gitignore` comment now
+    says where the generator lives. With the checkout clean again, bundles
+    record `git_dirty` as false and `validate-bundle`'s code-drift check is
+    conclusive (verified with a smoke bundle).
+
 - **Row 15 part 1 — D5 environment lifecycle methods implemented**
   (2026-09-15, `docs/benchmark_adapters.md`). `BenchmarkAdapter` gains
   `prepare_environment`/`teardown` as required members; `LocalOrchestrator`
