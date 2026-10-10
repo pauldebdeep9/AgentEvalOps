@@ -46,9 +46,9 @@ env/
 .claude/settings.local.json
 .claude/worktrees/
 
-# Print-edition generated outputs (build_print_edition.py's output, not the
-# script itself — see repo root for the untracked script; whether it
-# belongs in the repo is a separate call, not made here).
+# Print-edition outputs. The generator (build_print_edition.py) lives outside
+# the repo as personal tooling; it reads print-manifest-all.txt from, and
+# writes its HTML to, whatever directory it's run from.
 AgentEvalOps-print-edition.html
 print-file-sizes.txt
 print-manifest-*.txt
