@@ -11,6 +11,30 @@ edits", 0003's Status pointer and the `docs/benchmark_adapters.md` freeze
 banner added, in one docs commit (`ROADMAP.md` R22, part 1). ADR-0006 and
 catalogue v0 — the rest of R22 — are not started.
 
+**Q5 resolved — 2026-10-10 (owner decision).** The repository stays
+private through v0.5, and a JOSS submission is not a v0.5 goal. What v0.5
+has to serve is an organisation preparing an AI Verify Testing Framework
+report for an agent it deploys. Where D2 and the `DESIGN.md` text below
+say "published" live run, read: a live run committed to the private
+repository and shared with partners. Private means unpublished, not
+confidential: the code stays Apache-2.0. `ROADMAP.md` E7, R30, R34, §3 and
+§8 carry the change; `DESIGN.md` §5 and §10 were updated to match.
+
+**D6's pre-fill list replaced — 2026-10-11.**
+[`docs/imda-alignment.md`](../imda-alignment.md) classifies all 112 process
+checks against v0.5: 2 evidenced directly by a test run, 12 in part, 32
+supported by a ready-made artefact, 9 reached only after v0.5, 49
+organisational, 8 scoped to traditional AI. D6's list over-reached: 3.2.1,
+3.5.1, 3.9.1 and 3.11.1 concern the organisation's own training data,
+model artefacts and deployments; 3.4.1, 5.10.1 and 5.11.1 need production
+logs (v0.7); 9.9.1 and 10.3.3, inside its ranges, are organisational; 3.3.1
+and 3.10.1 are traditional-AI only. "Pre-filled" means an evidence
+pointer, never an answer: each check's Yes / No / N/A and elaboration stay
+with the organisation. No decision in this ADR is reversed: D2's "published"
+is narrowed as above, D6's list is replaced, and D9's seed domain gains a
+refer-to-officer tool. The same review amended rows R22, R24–R28, R30, R31
+and R34 (`ROADMAP.md` §0).
+
 - **Supersedes** `ROADMAP.md` §1's v0.5 scope and the forward plan in rows
   9, 10, 12c, 15 (remainder), 16, 16b and 17–34. The re-baselined plan is
   `ROADMAP.md` §2b, rows **R22–R34**, committed alongside this ADR. Old rows

@@ -26,7 +26,7 @@ AgentEvalOps v0.1 provides a local-first evaluation skeleton for tool-using agen
 - FastAPI dashboard or web UI
 - Runtime tool execution or sandboxing
 
-See [ROADMAP.md](ROADMAP.md) for planned delivery order.
+See [ROADMAP.md](ROADMAP.md) for planned delivery order, and [ADR-0005](docs/adr/0005-agentic-assurance-rebaseline.md) and [docs/imda-alignment.md](docs/imda-alignment.md) for where v0.5 is headed: testing tool-using agents against Singapore's agentic-AI guidance, with evidence for an AI Verify Testing Framework report.
 
 ---
 

@@ -9,6 +9,37 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **IMDA alignment review — the package targets the AI Verify Testing
+  Framework report; the repository stays private** (2026-10-11,
+  `docs/imda-alignment.md`). Docs only — no code changes.
+  - **`docs/imda-alignment.md`** (new): all 112 process checks of the
+    testing framework (2025 edition) classified against v0.5 — 2 direct,
+    12 partial, 32 supporting, 9 later, 49 organisational, 8 traditional-AI
+    only — with this project's own labels (identifiers and paraphrase only,
+    ADR-0005 D5), the WBS row by row, and MGF-Agentic v1.5 and Starter Kit
+    mappings.
+  - **Verdict: ADR-0005's direction holds**; no decision reversed.
+    ADR-0005's Status records Q5 as resolved (private through v0.5; JOSS
+    not a v0.5 goal; private means unpublished, not confidential) and
+    replaces D6's pre-fill list, which over-reached into the organisation's
+    own records and production monitoring.
+  - **`ROADMAP.md`**: §0 entry; E7 decided; R30 and R34 private, with no
+    PyPI upload; E1's fallback points to the new labels. Sub-tasks added to
+    R22, R24–R28 and R31: disclosure and reason codes on outbound notices,
+    ambiguous cases that must be referred to an officer, a Singapore PII
+    detector on outbound messages, counterfactual protected-attribute
+    pairs, a tool-call budget, a required perturbation family, owner-set
+    thresholds, intended use and business metrics in the test plan, a
+    112-check evidence report with the organisation's answers left blank
+    (process entries now load in R28, before the report that needs them),
+    the seed domain as the first domain pack, and `docs/domain-packs.md`.
+    §4's slack list updated; §5 clarifies risks 3 and 8 and adds risk 9
+    (synthetic identifiers); §6's cut ladder protects the technical-testing
+    checks; §8 promises no public release.
+  - **`DESIGN.md`** §5, §7 and §10, **`README.md`** and
+    **`docs/adr/README.md`** updated to match; **`CLAUDE.md`** gains a rule
+    against pasting IMDA or AI Verify Foundation text.
+
 - **ADR-0005 — v0.5 re-anchored on agentic assurance; `ROADMAP.md`
   re-baselined; `DESIGN.md` synced** (2026-10-10,
   `docs/adr/0005-agentic-assurance-rebaseline.md`). Docs only — no code

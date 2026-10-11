@@ -1,6 +1,6 @@
 # DESIGN.md — AgentEvalOps Platform
 
-> **Status:** Draft v0.2 — repositioned by [ADR-0005](docs/adr/0005-agentic-assurance-rebaseline.md) · **Owner:** *(your name)* · **Last updated:** 2026-10-10
+> **Status:** Draft v0.2 — repositioned by [ADR-0005](docs/adr/0005-agentic-assurance-rebaseline.md) · **Owner:** *(your name)* · **Last updated:** 2026-10-11
 > This document is the source of truth for *what* AgentEvalOps is, *why* it exists, and *what it is not*. Implementation details live in `ARCHITECTURE.md`. Anything in this document overrides anything in code comments, READMEs, or chat threads.
 
 ---
@@ -76,7 +76,7 @@ The temptation with platform projects is to build the platform forever and never
 
 If a reviewer can clone the repo and reach a result bundle in under five minutes, the credibility threshold is crossed. Everything beyond v0.1 — real benchmark integration, AWS Fargate deployment, additional evaluators — is iteration on a foundation that already works.
 
-**v0.5 (Agentic baseline + evidence pack).** MGF-Agentic §2.3.2's four test categories, run against a harness-owned tool environment on a seeded synthetic domain, scored deterministically, repeated k times, gated fail-closed, and packaged as a signed bundle a reviewer can validate and re-score on a fresh clone. One published run on one real model. See `docs/adr/0005-agentic-assurance-rebaseline.md`.
+**v0.5 (Agentic baseline + evidence pack).** MGF-Agentic §2.3.2's four test categories, run against a harness-owned tool environment on a seeded synthetic domain, scored deterministically, repeated k times, gated fail-closed, and packaged as a signed bundle a reviewer can validate and re-score on a fresh clone. One live run on one real model, kept in the private repository (`ROADMAP.md` E7). See `docs/adr/0005-agentic-assurance-rebaseline.md`; for what the evidence pack contributes to an AI Verify Testing Framework report, `docs/imda-alignment.md`.
 
 ---
 
@@ -114,7 +114,7 @@ result_bundle/
 ├── test_plan.json         # system declaration, scenarios, k, thresholds; hashed before the run
 ├── controls.json          # control coverage, computed from executed scenarios
 ├── env_state/             # per-task tool-environment end states
-├── evidence_report.md     # AI Verify Testing Framework-shaped: pre-filled vs organisational evidence
+├── evidence_report.md     # every testing-framework check: evidence pointers; answers left to the organisation
 └── manifest.json.sig      # detached signature over manifest.json
 ```
 
@@ -180,7 +180,7 @@ These are the load-bearing decisions. They are not implementation details — ch
 
 At the v0.1 milestone, success is the demo path completing on a fresh clone in under five minutes with zero cloud credentials. The result bundle is on disk. The replay command works. A policy check runs and produces a verdict.
 
-At the v0.5 milestone, success is a published live baseline run on one real model whose signed evidence pack validates, verifies and re-scores `MATCH` on a fresh clone, with cost reconciled against the provider.
+At the v0.5 milestone, success is a live baseline run on one real model, committed to the repository, whose signed evidence pack validates, verifies and re-scores `MATCH` on a fresh clone, with cost reconciled against the provider — and whose evidence report an organisation can carry into its AI Verify Testing Framework report (`docs/imda-alignment.md`).
 
 At the v1.0 milestone, success is three properties simultaneously: (a) at least two domain packs; (b) buyer mode over MCP; (c) at least one evidence pack produced by someone other than the author, against their own agent — ideally inside the Global AI Assurance Sandbox.
 

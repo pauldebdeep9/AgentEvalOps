@@ -102,3 +102,15 @@ in this repo.
   respectively. Never run `configs/toy_langgraph.yaml` or
   `configs/toy_openai.yaml` without being asked to.
 - `otel` — scaffold only, emits nothing.
+
+## Third-party framework text (IMDA, AI Verify Foundation)
+
+The AI Verify Testing Framework may not be reproduced without written
+permission, and this project treats MGF-Agentic and the Starter Kit the same
+way until their terms are checked (ADR-0005 D5; the request is `ROADMAP.md`
+E1). Never paste a sentence from them into this repository —
+docs, catalogue data, fixtures, docstrings, tests or commit messages. Cite
+identifiers (process `8.3.2`, MGF-Agentic §2.3.2) and reuse the labels in
+`docs/imda-alignment.md` instead of writing new ones from the source. ARC
+(GovTech) is Apache-2.0: its IDs and labels may be used with attribution
+and a `NOTICE` entry.
