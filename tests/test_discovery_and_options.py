@@ -108,6 +108,21 @@ def test_a_plugin_shadowed_by_a_registered_name_is_skipped_and_logged(
     assert reg.get(KIND_BENCHMARK, "toy") is ToyBenchmarkAdapter
 
 
+def test_rediscovering_a_built_in_is_quiet(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """pyproject.toml publishes the built-in toy benchmark as an entry
+    point; finding the very object already registered is not a conflict,
+    and must not warn on every CLI run."""
+    reg = Registry()
+    reg.register(KIND_BENCHMARK, "toy", ToyBenchmarkAdapter)
+    same = _EntryPoint("toy", ToyBenchmarkAdapter)
+    _fake_groups(monkeypatch, {ENTRY_POINT_GROUP: [same]})
+    with caplog.at_level(logging.WARNING, logger="agentevalops.registry"):
+        assert reg.discover_entry_points() == ()
+    assert caplog.records == []
+
+
 def test_cli_discovers_plugins_before_loading_the_config(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:

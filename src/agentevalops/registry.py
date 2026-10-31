@@ -257,6 +257,14 @@ class Registry:
                     exc,
                 )
                 continue
+            if (
+                not replace
+                and self.has(kind, ep.name)
+                and self.get(kind, ep.name) is factory
+            ):
+                # The very object already registered -- e.g. pyproject.toml
+                # publishing a built-in as an entry point. Not a conflict.
+                continue
             try:
                 self.register(kind, ep.name, factory, replace=replace)
             except ConfigurationError:
