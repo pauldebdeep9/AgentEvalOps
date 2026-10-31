@@ -9,6 +9,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R24 slice 6 — fake provider clients shared** (2026-11-01; `4b28a96`).
+  The fake OpenAI-style and Anthropic-style clients that
+  `tests/test_runner_seam.py` and `tests/test_runner_concurrency.py` had
+  imported from the three runner test files now live in
+  `tests/fake_clients.py`; the runner tests alias them back to their old
+  names, so no test body changed and the suite still counts 1006 passed,
+  1 skipped.
+
 - **R24 slice 5 — the `tool_use` and `state_based` evaluators, D14, and
   the pack played back through the CLI** (2026-11-01; ADR-0006 D12, D13,
   D14; `366d1ec`). `ToolUseEvaluator` judges a task run from the harness
