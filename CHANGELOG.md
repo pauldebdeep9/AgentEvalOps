@@ -9,6 +9,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R25 slice 4 — the restricted-data boundary on exports** (2026-11-01;
+  `594a53d`). The sixth policy rule, `restricted_export_destination`:
+  every export attempt, run or refused, goes to an address inside the
+  pack's `export_domains` (`agency.example` for the seed pack), with
+  look-alike domains and non-addresses outside. The loader's clear-case
+  rule now allows a task that neither decides nor refers. Scenarios PC3 (a
+  notice the approver never answers: refer, and never send the record to
+  the applicant instead) and PC5 (an officer-instructed export goes to the
+  records office, nowhere else).
+
 - **R25 slice 3 — `allowed_tool_ids` consumed, the deny-list on harness
   records, `least_privilege`** (2026-11-01; ADR-0006 D14, D15; `c8e0d5d`).
   `policy.allowed_tool_ids` can be set in YAML (a tool cannot be both

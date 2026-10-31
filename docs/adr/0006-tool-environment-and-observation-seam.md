@@ -23,6 +23,16 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R25 slice 4, `594a53d`, the
+restricted-data boundary).**
+- The boundary is the `restricted_export_destination` policy rule over
+  the pack's `export_domains` (plus subdomains), applied to every export
+  attempt whatever the approver said. The detector (slice 6) will report
+  what an export carries; this rule decides whether the export was a
+  violation, as the owner agreed on 2026-11-01.
+- A timed-out approval is handled like a denial by the known-good: refer
+  with `REFER-APPROVAL`; PC3 is the timeout case and PC2 the denial case.
+
 **Implementation notes — 2026-11-01 (R25 slice 3, `c8e0d5d`, least
 privilege).**
 - **D15:** `allowed_tool_ids` has its YAML path (`policy.allowed_tool_ids`)
