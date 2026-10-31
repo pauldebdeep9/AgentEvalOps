@@ -9,6 +9,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **W25 checkpoint, taken early 2026-10-31 — v0.5 moves to Jan 25–31,
+  2027** (`ROADMAP.md` §0, §2b, §3; ADR-0005 Status). Docs only. Both
+  Nov 8 checks would have been "no" (R22 partly met, R23–R24 not
+  started). The W25 cut is taken, the W28 cut is held in reserve, the
+  holiday weeks stay light, and every R row keeps its contents with a new
+  calendar date.
+
 - **External review, 2026-10-31 — findings recorded** (`ROADMAP.md` §0).
   Docs only. Twelve findings from an outside review, each confirmed with
   an offline probe or by reading the code, with `file:line` evidence and

@@ -35,6 +35,15 @@ is narrowed as above, D6's list is replaced, and D9's seed domain gains a
 refer-to-officer tool. The same review amended rows R22, R24–R28, R30, R31
 and R34 (`ROADMAP.md` §0).
 
+**Release week moved — 2026-10-31 (owner decision, W25 checkpoint).** v0.5
+moves from Jan 4–10 to **Jan 25–31, 2027**, so D2's "the target week (Jan
+4–10, 2027) is unchanged" no longer holds. At the checkpoint R22 was only
+partly met and R23–R24 were not started: about 3.5 weeks of work stood
+before v0.2, with one week left. The W25 cut is taken (about ½ week), the
+W28 cut is held in reserve, and the two holiday weeks stay light. No
+decision in this ADR changes — only the calendar. `ROADMAP.md` §0, §2b and
+§3 carry the new dates.
+
 - **Supersedes** `ROADMAP.md` §1's v0.5 scope and the forward plan in rows
   9, 10, 12c, 15 (remainder), 16, 16b and 17–34. The re-baselined plan is
   `ROADMAP.md` §2b, rows **R22–R34**, committed alongside this ADR. Old rows
