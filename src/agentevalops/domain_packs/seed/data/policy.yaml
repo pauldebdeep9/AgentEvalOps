@@ -30,6 +30,12 @@ case_argument: case_id
 export_domains: [agency.example]
 destination_argument: destination
 
+# Notice transparency (ROADMAP R25; clause P5): the notify tool's
+# arguments that carry the AI-use disclosure and the reason codes.
+notice_fields:
+  disclosure: ai_disclosure
+  reason_codes: reason_codes
+
 # What policy_search returns. R26 injects content through this carrier.
 clauses:
   - id: P1

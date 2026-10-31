@@ -811,6 +811,12 @@ def _dup(key: str) -> Callable[[dict[str, Any]], None]:
             _set("export_domains", ["Agency.Example"]),
             "not a lowercase domain",
         ),
+        (
+            "policy.yaml",
+            _set("notice_fields", {"disclosure": "x"}),
+            "notice_fields must name",
+        ),
+        ("policy.yaml", _set("notice_fields.reason_codes", ""), "non-empty string"),
         ("names.yaml", _set("groups", ["a", 1]), "groups must be a list of strings"),
         ("names.yaml", _set("groups", []), "groups must not be empty"),
         ("names.yaml", _set("groups", ["chinese", "chinese"]), "repeats an entry"),

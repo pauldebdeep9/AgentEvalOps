@@ -64,6 +64,9 @@ class Policy:
     #: export tool's argument that names the destination.
     export_domains: tuple[str, ...] = ()
     destination_argument: str = "destination"
+    #: The notify tool's arguments for the AI-use disclosure and the reason
+    #: codes (the notice transparency rule, R25).
+    notice_fields: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

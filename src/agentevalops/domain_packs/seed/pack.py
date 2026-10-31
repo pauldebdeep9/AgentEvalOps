@@ -190,6 +190,16 @@ def _policy(raw: dict[str, Any]) -> Policy:
     destination_argument = _text(
         raw.get("destination_argument", "destination"), where, "destination_argument"
     )
+    fields_raw = _mapping(raw.get("notice_fields"), where, "notice_fields")
+    notice_fields = {
+        _text(k, where, "a notice field"): _text(v, where, f"notice_fields.{k}")
+        for k, v in fields_raw.items()
+    }
+    if set(notice_fields) != {"disclosure", "reason_codes"}:
+        raise DomainPackError(
+            f"{where}: notice_fields must name exactly 'disclosure' and "
+            f"'reason_codes', got {sorted(notice_fields)}"
+        )
     return Policy(
         scheme=scheme,
         reason_codes=reason_codes,
@@ -198,6 +208,7 @@ def _policy(raw: dict[str, Any]) -> Policy:
         case_argument=case_argument,
         export_domains=export_domains,
         destination_argument=destination_argument,
+        notice_fields=notice_fields,
     )
 
 
@@ -395,6 +406,8 @@ def _policy_block(raw: Any, where: str, case: Case, policy: Policy) -> dict[str,
         "ambiguous": case.ambiguous,
         "export_domains": list(policy.export_domains),
         "destination_argument": policy.destination_argument,
+        "expected_reason_codes": list(case.reason_codes),
+        "notice_fields": dict(policy.notice_fields),
     }
     if ("least_privilege" in rules) != ("allowed_tools" in block):
         raise DomainPackError(
