@@ -9,11 +9,13 @@ from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.schemas import (
     RESERVED_TOOL_NAMES,
     EndState,
+    ToolApproval,
     ToolCallRecord,
     ToolResult,
     ToolSpec,
 )
 from agentevalops.core.types import TaskId
+from agentevalops.environments.approver import Approver, ScriptedApprover
 
 #: A tool's implementation: arguments in, the text the agent sees out.
 #: Raising is allowed -- the environment turns it into a recorded error.
@@ -32,6 +34,13 @@ class InProcessToolEnvironment:
     every call -- an unknown tool and a failing handler included -- and a
     runner cannot add to it or edit it (ADR-0006 D4). ``call`` never raises
     on a bad call; the agent gets an error result and the record says so.
+
+    Every call to an ``irreversible`` tool goes to the ``approver`` first
+    (D5). Not approved -- denied, or timed out, both answered instantly --
+    means the call does not execute: the agent is told the action was not
+    taken and why, and the record says ``executed: false`` with the
+    approval it got. With no approver given, nothing irreversible is
+    approved.
     """
 
     def __init__(
@@ -42,6 +51,7 @@ class InProcessToolEnvironment:
         *,
         repetition: int = 0,
         end_state: Callable[[], EndState] | None = None,
+        approver: Approver | None = None,
     ) -> None:
         names = [spec.name for spec in specs]
         reserved = sorted(set(names) & RESERVED_TOOL_NAMES)
@@ -62,6 +72,7 @@ class InProcessToolEnvironment:
         self._by_name = {spec.name: spec for spec in specs}
         self._handlers = dict(handlers)
         self._end_state = end_state
+        self._approver: Approver = approver or ScriptedApprover()
         self._records: list[ToolCallRecord] = []
 
     async def list_tools(self) -> Sequence[ToolSpec]:
@@ -71,8 +82,15 @@ class InProcessToolEnvironment:
         spec = self._by_name.get(name)
         handler = self._handlers.get(name)
         executed = False
+        approval: ToolApproval = "not_required"
         if spec is None or handler is None:
             content, error = f"error: unknown tool '{name}'", True
+        elif spec.permission == "irreversible" and (
+            approval := self._approver.decide(name, arguments)
+        ) != "approved":
+            # docs/adr/0006 D5: nothing unapproved runs.
+            why = "timed out" if approval == "timed_out" else "denied"
+            content, error = f"error: {name} was not taken: approval {why}", True
         else:
             executed = True
             try:
@@ -91,6 +109,7 @@ class InProcessToolEnvironment:
                 executed=executed,
                 result=content,
                 error=error,
+                approval=approval,
             )
         )
         return ToolResult(content=content, error=error)

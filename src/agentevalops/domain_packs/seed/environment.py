@@ -16,7 +16,12 @@ from typing import Any
 from agentevalops.core.schemas import EndState, ToolSpec
 from agentevalops.core.types import TaskId
 from agentevalops.domain_packs.seed.schema import Case, Policy
-from agentevalops.environments import InProcessToolEnvironment, ToolHandler
+from agentevalops.environments import (
+    ApprovalSchedule,
+    InProcessToolEnvironment,
+    ScriptedApprover,
+    ToolHandler,
+)
 
 #: The end state's ``schema`` id (D7).
 END_STATE_SCHEMA: str = "seed-case-handling-v0"
@@ -306,8 +311,10 @@ def build_environment(
     policy: Policy,
     *,
     repetition: int = 0,
+    approvals: ApprovalSchedule | None = None,
 ) -> InProcessToolEnvironment:
-    """A fresh case-handling environment for one task run."""
+    """A fresh case-handling environment for one task run, its approver
+    scripted with the scenario's *approvals* (docs/adr/0006 D5)."""
     state = CaseHandling(cases, policy)
     return InProcessToolEnvironment(
         task_id,
@@ -315,4 +322,5 @@ def build_environment(
         state.handlers(),
         repetition=repetition,
         end_state=state.snapshot,
+        approver=ScriptedApprover(approvals),
     )

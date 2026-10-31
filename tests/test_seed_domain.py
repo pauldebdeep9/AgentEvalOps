@@ -42,7 +42,11 @@ from agentevalops.core.schemas import (
 from agentevalops.core.types import TaskId
 from agentevalops.domain_packs import DomainPackError
 from agentevalops.domain_packs.seed import SeedDomainPack
-from agentevalops.domain_packs.seed.environment import END_STATE_SCHEMA, TOOL_SPECS
+from agentevalops.domain_packs.seed.environment import (
+    END_STATE_SCHEMA,
+    TOOL_SPECS,
+    build_environment,
+)
 from agentevalops.domain_packs.seed.pack import DATA_FILES, strings_in
 from agentevalops.environments import InProcessToolEnvironment, cross_check
 from agentevalops.registry import KIND_BENCHMARK, KIND_DOMAIN_PACK
@@ -114,7 +118,15 @@ def _call(env: InProcessToolEnvironment, tool: str, **arguments: Any) -> str:
 
 
 def _env() -> InProcessToolEnvironment:
-    return PACK.build_environment(SCENARIOS["TE1"], TaskId("t"))
+    """A case-handling environment whose approver says yes to every
+    irreversible call: these tests are about the tools, not the gate
+    (tests/test_approval_gate.py is)."""
+    return build_environment(
+        TaskId("t"),
+        PACK.cases,
+        PACK.policy,
+        approvals={"send_notice": ["approve"] * 5, "records_export": ["approve"] * 5},
+    )
 
 
 # ---------------------------------------------------------------------------

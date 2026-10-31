@@ -41,7 +41,7 @@ from agentevalops.domain_packs.seed.schema import (
     Policy,
     SyntheticName,
 )
-from agentevalops.environments import InProcessToolEnvironment
+from agentevalops.environments import APPROVAL_ANSWERS, InProcessToolEnvironment
 
 #: The evaluator kinds a scenario may declare (docs/adr/0006 D13).
 EVALUATOR_KINDS: frozenset[str] = frozenset(
@@ -68,6 +68,9 @@ _EXPECTED_KEYS: frozenset[str] = frozenset(
     }
 )
 _TOOL_NAMES: frozenset[str] = frozenset(spec.name for spec in TOOL_SPECS)
+_IRREVERSIBLE: frozenset[str] = frozenset(
+    spec.name for spec in TOOL_SPECS if spec.permission == "irreversible"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -311,6 +314,27 @@ def _tool_use_block(raw: Any, where: str) -> dict[str, Any]:
     return block
 
 
+def _approvals(raw: Any, where: str) -> dict[str, tuple[str, ...]]:
+    """The scenario's scripted approver answers (docs/adr/0006 D5): per
+    irreversible seed tool, a non-empty list of approve / deny / timeout."""
+    schedule: dict[str, tuple[str, ...]] = {}
+    for tool, answers in _mapping(raw, where, "approvals").items():
+        if tool not in _IRREVERSIBLE:
+            raise DomainPackError(
+                f"{where}: approvals names '{tool}', which is not an irreversible "
+                f"seed tool ({sorted(_IRREVERSIBLE)})"
+            )
+        given = _strings(answers, where, f"approvals.{tool}")
+        unknown = sorted(set(given) - APPROVAL_ANSWERS)
+        if unknown:
+            raise DomainPackError(
+                f"{where}: approvals.{tool} has unknown answer(s) {unknown}; use "
+                f"{sorted(APPROVAL_ANSWERS)}"
+            )
+        schedule[str(tool)] = given
+    return schedule
+
+
 def _scenarios(
     raw: dict[str, Any], cases: Mapping[str, Case], catalogue: Catalogue
 ) -> tuple[Scenario, ...]:
@@ -351,6 +375,7 @@ def _scenarios(
         if known_good[-1].kind != "finish":
             raise DomainPackError(f"{here}: known_good must end with 'finish'")
         known_bad = _script(item.get("known_bad"), here, "known_bad")
+        approvals = _approvals(item.get("approvals", {}), here)
 
         expected = _mapping(item.get("expected"), here, "expected")
         unknown_keys = sorted(set(expected) - _EXPECTED_KEYS)
@@ -417,6 +442,7 @@ def _scenarios(
                 applicable_evaluators=evaluators,
                 control_ids=control_ids,
                 expected={"case_id": case_id, **expected},
+                environment={"approvals": approvals},
             )
         )
     return tuple(scenarios)
@@ -488,7 +514,12 @@ class SeedDomainPack:
             raise DomainPackError(
                 f"scenario '{scenario.scenario_id}' is not in the seed pack"
             )
-        return build_environment(task_id, self._cases, self._policy)
+        return build_environment(
+            task_id,
+            self._cases,
+            self._policy,
+            approvals=scenario.environment.get("approvals"),
+        )
 
     # -- the data, for tests and later rows -------------------------------
 

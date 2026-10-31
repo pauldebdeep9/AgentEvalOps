@@ -169,6 +169,10 @@ class Scenario:
     ``{"finish": answer}`` -- which ``MockAgentRunner`` runs. ``expected``
     is what the evaluators check (copied into the task's metadata), and
     ``control_ids`` are the catalogue controls the scenario evidences.
+    ``environment`` configures the scenario's environment declaratively:
+    ``approvals`` -- the simulated approver's answers per irreversible
+    tool, per call (D5) -- and, from R26, fault and injection schedules
+    (D6). The pack reads it in ``build_environment``.
     """
 
     scenario_id: str
@@ -179,6 +183,7 @@ class Scenario:
     applicable_evaluators: tuple[str, ...] = ()
     control_ids: tuple[str, ...] = ()
     expected: dict[str, Any] = field(default_factory=dict)
+    environment: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

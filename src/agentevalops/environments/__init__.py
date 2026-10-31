@@ -5,6 +5,12 @@ environments from here, and runners fall back to the toy environment when
 called directly. Imports nothing from ``agentevalops`` except ``core``.
 """
 
+from agentevalops.environments.approver import (
+    APPROVAL_ANSWERS,
+    ApprovalSchedule,
+    Approver,
+    ScriptedApprover,
+)
 from agentevalops.environments.crosscheck import Mismatch, cross_check
 from agentevalops.environments.inprocess import (
     InProcessToolEnvironment,
@@ -18,9 +24,13 @@ from agentevalops.environments.toy import (
 )
 
 __all__ = [
+    "APPROVAL_ANSWERS",
+    "ApprovalSchedule",
+    "Approver",
     "CALCULATOR_TOOL_SPEC",
     "InProcessToolEnvironment",
     "Mismatch",
+    "ScriptedApprover",
     "ToolEnvironmentError",
     "ToolHandler",
     "cross_check",
