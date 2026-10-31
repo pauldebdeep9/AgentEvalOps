@@ -9,6 +9,22 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R23 met — tool environment and runner seam** (2026-11-01, seven
+  slices `7c2fc43`…`deb08fd`; ADR-0006). Core tool types and the async
+  `ToolEnvironment` protocol; `agentevalops.environments` (in-process
+  environment that records every call itself, the toy calculator, and
+  `cross_check` for self-reports) as an independent sibling of the
+  catalogue, held to `core` by a 9th import contract. `OpenAIRunner`,
+  `AzureOpenAIRunner` and `LangGraphRunner` take tool specs from the task's
+  environment, convert them in their own loops, and send every call but the
+  reserved `finish` to it; their payloads equal today's `_TOOLS` byte for
+  byte, and the three runner test files never changed. The orchestrator
+  passes each task's environment and records a handle without one as
+  `not_evaluated`. Model calls run off the event loop with a 60 s request
+  timeout (a constructor parameter) and one retry. `MockAgentRunner` runs
+  scripted trajectories through the real environment. Runner and benchmark
+  allowlists come from the registry. Bundles stay 0.4.
+
 - **ADR-0006 accepted** (2026-11-01). Docs only. At acceptance, entry-point
   discovery and `benchmark_options` (D24, D25) move from R23 to R24; the
   real model clients get a 60 s request timeout (a constructor parameter)
@@ -762,6 +778,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     this change for the full reasoning.
 
 ### Fixed
+
+- **A cancelled `prepare_environment` leaked its environment** (`deb08fd`,
+  ADR-0006 D22). The orchestrator now waits out a prepare running when its
+  task is cancelled and tears down the handle it returns. Deterministic
+  test, fail-first.
 
 - **Five small fixes from the 2026-10-31 external review** (`ROADMAP.md`
   §0; finding numbers there), one commit each, each with a fail-first test:

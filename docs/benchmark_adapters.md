@@ -346,6 +346,9 @@ contract every adapter is known to satisfy.
   run. *(2026-10-31: still open, and now the only cancellation path with
   no cleanup; added to R22's ADR-0006 list with the question of a time
   limit on `_teardown`'s wait. `ROADMAP.md` §0, external review.)*
+  *(2026-11-01: fixed in `deb08fd`, ADR-0006 D22 — the orchestrator waits
+  out a cancelled prepare and tears down the handle it returns. A time
+  limit on either wait stays an open question in ADR-0006.)*
 
 ### D6. SWE-bench Verified snapshot, and what the agent may see
 
