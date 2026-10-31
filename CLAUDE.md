@@ -75,21 +75,32 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-10-10, Sai2608)
+## Baseline (verified 2026-10-31, Sai2608; CI green at `9cc2b00`)
 
 - ruff: clean
 - mypy: clean (44 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
-  despite both SDKs being lazily-imported optional deps
+  despite both SDKs being lazily-imported optional deps. Sai2608 has
+  `openai` and `opentelemetry-api` installed, so local `mypy src` is more
+  permissive than CI's — see "Local env vs CI" above.
 - `lint-imports`: **7 kept, 0 broken** (7th contract added alongside
   row 14's SWE-bench spike: "swebench never imported")
-- pytest: 705 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.73% branch
-  coverage on a clean checkout. Any untracked file raises it to 96.90%:
-  tests reach the code-drift "inconclusive" warning (`bundles/validator.py`,
-  `cli.py`) only through this checkout's own git state (`ROADMAP.md` §0,
-  2026-10-10 finding). Compare against the clean-checkout figure.
+- pytest: 706 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.93% branch
+  coverage on a clean checkout. Any untracked file raises it: tests reach
+  the code-drift "inconclusive" warning (`bundles/validator.py`, `cli.py`)
+  only through this checkout's own git state (`ROADMAP.md` §0, 2026-10-10
+  finding). Compare against the clean-checkout figure.
 - CI floor: `--cov-fail-under=94`
+
+## CI — watch every push
+
+Run `gh run watch` (or `gh run list --branch main --limit 5`) after every
+push, and don't end a session while CI on `main` is red. CI ran red from
+2026-09-15 to 2026-10-31 — four pushes, every test job — because a test
+passed on macOS by thread timing and nobody looked at the Actions runs
+(`ROADMAP.md` §0, 2026-10-31; the W8 entry there is the same pattern). A
+local green gate is not CI: CI runs Linux and installs only `.[dev]`.
 - Bundle format: `BUNDLE_FORMAT_VERSION = "0.4"` (`bundles/constants.py`);
   `"0.1"` bundles (incl. `runs/toy-smoke*` on disk) still validate/read —
   see `docs/adr/0002-outcome-taxonomy.md`

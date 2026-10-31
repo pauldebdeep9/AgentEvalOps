@@ -9,6 +9,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **External review, 2026-10-31 — findings recorded** (`ROADMAP.md` §0).
+  Docs only. Twelve findings from an outside review, each confirmed with
+  an offline probe or by reading the code, with `file:line` evidence and
+  where each goes: ambiguous policy citations (no `task_id` on
+  `TraceEvent`), two different "failed" counts (`RunSummary` vs
+  `SimpleScorer`, which doesn't satisfy the `Scorer` protocol),
+  `backend_id: aws` accepted but unused, one evaluator per task, `**` in
+  both calculators (`'9**9**9'` never returns), unknown models priced at
+  the cheapest rate, real runners blocking the event loop, the loader tied
+  to the toy benchmark, per-task-only `ResourceLimits`, raw `ValueError`
+  on a non-number in YAML, `git_sha` taken from the working directory, and
+  README/report/ARCHITECTURE drift. Items 1, 4 and 7, plus two
+  cancellation gaps (`prepare_environment` cancellation leaking the
+  environment; no time limit on `_teardown`'s wait), join R22's ADR-0006
+  list; items 2 and 11 join R28's ADR-0007 list. `CLAUDE.md` gains a
+  "watch CI after every push" rule and a re-verified baseline (706
+  passed, 1 skipped, 96.93% on a clean checkout).
+
 - **IMDA alignment review — the package targets the AI Verify Testing
   Framework report; the repository stays private** (2026-10-11,
   `docs/imda-alignment.md`). Docs only — no code changes.
@@ -680,6 +698,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     this change for the full reasoning.
 
 ### Fixed
+
+- **Teardown skipped under repeated cancellation; CI red on `main` from
+  2026-09-15 to 2026-10-31** (`9cc2b00`). `LocalOrchestrator._run_task`
+  awaited `asyncio.to_thread(teardown)` in its `finally`; a task cancelled
+  a second time (by `asyncio.run`'s shutdown, then `run()`'s drain loop)
+  had its queued executor job cancelled before any thread ran it.
+  `test_cancellation_of_waiting_sibling_task_still_tears_down` therefore
+  failed on every Linux CI job for 4 of 4 pushes, while passing on macOS
+  by thread timing alone. `_teardown` now submits the job once and waits
+  through any number of cancellations before re-raising; a new test holds
+  the job in the executor queue across a second cancel, so it fails
+  deterministically without the fix. Recorded in `ROADMAP.md` §0 next to
+  W8's earlier unnoticed red CI.
 
 - **No model-backed bundle recorded which model produced it — `OPENAI_MODEL`
   environment-variable fallback deleted, not written back.** Investigated

@@ -328,6 +328,10 @@ contract every adapter is known to satisfy.
   workspace behind uncleaned. Accepted for now, because `teardown` being
   idempotent (decision 6 above) means a later run — or a manual sweep — can
   clean it up safely; it does not corrupt state, it just delays cleanup.
+  *(2026-10-31: understated — a second cancel arriving while teardown was
+  still queued skipped it entirely, and CI on Linux failed on it from
+  2026-09-15. Fixed in `9cc2b00`: teardown now runs exactly once under
+  repeated cancellation. `ROADMAP.md` §0, external review.)*
 - **`grade` may need the workspace.** For SWE-bench, the agent's patch is
   in the workspace clone, and `teardown` deletes that clone. So either
   `grade` receives the `EnvHandle`, or the patch is read into
@@ -339,7 +343,9 @@ contract every adapter is known to satisfy.
   `_run_task`, and `teardown` never runs, so the workspace stays on disk.
   The SWE-bench adapter must handle this itself — for example by keeping
   all workspaces under one run folder that is removed at the end of the
-  run.
+  run. *(2026-10-31: still open, and now the only cancellation path with
+  no cleanup; added to R22's ADR-0006 list with the question of a time
+  limit on `_teardown`'s wait. `ROADMAP.md` §0, external review.)*
 
 ### D6. SWE-bench Verified snapshot, and what the agent may see
 
