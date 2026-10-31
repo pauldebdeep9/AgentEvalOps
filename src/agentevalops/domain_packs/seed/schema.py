@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -55,6 +55,11 @@ class Policy:
     scheme: str
     reason_codes: dict[str, str]
     clauses: tuple[Clause, ...]
+    #: Which seed tool plays each role the policy rules name (ROADMAP R25):
+    #: lookup, decide, notify, refer, export.
+    roles: dict[str, str] = field(default_factory=dict)
+    #: The argument that names a record's case.
+    case_argument: str = "case_id"
 
 
 @dataclass(frozen=True)

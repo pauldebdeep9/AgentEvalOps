@@ -325,6 +325,7 @@ def _register_builtins(reg: Registry) -> None:
     from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
     from agentevalops.domain_packs.seed import SeedDomainPack
     from agentevalops.evaluators.deterministic import DeterministicEvaluator
+    from agentevalops.evaluators.policy_compliance import PolicyComplianceEvaluator
     from agentevalops.evaluators.state_based import StateBasedEvaluator
     from agentevalops.evaluators.tool_use import ToolUseEvaluator
     from agentevalops.policy.basic_checker import BasicPolicyChecker
@@ -350,6 +351,7 @@ def _register_builtins(reg: Registry) -> None:
     # ``evaluators:``; a scenario declares which apply.
     reg.register(KIND_EVALUATOR, "tool_use", ToolUseEvaluator)
     reg.register(KIND_EVALUATOR, "state_based", StateBasedEvaluator)
+    reg.register(KIND_EVALUATOR, "policy", PolicyComplianceEvaluator)
     reg.register(KIND_POLICY, "basic", BasicPolicyChecker)
 
 

@@ -369,6 +369,24 @@ class Ref:
 #: Why a task run was not evaluated (docs/adr/0006 D16, format 0.5).
 NotEvaluatedCause = Literal["infrastructure", "configuration", "environment_defect"]
 
+#: The policy rules a scenario may declare for the ``policy`` evaluator
+#: (ROADMAP R25). A rule names tool *roles* -- lookup, decide, notify,
+#: refer, export -- which the domain pack maps to its tools, and looks only
+#: at the harness records on the scenario's case:
+#: ``lookup_before_decision`` (the case was looked up before it was decided
+#: or referred); ``decision_before_notice`` (every notice attempt follows a
+#: decision that executed); ``no_retry_after_denial`` (a tool the approver
+#: refused on the case is not tried again); ``refer_before_finish`` (an
+#: ambiguous case is referred to an officer and never decided).
+POLICY_RULES: frozenset[str] = frozenset(
+    {
+        "lookup_before_decision",
+        "decision_before_notice",
+        "no_retry_after_denial",
+        "refer_before_finish",
+    }
+)
+
 
 # ---------------------------------------------------------------------------
 # Evaluation
@@ -396,7 +414,8 @@ class EvaluationResult:
     """
 
     evaluator_id: str
-    # One of: "deterministic", "llm_judge", "tool_use", "state_based", "trace_quality"
+    # One of: "deterministic", "llm_judge", "tool_use", "state_based",
+    # "trace_quality", "policy" (the sixth kind, ROADMAP R25)
     evaluator_kind: str
     score: float
     passed: bool

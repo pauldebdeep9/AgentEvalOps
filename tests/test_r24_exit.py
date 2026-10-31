@@ -35,6 +35,7 @@ from agentevalops.domain_packs.seed import SeedDomainPack
 from agentevalops.domain_packs.seed.environment import END_STATE_SCHEMA
 from agentevalops.environments import toy_environment
 from agentevalops.evaluators.deterministic import DeterministicEvaluator
+from agentevalops.evaluators.policy_compliance import PolicyComplianceEvaluator
 from agentevalops.evaluators.state_based import StateBasedEvaluator
 from agentevalops.evaluators.tool_use import ToolUseEvaluator
 from agentevalops.orchestration.local import LocalOrchestrator
@@ -44,11 +45,25 @@ from agentevalops.stores.memory import InMemoryTraceStore
 
 CONFIG = Path("configs/agentic_baseline_mock.yaml")
 DATA_DIR = Path(str(resources.files("agentevalops.domain_packs.seed") / "data"))
-SCENARIO_IDS = ["TE1", "TE2", "TE3", "TE4", "TE5", "TE6", "TC1", "TC2", "TC3", "TC4"]
+_PACK = SeedDomainPack()
+#: Every scenario the pack ships, R25's policy-compliance ones included.
+SCENARIO_IDS = [s.scenario_id for s in _PACK.scenarios()]
+N = len(SCENARIO_IDS)
+#: One evaluation per applicable evaluator per task run.
+EVALUATIONS = sum(len(s.applicable_evaluators) for s in _PACK.scenarios())
+#: Harness records a known-good playback leaves: one per `call` step.
+GOOD_CALLS = sum(
+    1 for s in _PACK.scenarios() for step in s.known_good if "call" in step
+)
 
 
 def _evaluators() -> list[Evaluator]:
-    return [DeterministicEvaluator(), ToolUseEvaluator(), StateBasedEvaluator()]
+    return [
+        DeterministicEvaluator(),
+        ToolUseEvaluator(),
+        StateBasedEvaluator(),
+        PolicyComplianceEvaluator(),
+    ]
 
 
 def _orchestrate(
@@ -116,7 +131,7 @@ def test_every_known_good_passes_under_each_evaluator_that_applies() -> None:
         (sid, True) for sid in SCENARIO_IDS
     ]
     assert spy.calls == SCENARIO_IDS
-    assert _counts(summary) == (10, 0, 0)
+    assert _counts(summary) == (N, 0, 0)
     for result in summary.task_results:
         scenario = scenarios[str(result.task_id)]
         assert [e.evaluator_kind for e in result.evaluations] == list(
@@ -137,7 +152,7 @@ def test_every_known_bad_fails_under_each_evaluator_that_applies() -> None:
     summary, _, benchmark, _ = _seed("known_bad")
     scenarios = {s.scenario_id: s for s in benchmark.pack.scenarios()}
     assert all(p.passed for p in summary.preflight)  # the preflight is the known-good
-    assert _counts(summary) == (0, 10, 0)
+    assert _counts(summary) == (0, N, 0)
     for result in summary.task_results:
         scenario = scenarios[str(result.task_id)]
         assert [e.evaluator_kind for e in result.evaluations] == list(
@@ -184,7 +199,7 @@ def test_a_defective_known_good_is_an_environment_defect_never_an_agent_failure(
     assert not preflight["TE1"].passed
     assert "did not pass" in (preflight["TE1"].cause or "")
     assert all(p.passed for sid, p in preflight.items() if sid != "TE1")
-    assert spy.calls.count("TE1") == 0 and len(spy.calls) == 18
+    assert spy.calls.count("TE1") == 0 and len(spy.calls) == 2 * (N - 1)
     te1_runs = [r for r in summary.task_results if r.task_id == "TE1"]
     assert [r.repetition for r in te1_runs] == [0, 1]
     for r in te1_runs:
@@ -192,7 +207,7 @@ def test_a_defective_known_good_is_an_environment_defect_never_an_agent_failure(
         assert r.evaluation.not_evaluated_cause == "environment_defect"
         assert {e.not_evaluated_cause for e in r.evaluations} == {"environment_defect"}
     assert summary.not_evaluated_by_cause == {"environment_defect": 2}
-    assert _counts(summary) == (18, 0, 2)
+    assert _counts(summary) == (2 * (N - 1), 0, 2)
 
 
 def test_a_missing_evaluator_is_a_configuration_gap_not_a_defect() -> None:
@@ -205,8 +220,8 @@ def test_a_missing_evaluator_is_a_configuration_gap_not_a_defect() -> None:
         assert "not evaluated" in (check.cause or "")
         assert "tool_use" in (check.cause or "")
     assert spy.calls == SCENARIO_IDS  # the agent still ran
-    assert summary.not_evaluated_by_cause == {"configuration": 10}
-    assert _counts(summary) == (0, 0, 10)
+    assert summary.not_evaluated_by_cause == {"configuration": N}
+    assert _counts(summary) == (0, 0, N)
     for result in summary.task_results:
         assert result.evaluation.not_evaluated_cause == "configuration"
         by_kind = {e.evaluator_kind: e for e in result.evaluations}
@@ -220,7 +235,7 @@ def test_every_task_run_has_an_end_state_record_and_every_case_its_truth() -> No
     assert [(str(s.task_id), s.repetition) for s in states] == [
         (sid, rep) for sid in SCENARIO_IDS for rep in (0, 1)
     ]
-    assert len(states) == summary.total_tasks == 20
+    assert len(states) == summary.total_tasks == 2 * N
     assert {s.state["schema"] for s in states} == {END_STATE_SCHEMA}
     for case in benchmark.pack.cases.values():
         assert case.reason_codes
@@ -338,33 +353,30 @@ def test_the_shipped_config_runs_the_pack_through_the_cli(tmp_path: Path) -> Non
         app, ["run", "--config", str(CONFIG), "--output", str(out)]
     )
     assert result.exit_code == 0, result.output
-    assert "10/10 evaluated passed" in result.output
+    assert f"{N}/{N} evaluated passed" in result.output
     summary = _summary(out)
     assert (
         summary["passed_tasks"],
         summary["failed_tasks"],
         summary["not_evaluated_tasks"],
-    ) == (
-        10,
-        0,
-        0,
-    )
+    ) == (N, 0, 0)
     assert [(p["task_id"], p["passed"]) for p in summary["preflight"]] == [
         (sid, True) for sid in SCENARIO_IDS
     ]
     evaluations = _evaluations(out)
-    assert len(evaluations) == 25 and all(e["passed"] for e in evaluations)
+    assert len(evaluations) == EVALUATIONS and all(e["passed"] for e in evaluations)
     assert {e["evaluator_kind"] for e in evaluations} == {
         "deterministic",
         "tool_use",
         "state_based",
+        "policy",
     }
     end_states = [
         json.loads(line) for line in (out / "end_states.jsonl").read_text().splitlines()
     ]
     assert [s["task_id"] for s in end_states] == SCENARIO_IDS
     assert {s["state"]["schema"] for s in end_states} == {END_STATE_SCHEMA}
-    assert len((out / "tool_calls.jsonl").read_text().splitlines()) == 35
+    assert len((out / "tool_calls.jsonl").read_text().splitlines()) == GOOD_CALLS
     assert validate_bundle(out).valid
     for command in ("validate-bundle", "replay"):
         checked = CliRunner().invoke(app, [command, "--bundle", str(out)])
@@ -387,19 +399,15 @@ def test_the_known_bad_playback_fails_every_task(tmp_path: Path) -> None:
         summary["passed_tasks"],
         summary["failed_tasks"],
         summary["not_evaluated_tasks"],
-    ) == (
-        0,
-        10,
-        0,
-    )
+    ) == (0, N, 0)
     evaluations = _evaluations(out)
-    assert len(evaluations) == 25 and not any(e["passed"] for e in evaluations)
+    assert len(evaluations) == EVALUATIONS and not any(e["passed"] for e in evaluations)
     assert validate_bundle(out).valid
 
 
 def test_the_loader_validates_evaluators_and_mock_trajectory(tmp_path: Path) -> None:
     loaded = load_run_config(CONFIG)
-    assert loaded.evaluators == ("deterministic", "tool_use", "state_based")
+    assert loaded.evaluators == ("deterministic", "tool_use", "state_based", "policy")
     assert loaded.mock_trajectory == "known_good"
     smoke = load_run_config(Path("configs/toy_smoke.yaml"))
     assert smoke.evaluators == ("deterministic",) and smoke.mock_trajectory is None

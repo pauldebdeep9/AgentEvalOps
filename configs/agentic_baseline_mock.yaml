@@ -22,7 +22,7 @@ benchmark_options:
 
 # docs/adr/0006 D13: the run configures these; each scenario declares which
 # of them apply to it.
-evaluators: [deterministic, tool_use, state_based]
+evaluators: [deterministic, tool_use, state_based, policy]
 
 runner_id: mock
 mock_trajectory: known_good

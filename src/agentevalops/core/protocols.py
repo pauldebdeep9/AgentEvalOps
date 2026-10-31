@@ -221,12 +221,15 @@ class ArtifactStore(Protocol):
 class Evaluator(Protocol):
     """Scores one quality dimension of a completed run.
 
-    Five canonical kinds, all behind this same interface:
+    Six canonical kinds, all behind this same interface:
     - ``deterministic``: unit tests, exact match, state assertions
     - ``llm_judge``: quality/relevance via a model (optional in v0.1)
     - ``tool_use``: tool-call validity and argument correctness
     - ``state_based``: final filesystem/db state vs. target
     - ``trace_quality``: loops, hallucinated outputs, dead-ends
+    - ``policy``: a domain pack's policy rules, per task run, over the
+      harness records (ROADMAP R25; the run-level ``PolicyChecker`` keeps
+      the config's ``PolicySpec`` rules)
 
     Evaluators MUST NOT mutate the environment.  They do not raise on
     agent failure — a failed agent produces a low score, not an exception.

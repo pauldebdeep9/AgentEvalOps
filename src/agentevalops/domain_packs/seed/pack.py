@@ -24,7 +24,7 @@ from agentevalops.core.identifiers import (
     is_synthetic_phone,
     unsafe_identifiers,
 )
-from agentevalops.core.schemas import Scenario
+from agentevalops.core.schemas import POLICY_RULES, Scenario
 from agentevalops.core.scripts import ScriptStep, parse_script
 from agentevalops.core.types import TaskId
 from agentevalops.domain_packs import DomainPackError
@@ -45,12 +45,16 @@ from agentevalops.environments import APPROVAL_ANSWERS, InProcessToolEnvironment
 
 #: The evaluator kinds a scenario may declare (docs/adr/0006 D13).
 EVALUATOR_KINDS: frozenset[str] = frozenset(
-    {"deterministic", "tool_use", "state_based"}
+    {"deterministic", "tool_use", "state_based", "policy"}
 )
 OUTCOMES: tuple[str, ...] = ("approve", "reject", "refer")
 AMBIGUITIES: frozenset[str] = frozenset({"missing", "conflict"})
 GENDERS: frozenset[str] = frozenset({"female", "male"})
-CATEGORIES: frozenset[str] = frozenset({"task_execution", "tool_calling"})
+CATEGORIES: frozenset[str] = frozenset(
+    {"task_execution", "tool_calling", "policy_compliance"}
+)
+#: The roles the policy rules name; every one maps to a seed tool.
+POLICY_ROLES: tuple[str, ...] = ("lookup", "decide", "notify", "refer", "export")
 DATA_FILES: tuple[str, ...] = (
     "policy.yaml",
     "names.yaml",
@@ -65,6 +69,7 @@ _EXPECTED_KEYS: frozenset[str] = frozenset(
         "match_mode",
         "tool_use",
         "expected_end_state",
+        "policy",
     }
 )
 _TOOL_NAMES: frozenset[str] = frozenset(spec.name for spec in TOOL_SPECS)
@@ -160,7 +165,28 @@ def _policy(raw: dict[str, Any]) -> Policy:
     ids = [c.id for c in clauses]
     if len(set(ids)) != len(ids):
         raise DomainPackError(f"{where}: clause ids repeat")
-    return Policy(scheme=scheme, reason_codes=reason_codes, clauses=tuple(clauses))
+    roles_raw = _mapping(raw.get("roles"), where, "roles")
+    roles = {
+        _text(k, where, "a role"): _text(v, where, f"roles.{k}")
+        for k, v in roles_raw.items()
+    }
+    missing = sorted(set(POLICY_ROLES) - set(roles))
+    if missing:
+        raise DomainPackError(f"{where}: roles must name a tool for {missing}")
+    unknown_roles = sorted(set(roles) - set(POLICY_ROLES))
+    if unknown_roles:
+        raise DomainPackError(f"{where}: unknown role(s) {unknown_roles}")
+    not_tools = sorted(v for v in roles.values() if v not in _TOOL_NAMES)
+    if not_tools:
+        raise DomainPackError(f"{where}: roles name {not_tools}, not seed tools")
+    case_argument = _text(raw.get("case_argument", "case_id"), where, "case_argument")
+    return Policy(
+        scheme=scheme,
+        reason_codes=reason_codes,
+        clauses=tuple(clauses),
+        roles=roles,
+        case_argument=case_argument,
+    )
 
 
 def _names(raw: dict[str, Any]) -> tuple[SyntheticName, ...]:
@@ -335,8 +361,34 @@ def _approvals(raw: Any, where: str) -> dict[str, tuple[str, ...]]:
     return schedule
 
 
+def _policy_block(raw: Any, where: str, case: Case, policy: Policy) -> dict[str, Any]:
+    """The scenario's ``policy`` expectation: its rules, plus what the
+    ``policy`` evaluator needs to apply them to this pack and case."""
+    block = _mapping(raw, where, "expected.policy")
+    unknown = sorted(set(block) - {"rules"})
+    if unknown:
+        raise DomainPackError(f"{where}: expected.policy has unknown key(s) {unknown}")
+    rules = _strings(block.get("rules"), where, "expected.policy.rules")
+    unknown_rules = sorted(set(rules) - POLICY_RULES)
+    if unknown_rules:
+        raise DomainPackError(
+            f"{where}: expected.policy.rules has unknown rule(s) {unknown_rules}; "
+            f"the rules are {sorted(POLICY_RULES)}"
+        )
+    return {
+        "rules": list(rules),
+        "roles": dict(policy.roles),
+        "case_argument": policy.case_argument,
+        "case_id": case.case_id,
+        "ambiguous": case.ambiguous,
+    }
+
+
 def _scenarios(
-    raw: dict[str, Any], cases: Mapping[str, Case], catalogue: Catalogue
+    raw: dict[str, Any],
+    cases: Mapping[str, Case],
+    catalogue: Catalogue,
+    policy: Policy,
 ) -> tuple[Scenario, ...]:
     where = "scenarios.yaml"
     scenarios: list[Scenario] = []
@@ -386,6 +438,7 @@ def _scenarios(
             or "expected_substring" in expected,
             "tool_use": "tool_use" in expected,
             "state_based": "expected_end_state" in expected,
+            "policy": "policy" in expected,
         }
         for kind, declared in declares.items():
             applies = kind in evaluators
@@ -404,6 +457,13 @@ def _scenarios(
             _mapping(
                 expected["expected_end_state"], here, "expected.expected_end_state"
             )
+        if declares["policy"]:
+            expected = {
+                **expected,
+                "policy": _policy_block(
+                    expected["policy"], here, cases[case_id], policy
+                ),
+            }
 
         # The pack's rule for ambiguous cases (testing-framework 10.3.2): the
         # known-good refers and never decides; the known-bad decides.
@@ -422,12 +482,17 @@ def _scenarios(
                     f"{here}: case {case_id} is ambiguous, so known_bad must "
                     f"decide it with {STATUS_UPDATE.name}"
                 )
-        elif (
-            STATUS_UPDATE.name not in good_calls or REFER_TO_OFFICER.name in good_calls
+        elif STATUS_UPDATE.name not in good_calls or (
+            REFER_TO_OFFICER.name in good_calls
+            and good_calls.index(REFER_TO_OFFICER.name)
+            < good_calls.index(STATUS_UPDATE.name)
         ):
+            # A clear case is decided; it may be referred only after the
+            # decision (R25: when the approver refuses the notice).
             raise DomainPackError(
                 f"{here}: case {case_id} has a clear outcome, so known_good must "
-                f"call {STATUS_UPDATE.name} and never {REFER_TO_OFFICER.name}"
+                f"call {STATUS_UPDATE.name} and never {REFER_TO_OFFICER.name} "
+                "before it"
             )
 
         scenarios.append(
@@ -499,7 +564,10 @@ class SeedDomainPack:
         self._names = _names(self._raw["names.yaml"])
         self._cases = _cases(self._raw["cases.yaml"], self._policy, self._names)
         self._scenarios = _scenarios(
-            self._raw["scenarios.yaml"], self._cases, catalogue or load_catalogue()
+            self._raw["scenarios.yaml"],
+            self._cases,
+            catalogue or load_catalogue(),
+            self._policy,
         )
 
     # -- the DomainPack protocol ------------------------------------------

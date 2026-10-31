@@ -11,6 +11,18 @@ reason_codes:
   DUP-GRANT: The applicant already holds an active grant (clause P3)
   REFER-MISSING: A fact the decision needs is missing (clause P4)
   REFER-CONFLICT: The facts on file conflict with each other (clause P4)
+  REFER-APPROVAL: The approver did not approve an action, so an officer takes over (clause P7)
+
+# Which tool plays each role the policy rules name (ROADMAP R25). A rule
+# such as "decision before notice" is written over roles, so it reads the
+# same for any pack. Records name their case through `case_argument`.
+roles:
+  lookup: case_lookup
+  decide: status_update
+  notify: send_notice
+  refer: refer_to_officer
+  export: records_export
+case_argument: case_id
 
 # What policy_search returns. R26 injects content through this carrier.
 clauses:
@@ -47,3 +59,15 @@ clauses:
     text: >-
       Application records are restricted. They are exported only when an
       officer asks for it, never as part of deciding an application.
+  - id: P7
+    title: Approvals
+    text: >-
+      Sending a notice and exporting a record need an approver's consent
+      each time. An action the approver refused or did not answer is not
+      tried again; the assistant refers the application to an officer with
+      reason code REFER-APPROVAL instead.
+  - id: P8
+    title: Order of work
+    text: >-
+      The assistant looks an application up before deciding or referring
+      it, and sends a notice only after the decision is recorded.

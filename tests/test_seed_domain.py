@@ -403,8 +403,8 @@ def test_names_cover_every_group_for_each_gender_and_pair_across_groups() -> Non
 # ---------------------------------------------------------------------------
 
 
-def test_ten_scenarios_across_task_execution_and_tool_calling() -> None:
-    assert list(SCENARIOS) == [
+def test_scenarios_across_the_three_categories() -> None:
+    assert list(SCENARIOS)[:10] == [
         "TE1",
         "TE2",
         "TE3",
@@ -416,15 +416,17 @@ def test_ten_scenarios_across_task_execution_and_tool_calling() -> None:
         "TC3",
         "TC4",
     ]
-    assert {
-        s.category for s in SCENARIOS.values() if s.scenario_id.startswith("TE")
-    } == {"task_execution"}
-    assert {
-        s.category for s in SCENARIOS.values() if s.scenario_id.startswith("TC")
-    } == {"tool_calling"}
-    assert {s.expected["case_id"] for s in SCENARIOS.values()} == set(
-        PACK.cases
-    ) - set()
+    assert all(sid.startswith("PC") for sid in list(SCENARIOS)[10:])
+    by_prefix = {
+        "TE": "task_execution",
+        "TC": "tool_calling",
+        "PC": "policy_compliance",
+    }
+    for scenario in SCENARIOS.values():
+        assert scenario.category == by_prefix[scenario.scenario_id[:2]], (
+            scenario.scenario_id
+        )
+    assert {s.expected["case_id"] for s in SCENARIOS.values()} == set(PACK.cases)
 
 
 def test_every_scenario_declares_evaluators_controls_and_both_trajectories() -> None:
@@ -435,6 +437,7 @@ def test_every_scenario_declares_evaluators_controls_and_both_trajectories() -> 
             "deterministic",
             "tool_use",
             "state_based",
+            "policy",
         }
         assert s.control_ids
         for control_id in s.control_ids:
@@ -448,6 +451,7 @@ def test_every_scenario_declares_evaluators_controls_and_both_trajectories() -> 
         assert ("deterministic" in s.applicable_evaluators) == bool(
             {"expected_output", "expected_substring"} & set(s.expected)
         )
+        assert ("policy" in s.applicable_evaluators) == ("policy" in s.expected)
 
 
 def test_every_known_good_runs_clean_and_reaches_its_expected_end_state() -> None:
@@ -456,7 +460,11 @@ def test_every_known_good_runs_clean_and_reaches_its_expected_end_state() -> Non
         assert events[-1].kind == TraceEventKind.AGENT_TERMINAL
         assert events[-1].payload["success"] is True, s.scenario_id
         assert cross_check(env.records(), events) == [], s.scenario_id
-        assert not any(r.error for r in env.records()), s.scenario_id
+        # A refusal by the approver is scripted, not an error of the run.
+        refused = ("denied", "timed_out")
+        assert not any(
+            r.error and r.approval not in refused for r in env.records()
+        ), s.scenario_id
         if "expected_end_state" in s.expected:
             assert _contains(s.expected["expected_end_state"], _snapshot(env)), (
                 s.scenario_id
@@ -473,7 +481,9 @@ def test_every_known_bad_misses_the_expected_end_state_where_it_applies() -> Non
             s.scenario_id
         )
         checked.append(s.scenario_id)
-    assert len(checked) == 9
+    assert len(checked) == sum(
+        1 for s in SCENARIOS.values() if "state_based" in s.applicable_evaluators
+    )
 
 
 def test_the_known_good_refers_an_ambiguous_case_and_the_known_bad_decides_it() -> None:

@@ -235,7 +235,12 @@ def test_every_r24_scenario_scripts_its_irreversible_calls() -> None:
         }
         approvals = scenario.environment["approvals"]
         assert irreversible <= set(approvals), scenario.scenario_id
-        assert all(a == ("approve",) for a in approvals.values()), scenario.scenario_id
+        if scenario.category != "policy_compliance":
+            # R24's scenarios test the agent, not the approver: every answer
+            # is approve. R25's policy scenarios script refusals too.
+            assert all(a == ("approve",) for a in approvals.values()), (
+                scenario.scenario_id
+            )
 
 
 def test_a_notice_in_a_known_good_runs_approved_and_is_recorded_so() -> None:
