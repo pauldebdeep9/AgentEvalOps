@@ -1,7 +1,7 @@
 """The runner tool seam (docs/adr/0006 D1, D9; R23 slice 3).
 
-Reuses the fake clients from the runner test files by importing them; those
-three files are not edited (ROADMAP §5 risk 1).
+Uses the fake clients the runner tests share through ``fake_clients.py``
+(R24 slice 6; before that it imported them from the runner test files).
 """
 
 from __future__ import annotations
@@ -12,9 +12,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import fake_clients as fakes
 import pytest
-import test_langgraph_runner as lg_t
-import test_openai_runner as oa_t
 
 from agentevalops.agents import langgraph_runner, openai_runner
 from agentevalops.agents.langgraph_runner import LangGraphRunner
@@ -75,24 +74,24 @@ def test_anthropic_conversion_reproduces_the_pinned_payload() -> None:
 
 @pytest.mark.parametrize("with_env", [False, True])
 def test_openai_runner_sends_the_pinned_payload(with_env: bool) -> None:
-    client = oa_t._FakeClient([oa_t._finish_response("x")])
+    client = fakes.OpenAIFakeClient([fakes.openai_finish_response("x")])
     runner = OpenAIRunner(agent_factory=lambda: client)
-    inp = oa_t._make_input()
+    inp = fakes.make_input()
     if with_env:
         inp.environment = toy_environment(TaskId("t-1"))
-    oa_t._collect(runner, inp, ResourceLimits())
+    fakes.collect(runner, inp, ResourceLimits())
     sent = client.chat.completions.calls[0]["tools"]
     assert _same(sent, _golden("openai.json"))
 
 
 @pytest.mark.parametrize("with_env", [False, True])
 def test_langgraph_runner_sends_the_pinned_payload(with_env: bool) -> None:
-    client = lg_t._FakeClient([lg_t._finish_response("x")])
+    client = fakes.AnthropicFakeClient([fakes.anthropic_finish_response("x")])
     runner = LangGraphRunner(agent_factory=lambda: client)
-    inp = lg_t._make_input()
+    inp = fakes.make_input()
     if with_env:
         inp.environment = toy_environment(TaskId("t-1"))
-    lg_t._collect(runner, inp, ResourceLimits())
+    fakes.collect(runner, inp, ResourceLimits())
     sent = client.messages.calls[0]["tools"]
     assert _same(sent, _golden("anthropic.json"))
 
@@ -117,19 +116,19 @@ def _lookup_env() -> InProcessToolEnvironment:
 
 def test_openai_runner_uses_the_environments_tools_and_records() -> None:
     env = _lookup_env()
-    call = oa_t._FakeMessage(
-        tool_calls=[oa_t._FakeToolCall("c1", "case_lookup", '{"case_id": "A7"}')]
+    call = fakes.OpenAIFakeMessage(
+        tool_calls=[fakes.OpenAIFakeToolCall("c1", "case_lookup", '{"case_id": "A7"}')]
     )
-    client = oa_t._FakeClient(
+    client = fakes.OpenAIFakeClient(
         [
-            oa_t._FakeResponse(call, finish_reason="tool_calls"),
-            oa_t._finish_response("ok"),
+            fakes.OpenAIFakeResponse(call, finish_reason="tool_calls"),
+            fakes.openai_finish_response("ok"),
         ]
     )
-    inp = oa_t._make_input()
+    inp = fakes.make_input()
     inp.environment = env
     runner = OpenAIRunner(agent_factory=lambda: client)
-    events = oa_t._collect(runner, inp, ResourceLimits())
+    events = fakes.collect(runner, inp, ResourceLimits())
 
     sent = client.chat.completions.calls[0]["tools"]
     assert [t["function"]["name"] for t in sent] == ["case_lookup", "finish"]
@@ -141,18 +140,18 @@ def test_openai_runner_uses_the_environments_tools_and_records() -> None:
 
 def test_langgraph_runner_uses_the_environments_tools_and_records() -> None:
     env = _lookup_env()
-    call = lg_t._FakeResponse(
+    call = fakes.AnthropicFakeResponse(
         [
-            lg_t._FakeBlock(
+            fakes.AnthropicFakeBlock(
                 "tool_use", id="c1", name="case_lookup", input={"case_id": "A7"}
             )
         ],
         stop_reason="tool_use",
     )
-    client = lg_t._FakeClient([call, lg_t._finish_response("ok")])
-    inp = lg_t._make_input()
+    client = fakes.AnthropicFakeClient([call, fakes.anthropic_finish_response("ok")])
+    inp = fakes.make_input()
     inp.environment = env
-    events = lg_t._collect(
+    events = fakes.collect(
         LangGraphRunner(agent_factory=lambda: client), inp, ResourceLimits()
     )
 
@@ -167,11 +166,11 @@ def test_langgraph_runner_uses_the_environments_tools_and_records() -> None:
 def test_fallback_to_the_toy_environment_is_logged(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    client = oa_t._FakeClient([oa_t._finish_response("x")])
+    client = fakes.OpenAIFakeClient([fakes.openai_finish_response("x")])
     with caplog.at_level(logging.WARNING):
-        oa_t._collect(
+        fakes.collect(
             OpenAIRunner(agent_factory=lambda: client),
-            oa_t._make_input(),
+            fakes.make_input(),
             ResourceLimits(),
         )
     assert any("no tool environment" in r.message for r in caplog.records)

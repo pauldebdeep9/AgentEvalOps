@@ -16,9 +16,9 @@ subclassing (D1: no loop duplication).
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any
 
+import fake_clients as fakes
 import pytest
 
 from agentevalops.agents.azure_openai_runner import (
@@ -28,120 +28,22 @@ from agentevalops.agents.azure_openai_runner import (
 from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.protocols import AgentRunner
 from agentevalops.core.schemas import (
-    AgentInput,
     ResourceLimits,
-    TaskSpec,
     TraceEventKind,
 )
-from agentevalops.core.types import TaskId
 
 _MODEL_ID = "gpt-4.1-mini-2025-04-14"
 
 # ---------------------------------------------------------------------------
-# Fake openai-style client (mirrors test_openai_runner.py's fakes)
+# Fake openai-style client -- the one test_openai_runner.py uses, shared
+# through tests/fake_clients.py (R24 slice 6); the private aliases keep the
+# tests below reading as before.
 # ---------------------------------------------------------------------------
-
-
-class _FakeFunction:
-    def __init__(self, name: str, arguments: str) -> None:
-        self.name = name
-        self.arguments = arguments
-
-
-class _FakeToolCall:
-    def __init__(self, id: str, name: str, arguments: str) -> None:
-        self.id = id
-        self.function = _FakeFunction(name, arguments)
-
-
-class _FakeMessage:
-    def __init__(
-        self,
-        content: str | None = None,
-        tool_calls: list[_FakeToolCall] | None = None,
-    ) -> None:
-        self.content = content
-        self.tool_calls = tool_calls or []
-
-
-class _FakeChoice:
-    def __init__(self, message: _FakeMessage, finish_reason: str = "stop") -> None:
-        self.message = message
-        self.finish_reason = finish_reason
-
-
-class _FakeUsage:
-    def __init__(self, prompt_tokens: int, completion_tokens: int) -> None:
-        self.prompt_tokens = prompt_tokens
-        self.completion_tokens = completion_tokens
-
-
-class _FakeResponse:
-    def __init__(
-        self,
-        message: _FakeMessage,
-        prompt_tokens: int = 10,
-        completion_tokens: int = 5,
-        finish_reason: str = "stop",
-    ) -> None:
-        self.choices = [_FakeChoice(message, finish_reason)]
-        self.usage = _FakeUsage(prompt_tokens, completion_tokens)
-
-
-class _FakeCompletions:
-    def __init__(self, responses: list[Any]) -> None:
-        self._responses = list(responses)
-        self.calls: list[dict[str, Any]] = []
-
-    def create(self, **kwargs: Any) -> Any:
-        self.calls.append(kwargs)
-        item = self._responses.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-
-class _FakeChat:
-    def __init__(self, responses: list[Any]) -> None:
-        self.completions = _FakeCompletions(responses)
-
-
-class _FakeClient:
-    def __init__(self, responses: list[Any]) -> None:
-        self.chat = _FakeChat(responses)
-
-
-def _finish_response(answer: str, **usage: int) -> _FakeResponse:
-    msg = _FakeMessage(
-        content=None,
-        tool_calls=[
-            _FakeToolCall("tool-finish-1", "finish", json.dumps({"answer": answer}))
-        ],
-    )
-    return _FakeResponse(msg, finish_reason="tool_calls", **usage)
-
-
-def _make_input(
-    description: str = "Return the string 'hello world'.",
-    run_id: str = "test-run",
-) -> AgentInput:
-    task = TaskSpec(
-        task_id=TaskId("t-1"), benchmark_id="toy", description=description,
-    )
-    return AgentInput(task=task, context={"run_id": run_id})
-
-
-def _collect(runner: AzureOpenAIRunner, inp: AgentInput, limits: ResourceLimits):
-    async def _run() -> list[Any]:
-        trace_iter = await runner.run(inp, limits)
-        return [e async for e in trace_iter]
-
-    return asyncio.run(_run())
-
-
-def _factory(responses: list[Any]):
-    return lambda: _FakeClient(responses)
-
+_FakeClient = fakes.OpenAIFakeClient
+_collect = fakes.collect
+_make_input = fakes.make_input
+_factory = fakes.openai_factory
+_finish_response = fakes.openai_finish_response
 
 def _make_runner(
     *,

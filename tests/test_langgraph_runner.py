@@ -12,6 +12,7 @@ import asyncio
 import os
 from typing import Any
 
+import fake_clients as fakes
 import pytest
 
 from agentevalops.agents.langgraph_runner import (
@@ -25,139 +26,24 @@ from agentevalops.agents.langgraph_runner import (
 from agentevalops.core.errors import ConfigurationError, InfrastructureError
 from agentevalops.core.protocols import AgentRunner
 from agentevalops.core.schemas import (
-    AgentInput,
     ResourceLimits,
-    TaskSpec,
     TerminationReason,
-    TraceEvent,
     TraceEventKind,
 )
-from agentevalops.core.types import TaskId
 
 # ---------------------------------------------------------------------------
-# Fake anthropic-style client
+# Fake anthropic-style client -- shared with the seam and concurrency tests
+# through tests/fake_clients.py (R24 slice 6); the private aliases keep the
+# tests below reading as before.
 # ---------------------------------------------------------------------------
-
-
-class _FakeBlock:
-    """Duck-typed content block (text or tool_use)."""
-
-    def __init__(
-        self,
-        type: str,
-        *,
-        text: str = "",
-        id: str = "",
-        name: str = "",
-        input: dict[str, Any] | None = None,
-    ) -> None:
-        self.type = type
-        self.text = text
-        self.id = id
-        self.name = name
-        self.input = input or {}
-
-
-class _FakeUsage:
-    def __init__(self, input_tokens: int, output_tokens: int) -> None:
-        self.input_tokens = input_tokens
-        self.output_tokens = output_tokens
-
-
-class _FakeResponse:
-    def __init__(
-        self,
-        content: list[_FakeBlock],
-        input_tokens: int = 10,
-        output_tokens: int = 5,
-        stop_reason: str = "end_turn",
-    ) -> None:
-        self.content = content
-        self.usage = _FakeUsage(input_tokens, output_tokens)
-        self.stop_reason = stop_reason
-
-
-class _FakeMessages:
-    def __init__(self, responses: list[Any]) -> None:
-        self._responses = list(responses)
-        self.calls: list[dict[str, Any]] = []
-
-    def create(self, **kwargs: Any) -> Any:
-        self.calls.append(kwargs)
-        item = self._responses.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-
-class _FakeClient:
-    """Mimics ``anthropic.Anthropic`` closely enough for the runner."""
-
-    def __init__(self, responses: list[Any]) -> None:
-        self.messages = _FakeMessages(responses)
-
-
-def _finish_response(answer: str, **usage: int) -> _FakeResponse:
-    return _FakeResponse(
-        [
-            _FakeBlock(
-                "tool_use",
-                id="tool-finish-1",
-                name="finish",
-                input={"answer": answer},
-            )
-        ],
-        stop_reason="tool_use",
-        **usage,
-    )
-
-
-def _calc_then_finish(
-    expression: str, answer: str
-) -> list[_FakeResponse]:
-    return [
-        _FakeResponse(
-            [
-                _FakeBlock(
-                    "tool_use",
-                    id="tool-calc-1",
-                    name="calculator",
-                    input={"expression": expression},
-                )
-            ],
-            input_tokens=12,
-            output_tokens=8,
-            stop_reason="tool_use",
-        ),
-        _finish_response(answer, input_tokens=6, output_tokens=4),
-    ]
-
-
-def _make_input(
-    description: str = "Return the string 'hello world'.",
-    run_id: str = "test-run",
-    metadata: dict[str, Any] | None = None,
-) -> AgentInput:
-    task = TaskSpec(
-        task_id=TaskId("t-1"),
-        benchmark_id="toy",
-        description=description,
-        metadata=metadata or {},
-    )
-    return AgentInput(task=task, context={"run_id": run_id})
-
-
-def _collect(runner: LangGraphRunner, inp: AgentInput, limits: ResourceLimits):
-    async def _run() -> list[TraceEvent]:
-        trace_iter = await runner.run(inp, limits)
-        return [e async for e in trace_iter]
-
-    return asyncio.run(_run())
-
-
-def _factory(responses: list[Any]):
-    return lambda: _FakeClient(responses)
-
+_FakeBlock = fakes.AnthropicFakeBlock
+_FakeClient = fakes.AnthropicFakeClient
+_FakeResponse = fakes.AnthropicFakeResponse
+_calc_then_finish = fakes.anthropic_calc_then_finish
+_factory = fakes.anthropic_factory
+_finish_response = fakes.anthropic_finish_response
+_collect = fakes.collect
+_make_input = fakes.make_input
 
 # ---------------------------------------------------------------------------
 # Pure-function unit tests

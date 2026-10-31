@@ -9,9 +9,8 @@ import threading
 import types
 from typing import Any
 
+import fake_clients as fakes
 import pytest
-import test_langgraph_runner as lg_t
-import test_openai_runner as oa_t
 
 from agentevalops.agents.azure_openai_runner import AzureOpenAIRunner
 from agentevalops.agents.langgraph_runner import LangGraphRunner
@@ -70,7 +69,9 @@ def _run_two_toy_tasks(runner: Any) -> list[Any]:
 
 
 def test_openai_calls_do_not_block_each_other() -> None:
-    meet = _Rendezvous(lambda: oa_t._FakeResponse(oa_t._FakeMessage(content="4")))
+    meet = _Rendezvous(
+        lambda: fakes.OpenAIFakeResponse(fakes.OpenAIFakeMessage(content="4"))
+    )
     client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=meet))
     results = _run_two_toy_tasks(OpenAIRunner(agent_factory=lambda: client))
     assert len(results) == 2
@@ -79,7 +80,11 @@ def test_openai_calls_do_not_block_each_other() -> None:
 
 
 def test_langgraph_calls_do_not_block_each_other() -> None:
-    meet = _Rendezvous(lambda: lg_t._FakeResponse([lg_t._FakeBlock("text", text="4")]))
+    meet = _Rendezvous(
+        lambda: fakes.AnthropicFakeResponse(
+            [fakes.AnthropicFakeBlock("text", text="4")]
+        )
+    )
     client = types.SimpleNamespace(messages=meet)
     results = _run_two_toy_tasks(LangGraphRunner(agent_factory=lambda: client))
     assert len(results) == 2
