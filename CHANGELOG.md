@@ -9,6 +9,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R25 slice 1 — the simulated approver and the approval gate**
+  (2026-11-01; ADR-0006 D5; `1fe8f2e`). `ScriptedApprover` answers every
+  call to an irreversible tool from the scenario's schedule -- per tool,
+  one answer per call: approve, deny or timeout -- instantly. The
+  in-process environment puts each irreversible call to its approver
+  first; a denied or timed-out call never executes, the agent is told the
+  action was not taken and why, and the harness record says
+  `executed: false` with the approval it got. Fail closed: anything
+  unscripted is denied. `Scenario.environment` carries the scenario's
+  `approvals`; the seed pack validates them at load, and every R24
+  scenario scripts `approve` for the notices it sends.
+
 - **R24 met — `agentic-baseline` benchmark: seed domain, task-execution
   and tool-calling categories** (2026-11-01; ADR-0005 D9, ADR-0006). The
   four entries below are its parts: bundle format 0.5, discovery and

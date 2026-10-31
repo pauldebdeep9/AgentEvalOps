@@ -23,6 +23,18 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R25 slice 1, `1fe8f2e`, the
+approval gate).**
+- **D5:** the approver is `environments.ScriptedApprover`, behind a small
+  `Approver` protocol; a scenario scripts it as data under `approvals`
+  (tool → answers, one per call). An irreversible call with no scripted
+  answer, or whose answers are used up, is **denied** -- the owner's
+  choice, fail closed -- so a scenario that sends a notice must say so.
+  Read and write tools never reach the approver.
+- `Scenario` gains `environment: dict` for declarative environment
+  configuration: `approvals` now, D6's fault and injection schedules in
+  R26. It is not serialised; the records carry each approval's outcome.
+
 **R24 built — 2026-11-01** (`36fec5b` … `4b28a96`; ROADMAP R24 met).
 Every R24 item under "By row" is in place with the departures the notes
 below record, except D6's `prepare_environment` seed parameter, which
