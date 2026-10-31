@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
+import functools
 import logging
 
 from agentevalops.core.errors import ConfigurationError, InfrastructureError
@@ -16,6 +18,7 @@ from agentevalops.core.protocols import (
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
+    EnvHandle,
     EvaluationResult,
     PolicySpec,
     RunConfig,
@@ -266,10 +269,10 @@ class LocalOrchestrator:
         handle exists, everything else -- the runner, the W12a catch, and
         evaluation -- runs inside a ``try/finally`` so ``teardown`` always
         runs: on the normal return, on the W12a catch, and on any exception
-        propagating out of ``evaluate()`` or a cancellation. ``teardown``
-        itself is guarded by a bare ``except Exception`` that only logs --
-        a cleanup failure must never replace or hide the task's real
-        outcome.
+        propagating out of ``evaluate()`` or a cancellation, including a
+        repeated one (see ``_teardown``). A ``teardown`` error is only
+        logged -- a cleanup failure must never replace or hide the task's
+        real outcome.
         """
         run_id: RunId = self._config.run_id
         events: list[TraceEvent] = []
@@ -329,11 +332,39 @@ class LocalOrchestrator:
                 events,
             )
         finally:
+            await self._teardown(task, handle)
+
+    async def _teardown(self, task: TaskSpec, handle: EnvHandle) -> None:
+        """Run ``BenchmarkAdapter.teardown`` exactly once, off the event loop.
+
+        Not ``asyncio.to_thread``: cancelling an awaited ``to_thread`` also
+        cancels its executor job if no worker thread has started it yet. A
+        task cancelled twice -- once by ``asyncio.run``'s shutdown and again
+        by ``run()``'s drain loop -- therefore lost its teardown whenever the
+        second cancel won that race (always, on CI's Linux runners; ROADMAP
+        §0, 2026-10-31). Instead the job is submitted once and never
+        cancelled; each cancellation is absorbed while it is still running
+        and the last one is re-raised once teardown has finished, so it can
+        neither be skipped nor run twice. A teardown error is logged and
+        never replaces the task's real outcome.
+        """
+        loop = asyncio.get_running_loop()
+        ctx = contextvars.copy_context()
+        job = loop.run_in_executor(
+            None, functools.partial(ctx.run, self._benchmark.teardown, handle)
+        )
+        cancelled: asyncio.CancelledError | None = None
+        while not job.done():
             try:
-                await asyncio.to_thread(self._benchmark.teardown, handle)
-            except Exception:  # noqa: BLE001 - cleanup failure must not mask the real outcome
-                logger.warning(
-                    "BenchmarkAdapter.teardown failed for task %s",
-                    task.task_id,
-                    exc_info=True,
-                )
+                await asyncio.wait((job,))
+            except asyncio.CancelledError as exc:
+                cancelled = exc
+        error = job.exception()
+        if error is not None:
+            logger.warning(
+                "BenchmarkAdapter.teardown failed for task %s",
+                task.task_id,
+                exc_info=error,
+            )
+        if cancelled is not None:
+            raise cancelled

@@ -772,3 +772,117 @@ def test_cancellation_of_waiting_sibling_task_still_tears_down() -> None:
 
     assert calls.count("teardown:A") == 1
     assert calls.count("teardown:B") == 1
+
+
+class _ParkingRunner:
+    """Every task parks on ``gate`` (never set) after signalling it started;
+    ``all_parked`` is set once ``expected`` tasks are parked."""
+
+    agent_id = AgentId("parking-agent")
+
+    def __init__(self, expected: int, all_parked: asyncio.Event) -> None:
+        self._expected = expected
+        self._parked = 0
+        self._all_parked = all_parked
+        self._gate = asyncio.Event()
+
+    async def run(self, input, resource_limits):  # type: ignore[no-untyped-def]
+        from collections.abc import AsyncGenerator
+
+        async def _gen() -> AsyncGenerator:  # type: ignore[type-arg]
+            self._parked += 1
+            if self._parked == self._expected:
+                self._all_parked.set()
+            await self._gate.wait()
+            yield  # pragma: no cover - the gate is never opened
+
+        return _gen()
+
+
+def _job_handle_task_id(fn: object, args: tuple[object, ...]) -> str | None:
+    """Task id of the ``EnvHandle`` an executor job was submitted with, if any
+    (looks through ``functools.partial`` wrappers, as built by
+    ``asyncio.to_thread``/``contextvars.Context.run``)."""
+    import functools
+
+    pending = [fn, *args]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, EnvHandle):
+            return str(item.task_id)
+        if isinstance(item, functools.partial):
+            pending.extend([item.func, *item.args])
+    return None
+
+
+def test_teardown_queued_when_cancelled_again_still_runs_exactly_once() -> None:
+    """Deterministic reproduction of the CI-only teardown race (ROADMAP §0,
+    2026-10-31): task B is cancelled, its teardown is submitted to the
+    executor, and B is cancelled *again* before a worker thread picks the
+    job up. Before the fix the second cancel cancelled the queued job, so
+    teardown:B never ran. The executor here holds only B's teardown job in
+    the queue until the second cancel has been delivered, so the outcome
+    does not depend on thread scheduling.
+    """
+    import concurrent.futures
+
+    calls: list[str] = []
+
+    class _GatedExecutor(concurrent.futures.ThreadPoolExecutor):
+        def __init__(self, on_hold: asyncio.Event) -> None:
+            super().__init__(max_workers=4)
+            self._on_hold = on_hold
+            self.held: list[tuple[concurrent.futures.Future[object], object]] = []
+
+        def submit(self, fn, /, *args, **kwargs):  # type: ignore[no-untyped-def, override]
+            if _job_handle_task_id(fn, args) == "B" and not self._on_hold.is_set():
+                fut: concurrent.futures.Future[object] = concurrent.futures.Future()
+                self.held.append((fut, lambda: fn(*args, **kwargs)))
+                self._on_hold.set()
+                return fut
+            return super().submit(fn, *args, **kwargs)
+
+        def release(self) -> None:
+            # Mirrors ThreadPoolExecutor's own work item: a job cancelled
+            # while queued never starts.
+            for fut, job in self.held:
+                if fut.set_running_or_notify_cancel():
+
+                    def _work(fut=fut, job=job) -> None:  # type: ignore[no-untyped-def]
+                        try:
+                            fut.set_result(job())  # type: ignore[operator]
+                        except BaseException as exc:  # noqa: BLE001
+                            fut.set_exception(exc)
+
+                    super().submit(_work)
+
+    async def _scenario() -> asyncio.Task[RunSummary]:
+        loop = asyncio.get_running_loop()
+        held = asyncio.Event()
+        executor = _GatedExecutor(held)
+        loop.set_default_executor(executor)
+
+        all_parked = asyncio.Event()
+        orch, _ = _make_recording_orchestrator(
+            _RecordingBenchmark(calls, ["A", "B"]),
+            _ParkingRunner(2, all_parked),
+            _RecordingEvaluator(calls),
+            max_concurrent_tasks=2,
+        )
+        run_task = asyncio.ensure_future(orch.run())
+        await asyncio.wait_for(all_parked.wait(), timeout=5)
+
+        run_task.cancel()  # first cancel: B leaves the runner, queues teardown
+        await asyncio.wait_for(held.wait(), timeout=5)
+        run_task.cancel()  # second cancel, while B's teardown is still queued
+        # call_soon is FIFO: the second cancel's callbacks run before release.
+        loop.call_soon(executor.release)
+
+        await asyncio.wait({run_task}, timeout=10)
+        return run_task
+
+    run_task = asyncio.run(_scenario())
+
+    assert run_task.cancelled()
+    assert calls.count("teardown:B") == 1
+    assert calls.count("teardown:A") == 1
