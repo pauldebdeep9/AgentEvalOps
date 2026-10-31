@@ -9,6 +9,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R25 slice 6 — the Singapore identifier detector and `no_pii_leak`**
+  (2026-11-01; testing-framework 8.3.2; ADR-0006 D26; `8ae9a99`).
+  `core/pii.py` finds NRIC/FIN ids, telephone numbers and e-mail
+  addresses in outbound text: S, T, F and G validated with the
+  community-documented check-letter tables (not ICA's; each with its
+  source), M by format alone with its look-alike test a strict xfail,
+  numbers with a leading digit in service, addresses of any domain. The
+  D26 test scheme counts only under an explicit switch, off by default.
+  The eighth policy rule, `no_pii_leak`: no notice carries an identifier
+  that is not the addressee's own, or the addressee's NRIC in full;
+  exports and the final answer are reported, not failed. Scenarios PC7
+  and PC8.
+
 - **R25 slice 5 — notice transparency** (2026-11-01; testing-framework
   1.1.3, 1.1.4; `ecf019c`). The seventh policy rule,
   `notice_transparency`: every notice that went out on the case says an

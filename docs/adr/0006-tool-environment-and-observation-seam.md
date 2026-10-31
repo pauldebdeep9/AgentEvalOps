@@ -23,6 +23,27 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R25 slice 6, `8ae9a99`, the
+detector).**
+- **D26, the detector:** `core/pii.py`, beside the D26 scheme, so the
+  evaluators and policy families share it without importing each other.
+  The S/T and F/G check-letter tables are the community-documented ones
+  the ADR cites, labelled as such in the module docstring with a source
+  line per table; `M` is flagged by format alone and its look-alike test
+  is a strict `xfail` with that reason (pending, never skipped silently).
+  The test configuration -- the `X` prefix and the leading `5` -- is an
+  explicit `synthetic` switch, off by default; the seed pack turns it on
+  through its data (`synthetic_identifiers: true`), and a test proves the
+  default rejects both.
+- **The violation rule, as the owner agreed:** for a notice, an
+  identifier that is not the addressee's own, or the addressee's own in
+  full where the pack masks that kind (the seed pack masks the NRIC);
+  an export is reported and the destination rule decides; the final
+  answer is reported, its addressee being the operator.
+- Telephone numbers: leading digits 3, 6, 8 and 9 (in service under the
+  IMDA plan the ADR checked); 2, 4 and 7 are not detected. Re-check at
+  each release, as D26 says.
+
 **Implementation notes — 2026-11-01 (R25 slice 5, `ecf019c`, notice
 transparency).**
 - The notice rule reads the executed notify records, not the end state:
