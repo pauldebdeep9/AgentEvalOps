@@ -27,13 +27,16 @@ import yaml
 from agentevalops.benchmarks.toy.scenarios import SUPPORTED_SCENARIOS
 from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.schemas import PolicySpec, ResourceLimits, RunConfig
-from agentevalops.core.types import AgentId, BackendId, RunId
+from agentevalops.core.types import BACKEND_AWS, AgentId, BackendId, RunId
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-_SUPPORTED_BACKENDS: frozenset[str] = frozenset({"local", "aws"})
+#: "aws" (core.types.BACKEND_AWS) is not here: nothing implements it, and AWS
+#: left v0.5 (ADR-0005 D3). Accepting it wrote "aws" into metadata.json and
+#: report.md for a run that was local (ROADMAP §0, 2026-10-31, finding 3).
+_SUPPORTED_BACKENDS: frozenset[str] = frozenset({"local"})
 _SUPPORTED_BENCHMARKS: frozenset[str] = frozenset({"toy"})
 #: Agent runners selectable from a config's ``runner_id``.  ``"mock"`` is the
 #: default and the only runner required for the v0.1 demo path; ``"langgraph"``
@@ -268,6 +271,13 @@ def load_run_config(path: Path) -> LoadedRunConfig:
     # backend_id
     # ------------------------------------------------------------------
     backend_id_str = str(raw.get("backend_id", "local"))
+    if backend_id_str == BACKEND_AWS:
+        raise ConfigurationError(
+            "backend_id 'aws' is not implemented: AWS left v0.5 (ADR-0005 "
+            "D3, docs/adr/0005-agentic-assurance-rebaseline.md), and "
+            "accepting it would record 'aws' for a run that executes "
+            "locally. Use backend_id: local."
+        )
     if backend_id_str not in _SUPPORTED_BACKENDS:
         raise ConfigurationError(
             f"Unsupported backend_id '{backend_id_str}'. "

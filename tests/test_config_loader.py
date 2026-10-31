@@ -484,11 +484,14 @@ def test_unsupported_benchmark_raises(tmp_path: Path) -> None:
         load_run_config(p)
 
 
-def test_aws_backend_accepted(tmp_path: Path) -> None:
-    """'aws' is a declared future backend — loader must accept it."""
+def test_aws_backend_rejected(tmp_path: Path) -> None:
+    """'aws' was accepted and then ignored -- the run was still local while
+    metadata.json and report.md said aws. AWS left v0.5 (ADR-0005 D3), so
+    the loader refuses it and says why (ROADMAP §0, 2026-10-31, finding
+    3)."""
     p = _write(
         tmp_path,
         "run_id: r1\nbenchmark_id: toy\nbackend_id: aws\n",
     )
-    result = load_run_config(p)
-    assert result.run_config.backend_id == "aws"
+    with pytest.raises(ConfigurationError, match="ADR-0005"):
+        load_run_config(p)

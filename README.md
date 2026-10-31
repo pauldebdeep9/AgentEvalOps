@@ -280,7 +280,7 @@ top-level fields:
 ```yaml
 run_id: "my-run"          # required; used as bundle folder key
 agent_id: "mock-agent-v1" # currently only mock-agent-v1 is implemented
-backend_id: "local"       # "local" or "aws" (aws = future, not implemented)
+backend_id: "local"       # only "local"; "aws" is rejected (AWS left v0.5, ADR-0005 D3)
 max_concurrent_tasks: 1
 benchmark_id: "toy"       # only "toy" is implemented
 
