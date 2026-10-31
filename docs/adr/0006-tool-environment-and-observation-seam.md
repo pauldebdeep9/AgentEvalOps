@@ -9,6 +9,15 @@ D4, D3, D18, D20 and the open questions). Two spikes were run in `/tmp`
 against copies of the code, never the repository (see Context). Line
 numbers are at `38d6106`.
 
+**Amended 2026-11-01, still Proposed (owner).** The bundle 0.5 bump and
+everything that writes it — task and repetition stamping, several evaluators
+per task, `EvaluatorContext`, the three-way `ScoreResult` — moves from R23 to
+R24, where its first users arrive (the new record files and the `tool_use`
+and `state_based` evaluators). R23 keeps the environment, the runner seam,
+in-memory harness records with a plain cross-check function, scripted
+trajectories, the derived allowlist and the cancelled-prepare fix, and
+writes bundles exactly as today.
+
 Answers every question on `ROADMAP.md` R22's ADR-0006 list, including the
 five added by the 2026-10-31 external review (`ROADMAP.md` §0).
 
@@ -21,26 +30,26 @@ five added by the 2026-10-31 external review (`ROADMAP.md` §0).
 | D3 | One neutral `ToolSpec`; permission classes; `finish` reserved | new, `core/schemas.py`; `agents/openai_runner.py:139`, `agents/langgraph_runner.py:112` | R23 |
 | D4 | Harness call record (`ToolCallRecord`) | new, `core/schemas.py` | R23 |
 | D5 | The approver is the environment's gate; nothing unapproved runs | new, `environments/` | R25 |
-| D6 | Declarative fault and injection schedules; derived seeds | `core/protocols.py:95` | R23 (seed), R26 (schedules) |
-| D7 | End-state snapshot before evaluators and teardown | `orchestration/local.py:236-335` | R23 (hook), R24 (content) |
+| D6 | Declarative fault and injection schedules; derived seeds | `core/protocols.py:95` | R24 (seed), R26 (schedules) |
+| D7 | End-state snapshot before evaluators and teardown | `orchestration/local.py:236-335` | R24 |
 | D8 | `environments/` is its own layer between the adapters and `core` | `pyproject.toml:207-215` | R23 |
 | D9 | Each runner converts specs inside its own loop; `finish` stays a runner control | `agents/openai_runner.py:401-410`, `:626-634`; `agents/langgraph_runner.py:341-352`, `:537-545` | R23 |
 | D10 | SDK calls off the event loop; client-level request timeout | `agents/openai_runner.py:350`, `:406`; `agents/langgraph_runner.py:290`, `:346` | R23 |
 | D11 | Scripted trajectories for `MockAgentRunner`, as data | `agents/mock_runner.py:60-150` | R23 (mode), R24 (data) |
-| D12 | `EvaluatorContext` on `Evaluator.evaluate` and `PolicyChecker.check` | `core/protocols.py:166-171`, `:206-211`; `orchestration/local.py:228`, `:323` | R23 |
-| D13 | Several evaluators per task; a real failure wins | `core/schemas.py:311-318`; `cli.py:78-79` | R23 |
-| D14 | Policy and tool-use verdicts come from harness records | `policy/basic_checker.py:38-70`; `evaluators/deterministic.py:132-150` | R23 (cross-check), R25 (policy) |
+| D12 | `EvaluatorContext` on `Evaluator.evaluate` and `PolicyChecker.check` | `core/protocols.py:166-171`, `:206-211`; `orchestration/local.py:228`, `:323` | R24 |
+| D13 | Several evaluators per task; a real failure wins | `core/schemas.py:311-318`; `cli.py:78-79` | R24 |
+| D14 | Policy and tool-use verdicts come from harness records | `policy/basic_checker.py:38-70`; `evaluators/deterministic.py:132-150` | R23 (cross-check function), R24 (evaluators), R25 (policy) |
 | D15 | `allowed_tool_ids` stays, with a consumer and a YAML path | `core/schemas.py:282`; `config/loader.py` (policy block) | R25 |
-| D16 | Cause of `not_evaluated`; known-good preflight | `core/schemas.py:243`; `orchestration/local.py:80-116` | R23 (field), R24 (preflight) |
-| D17 | Events and records are addressed by task, repetition and index | `core/schemas.py:196-210`, `:247`, `:297` | R23 |
-| D18 | The orchestrator owns repetitions | `core/schemas.py:100-133`, `:311-318`; `orchestration/local.py:155-234` | R23 (field), R27 (k > 1) |
-| D19 | Harness data in its own files; no new `TraceEventKind` | `core/schemas.py:35-51`; `bundles/writer.py:188-281` | R23 |
-| D20 | `ScoreResult` uses the three-way split; `SimpleScorer` meets `Scorer` | `core/schemas.py:251-263`; `scorers/simple.py:9-26`; `orchestration/local.py:223` | R23 |
-| D21 | Bundle format 0.5 in R23, once; the evidence pack becomes 0.6 | `bundles/constants.py:32`, `:44`, `:75-97` | R23 |
+| D16 | Cause of `not_evaluated`; known-good preflight | `core/schemas.py:243`; `orchestration/local.py:80-116` | R24 |
+| D17 | Events and records are addressed by task, repetition and index | `core/schemas.py:196-210`, `:247`, `:297` | R24 |
+| D18 | The orchestrator owns repetitions | `core/schemas.py:100-133`, `:311-318`; `orchestration/local.py:155-234` | R24 (fields), R27 (k > 1) |
+| D19 | Harness data in its own files; no new `TraceEventKind` | `core/schemas.py:35-51`; `bundles/writer.py:188-281` | R24 |
+| D20 | `ScoreResult` uses the three-way split; `SimpleScorer` meets `Scorer` | `core/schemas.py:251-263`; `scorers/simple.py:9-26`; `orchestration/local.py:223` | R24 |
+| D21 | Bundle format 0.5 in R24, once; the evidence pack becomes 0.6 | `bundles/constants.py:32`, `:44`, `:75-97` | R24 |
 | D22 | A cancelled `prepare_environment` is waited out and torn down; time limit deferred | `orchestration/local.py:281-283` | R23 |
 | D23 | `DomainPack` protocol behind one generic `agentic-baseline` benchmark | new | R24 |
 | D24 | Entry-point discovery, with a `domain_packs` group | `registry.py:202`, `:308`; `pyproject.toml:120` | R23 |
-| D25 | Configs pick a benchmark and its options without toy coupling | `config/loader.py:27`, `:40`, `:388-394`; `cli.py:107` | R23 |
+| D25 | Configs pick a benchmark and its options without toy coupling | `config/loader.py:27`, `:40`, `:388-394`; `cli.py:107` | R23 (loader, CLI), R24 (`config.json`) |
 | D26 | Synthetic identifiers that cannot belong to a real person | new (seed data, detector config) | R24 (data), R25 (detector) |
 
 ## Context
@@ -108,7 +117,7 @@ guarantees it.**
 - The orchestrator copies `handle.tools` into `AgentInput`
   (`orchestration/local.py:297-299`). If a handle carries no environment,
   the orchestrator raises `ConfigurationError` for that task, so it is
-  recorded `not_evaluated` with cause `configuration` (D16). A wiring bug
+  recorded `not_evaluated` (from R24, with cause `configuration`, D16). A wiring bug
   can never look like an agent failure.
 - The runners' fallback (D9) is therefore reached only when a runner is
   called directly, as the runner tests do.
@@ -173,8 +182,8 @@ unapproved runs.**
   `seed_base` is a new `RunConfig.seed: int = 0`. R27 records it in
   `test_plan.json`.
 - `BenchmarkAdapter.prepare_environment(task)` (`core/protocols.py:95`)
-  gains a keyword `seed: int = 0`. The orchestrator passes the derived
-  seed; the toy adapter ignores it.
+  gains a keyword `seed: int = 0` in R24, with `RunConfig.seed`. The
+  orchestrator passes the derived seed; the toy adapter ignores it.
 - The same seed and schedule give the same environment, so R27's
   repeated runs and `rescore` are reproducible by construction.
 
@@ -184,7 +193,9 @@ the runner finishes and on every exit path where a handle exists, the
 orchestrator awaits `environment.snapshot()`. It then calls evaluators
 (D12), then `_teardown`. On cancellation the snapshot is skipped, not
 waited for. `EndState` is a JSON object with a `schema` id chosen by the
-domain pack; the toy environment's is its call count.
+domain pack; the toy environment's is its call count. `snapshot()` is
+part of the protocol from R23 (D2); the orchestrator calls it and writes
+the result from R24.
 
 **D8. `environments/` is its own layer between the adapters and `core`.**
 - New package `agentevalops.environments`: the in-process
@@ -299,6 +310,11 @@ runner control.**
   matching self-report, or a self-report without a record, is a
   `self_report_mismatch` finding: a `WARN` from the policy checker and a
   failure in the `tool_use` evaluator.
+- **R23 builds the cross-check as a plain function**,
+  `environments.cross_check(records, events) -> list[Mismatch]`, over the
+  in-memory records — enough for R23's exit test. The evaluators and the
+  policy checker read records through `EvaluatorContext` from R24 (policy
+  rules in R25).
 
 **D15. `allowed_tool_ids` stays.**
 - R25 gives it a YAML path under `policy:` and a consumer: a call
@@ -316,7 +332,8 @@ known-good preflight.**
   `infrastructure` or `configuration` from the exception type.
 - `RunSummary` (`core/schemas.py:321-345`) gains
   `not_evaluated_by_cause: dict[str, int]`.
-- **Preflight (R24).** Before the agent runs a scenario, the orchestrator
+- Built in R24 (field and preflight).
+- **Preflight.** Before the agent runs a scenario, the orchestrator
   runs the scenario's `known_good` trajectory once with the scripted mock
   against a fresh environment. If it fails, the scenario is defective:
   every run of it is `not_evaluated` with cause `environment_defect`, and
@@ -329,7 +346,7 @@ known-good preflight.**
 (finding 1).**
 - `TraceEvent` (`core/schemas.py:196-210`) gains
   `task_id: TaskId | None = None` and `repetition: int = 0`.
-- **The orchestrator stamps them** as each event passes through
+- **The orchestrator stamps them** (from R24) as each event passes through
   `_run_task`, before it is stored. Runners do not change, so neither do
   their tests.
 - New `Ref(stream, task_id, repetition, index)` in core, `stream` being
@@ -373,12 +390,13 @@ the `Scorer` protocol (finding 2).**
 - `SimpleScorer` (`scorers/simple.py:9-26`) implements `summarize()`, so
   `isinstance(SimpleScorer(), Scorer)` holds. The orchestrator calls it
   through the protocol (`orchestration/local.py:223`).
-- Done in this bump rather than R28 because D13 and D16 already reshape
-  the verdict model. R28's ADR-0007 list loses this item.
+- Done in this bump (R24) rather than R28 because D13 and D16 already
+  reshape the verdict model. R28's ADR-0007 list loses this item.
 
-**D21. Bundle format 0.5 lands once, in R23; the evidence pack becomes
+**D21. Bundle format 0.5 lands once, in R24; the evidence pack becomes
 0.6.**
-- R23 is the first row that writes a new field (D17). It bumps
+- R24 is the first row that writes a new field or file (D17, D19), and
+  the first with users for them. It bumps
   `BUNDLE_FORMAT_VERSION` (`bundles/constants.py:32`) to `"0.5"` and
   implements the **whole** 0.5 contract listed below. Later rows add
   content, never shape.
@@ -387,8 +405,10 @@ the `Scorer` protocol (finding 2).**
   and `end_states.jsonl`.
 - R28's evidence pack becomes **0.6**, with `"0.5"` joining the legacy
   set. ADR-0005 D6 says "format 0.5"; its Status line records the change.
-- If R23 runs over, the bundle half moves to R24 whole. The bump still
-  happens once.
+- R23 writes bundles exactly as 0.4 does: its harness records stay in
+  memory, and `config.json` keeps recording `benchmark_scenario` (D25).
+- If R24 runs over, the bump moves whole to R25. It still happens once,
+  and before the v0.2 tag.
 
 **Every 0.5 change, in one place:**
 
@@ -403,6 +423,7 @@ the `Scorer` protocol (finding 2).**
 | `RunSummary.not_evaluated_by_cause` | `summary.json` | D16 |
 | `ScoreResult.not_evaluated_tasks`; `failed_tasks` redefined | `summary.json` | D20 |
 | `RunConfig.repetitions`, `.seed` | `config.json` | D6, D18 |
+| `benchmark_options` recorded | `config.json` | D25 |
 | `evaluations.json` holds one entry per evaluator per task run | `evaluations.json` | D13 |
 
 All additive except `ScoreResult.failed_tasks`'s meaning, which is why it
@@ -458,6 +479,9 @@ benchmark.**
   importing `benchmarks.toy.scenarios` (`config/loader.py:27`,
   `:388-394`) and still reads `benchmark_scenario` as an alias for toy, so
   existing configs keep working.
+- `config.json` keeps recording `benchmark_id` and `benchmark_scenario`
+  as today through R23; `benchmark_options` is recorded from R24, as part
+  of 0.5.
 
 **D26. Synthetic identifiers cannot belong to a real person (§5 risk 9).**
 Facts, checked 2026-10-31:
@@ -588,10 +612,10 @@ R25's detector:
 
 ### By row
 
-**R23 — tool environment, runner seam, bundle 0.5.**
+**R23 — tool environment and runner seam.** Bundles unchanged (0.4).
 Builds:
-- D1–D4, the D7 hook, D8–D10, the D11 mode, D12–D14's protocol and
-  cross-check, D16's field, D17, D18's fields, D19–D22, D24, D25.
+- D1–D4, D8–D10, the D11 mode, D14's cross-check function, D22, D24, D25's
+  loader and CLI.
 - The derived benchmark allowlist (ADR-0005 finding 4).
 
 Tests (fail-first where there is a guard):
@@ -599,19 +623,11 @@ Tests (fail-first where there is a guard):
   is empty at the end of the row.
 - A golden-payload test: the toy environment's converted specs equal
   pinned JSON for both providers.
-- A handle without an environment gives `not_evaluated` with cause
-  `configuration`, not an agent failure (fail-first).
+- A handle without an environment gives `not_evaluated`, not an agent
+  failure (fail-first).
 - A domain pack that declares `finish` is rejected (fail-first).
 - A scripted trajectory's records match its self-reports; a `report_as`
-  script is flagged `self_report_mismatch` (fail-first).
-- Two tasks calling a denied tool at their own step 1 get different
-  `refs` (fail-first).
-- The verdict rule: one evaluator fails and another cannot evaluate →
-  failed; a non-applicable evaluator is not counted (fail-first).
-- `ScoreResult` with one not-evaluated task says failed 0,
-  not-evaluated 1; `isinstance(SimpleScorer(), Scorer)` (fail-first).
-- A 0.5 bundle missing `tool_calls.jsonl` fails `validate-bundle`
-  (fail-first); 0.1–0.4 bundles still validate.
+  script is flagged by the cross-check function (fail-first).
 - A cancelled `prepare_environment` whose job completes is torn down,
   reproduced with the gated executor from `9cc2b00`'s test (fail-first).
 - Two fake clients that each wait for the other's call to start finish at
@@ -619,28 +635,42 @@ Tests (fail-first where there is a guard):
   timeout guards the test. No wall-clock assertion.
 - The benchmark parity test fails against a deliberately desynced
   allowlist first.
+- A toy run's bundle is still 0.4 and byte-for-byte the same shape.
 
 Import-linter: layers contract gains the `environments` layer; a new
-forbidden contract keeps `environments` to `core` only (8 contracts). Each
-proven against an injected violation first.
+forbidden contract keeps `environments` to `core` only. Each is proven
+against an injected violation first. The seam is the critical path (§4
+item 1).
 
-R23 is now the heaviest row. If it runs over, the bundle half (D17–D21)
-moves to R24 whole, and the bump still happens once; the seam half is the
-critical path (§4 item 1).
+**R24 — bundle 0.5 and the seed domain.**
+Builds:
+- The whole 0.5 bump (D21's table): D17's stamping and refs, D19's files,
+  D7's snapshot call, D13, D12, D20, D16 (field and preflight), D18's
+  fields, D6's seed, D25's `config.json` entry.
+- D23, the seed pack's data (D11 trajectories, D26 identifiers),
+  `tool_use` and `state_based` evaluators reading `EvaluatorContext`.
 
-**R24 — seed domain.**
-Builds: D23, the seed pack's data (D11 trajectories, D26 identifiers),
-D7's content, D16's preflight, `tool_use` and `state_based` evaluators
-reading `EvaluatorContext`.
-
-Tests:
+Tests (fail-first where there is a guard):
+- Two tasks calling a denied tool at their own step 1 get different
+  `refs`.
+- The verdict rule: one evaluator fails and another cannot evaluate →
+  failed; a non-applicable evaluator is not counted.
+- `ScoreResult` with one not-evaluated task says failed 0,
+  not-evaluated 1; `isinstance(SimpleScorer(), Scorer)`.
+- A 0.5 bundle missing `tool_calls.jsonl` fails `validate-bundle`;
+  0.1–0.4 bundles still validate.
+- A handle without an environment is `not_evaluated` with cause
+  `configuration`.
 - Each scenario's known-good passes and known-bad fails under every
   applicable evaluator.
 - A broken known-good gives `environment_defect` for every run of that
-  scenario, and the agent is not called (fail-first).
+  scenario, and the agent is not called.
 - Every task run has an end-state line.
 - No seeded identifier uses a real NRIC/FIN prefix, a phone digit other
-  than 5, or a domain outside `.example` (fail-first).
+  than 5, or a domain outside `.example`.
+
+R24 is now the heaviest row. If it runs over, the bump moves whole to
+R25, still once and before the v0.2 tag.
 
 **R25 — policy compliance.**
 Builds: D5's gate (approve / deny / timeout, instant), D15's consumer and
@@ -680,5 +710,5 @@ list loses "one meaning of failed" (D20); `git_sha` stays.
 - `docs/benchmark_adapters.md` D5's open question on cancelling
   `prepare_environment` is answered by D22 when R23 lands; its note is
   updated then.
-- `DESIGN.md` and `ARCHITECTURE.md` are synced when R23 lands, not now:
-  this ADR is Proposed.
+- `DESIGN.md` and `ARCHITECTURE.md` are synced when this ADR is
+  accepted, not now: it is Proposed.

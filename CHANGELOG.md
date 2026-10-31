@@ -9,6 +9,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **ADR-0006 amended, still Proposed — bundle 0.5 moves from R23 to R24**
+  (2026-11-01). Docs only. Task and repetition stamping, several
+  evaluators per task, `EvaluatorContext`, the three-way `ScoreResult` and
+  the new record files arrive with their first users in R24; R23 keeps the
+  environment, the runner seam and in-memory records, and writes 0.4
+  bundles as today. ROADMAP R23/R24/R28, §1, §4 and ADR-0005's Status
+  note updated; dates unchanged.
+
 - **ADR-0006 Proposed — tool environment and observation seam**
   (2026-10-31, `docs/adr/0006-tool-environment-and-observation-seam.md`).
   Docs only. Answers every question on R22's ADR-0006 list, with
@@ -18,8 +26,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   loop (0001), with `finish` a reserved runner control; SDK calls off the
   event loop; `EvaluatorContext` for evaluators and the policy checker;
   several evaluators per task, where a real failure wins over "not
-  evaluated"; repetitions owned by the orchestrator; bundle format 0.5 in
-  R23, once, and the evidence pack at 0.6 (R28 and ADR-0005's Status
+  evaluated"; repetitions owned by the orchestrator; bundle format 0.5
+  once (in R24 since the 2026-11-01 amendment below), and the evidence pack at 0.6 (R28 and ADR-0005's Status
   updated); synthetic identifiers argued, with sources, not to be anyone's.
   Two `/tmp` spikes back the runner seam: the refactored runners passed the
   three runner test files unmodified, with byte-identical tool payloads.

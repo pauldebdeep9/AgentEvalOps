@@ -45,9 +45,9 @@ decision in this ADR changes — only the calendar. `ROADMAP.md` §0, §2b and
 §3 carry the new dates.
 
 **Evidence-pack format number — 2026-10-31 (ADR-0006 D21, Proposed).**
-D6's "format 0.5" becomes 0.6: ADR-0006 puts bundle format 0.5 in R23,
-where task and repetition are first stamped on trace events and the
-harness writes its own records. R28's evidence pack is the next bump. D6's
+D6's "format 0.5" becomes 0.6: ADR-0006 puts bundle format 0.5 in R24
+(amended 2026-11-01 from R23), where task and repetition are first
+stamped on trace events and the harness first writes its own records. R28's evidence pack is the next bump. D6's
 content is unchanged.
 
 - **Supersedes** `ROADMAP.md` §1's v0.5 scope and the forward plan in rows
