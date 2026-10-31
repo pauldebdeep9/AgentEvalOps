@@ -278,9 +278,7 @@ class LocalOrchestrator:
         events: list[TraceEvent] = []
 
         try:
-            handle = await asyncio.to_thread(
-                self._benchmark.prepare_environment, task
-            )
+            handle = await self._prepare(task)
         except (InfrastructureError, ConfigurationError) as exc:
             return (
                 _not_evaluated_result(
@@ -352,6 +350,36 @@ class LocalOrchestrator:
             )
         finally:
             await self._teardown(task, handle)
+
+    async def _prepare(self, task: TaskSpec) -> EnvHandle:
+        """Run ``BenchmarkAdapter.prepare_environment`` off the event loop,
+        and never leak what it creates (docs/adr/0006 D22).
+
+        Not ``asyncio.to_thread``: cancelling that await abandons a prepare
+        already running in its worker thread, and the handle it then returns
+        reaches nobody -- the environment is never torn down. Instead the job
+        is submitted once and waited on through any cancellation, as in
+        ``_teardown``. If it produced a handle, that handle is torn down, and
+        then the cancellation is re-raised. If it failed, there is nothing to
+        tear down (D5: a failed prepare cleans up after itself).
+        """
+        loop = asyncio.get_running_loop()
+        ctx = contextvars.copy_context()
+        job = loop.run_in_executor(
+            None,
+            functools.partial(ctx.run, self._benchmark.prepare_environment, task),
+        )
+        cancelled: asyncio.CancelledError | None = None
+        while not job.done():
+            try:
+                await asyncio.wait((job,))
+            except asyncio.CancelledError as exc:
+                cancelled = exc
+        if cancelled is None:
+            return job.result()
+        if job.exception() is None:
+            await self._teardown(task, job.result())
+        raise cancelled
 
     async def _teardown(self, task: TaskSpec, handle: EnvHandle) -> None:
         """Run ``BenchmarkAdapter.teardown`` exactly once, off the event loop.
