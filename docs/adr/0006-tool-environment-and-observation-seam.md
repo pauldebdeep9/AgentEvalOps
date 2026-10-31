@@ -2,6 +2,15 @@
 
 ## Status
 
+**Accepted — 2026-11-01 (owner).** Accepted with three changes made at
+acceptance: D24, and D25's `benchmark_options` and CLI parts, move to R24,
+where `agentic-baseline` first uses them (the derived allowlist stays in
+R23); D10's real clients get a 60 s request timeout and one retry, the
+timeout a constructor parameter; and the exit wait a running model call
+imposes is added to Open questions. `DESIGN.md` and `ARCHITECTURE.md`
+carry the edits listed under "Required `DESIGN.md` and `ARCHITECTURE.md`
+edits" below.
+
 Proposed — 2026-10-31. Documentation only: no code changes accompany this
 ADR. The owner decided the seven questions put to them on 2026-10-31
 (D8, D12, D13, D5, D21, D22, D26) and amended six engineering calls (D1,
@@ -48,8 +57,8 @@ five added by the 2026-10-31 external review (`ROADMAP.md` §0).
 | D21 | Bundle format 0.5 in R24, once; the evidence pack becomes 0.6 | `bundles/constants.py:32`, `:44`, `:75-97` | R24 |
 | D22 | A cancelled `prepare_environment` is waited out and torn down; time limit deferred | `orchestration/local.py:281-283` | R23 |
 | D23 | `DomainPack` protocol behind one generic `agentic-baseline` benchmark | new | R24 |
-| D24 | Entry-point discovery, with a `domain_packs` group | `registry.py:202`, `:308`; `pyproject.toml:120` | R23 |
-| D25 | Configs pick a benchmark and its options without toy coupling | `config/loader.py:27`, `:40`, `:388-394`; `cli.py:107` | R23 (loader, CLI), R24 (`config.json`) |
+| D24 | Entry-point discovery, with a `domain_packs` group | `registry.py:202`, `:308`; `pyproject.toml:120` | R24 |
+| D25 | Configs pick a benchmark and its options without toy coupling | `config/loader.py:27`, `:40`, `:388-394`; `cli.py:107` | R23 (derived allowlist), R24 (options, CLI, `config.json`) |
 | D26 | Synthetic identifiers that cannot belong to a real person | new (seed data, detector config) | R24 (data), R25 (detector) |
 
 ## Context
@@ -207,8 +216,9 @@ the result from R24.
 - The layers contract (`pyproject.toml:207-215`) becomes
   `cli` > adapters > `environments` > `core`. A new forbidden contract
   says `agentevalops.environments` imports nothing from `agentevalops`
-  except `core`. The catalogue (R22 part 3) joins the same tier as a
-  sibling.
+  except `core`. The catalogue (R22 part 3) already sits in this tier;
+  `catalogue` and `environments` are independent siblings in the layers
+  contract, each with its own forbidden contract.
 - Not one more member of the independence contract
   (`pyproject.toml:224-236`): an independent family could be imported by
   neither the benchmarks nor the runners, and both need it.
@@ -246,7 +256,9 @@ runner control.**
 - A request timeout and retry count are set where the real client is
   built (`openai_runner.py:350`, `langgraph_runner.py:290` — the live path
   the tests never reach), so the tests' fake clients are untouched (spike
-  3). Default 60 s.
+  3): a 60 s request timeout and one retry. The timeout is a constructor
+  parameter (`request_timeout_seconds`, default 60), so a slower model can
+  raise it.
 - `max_wall_seconds` is still checked between calls; a hung request is
   bounded by the client timeout.
 
@@ -462,8 +474,9 @@ benchmark.**
   `:308`; no caller today) once, before resolving names, for the existing
   `agentevalops.adapters` group (`pyproject.toml:120`) and a new
   `agentevalops.domain_packs` group (new `KIND_DOMAIN_PACK`). Import
-  failures are logged and skipped, as `discover_entry_points` already
-  does.
+  failures are logged and skipped; today they are skipped silently
+  (`registry.py:231-233`), and the log line comes with D24.
+- Built in R24, with the first domain pack.
 - The seed domain registers through the same entry point as a third-party
   pack would.
 
@@ -472,6 +485,9 @@ benchmark.**
 - `benchmark_id` is checked against the registry (the derived allowlist
   R23 already builds, replacing `_SUPPORTED_BENCHMARKS`,
   `config/loader.py:40`).
+- The derived allowlist is built in R23. The rest of D25 — options, the
+  CLI change and the loader's decoupling — is built in R24, where
+  `agentic-baseline` is its first user.
 - A new opaque `benchmark_options:` mapping is passed as
   `benchmark_cls(**options)` (`cli.py:107`). Each benchmark validates its
   own options in a classmethod that raises `ConfigurationError`.
@@ -577,6 +593,10 @@ R25's detector:
   together with a sweep for leftover resources, when the first environment
   holds real resources — an MCP transport (v0.6) or SWE-bench. Until then,
   today's unbounded wait stays (D22).
+- **The exit wait of a running model call (D10).** A model call running
+  in a worker thread cannot be cancelled. On Ctrl-C, process exit waits
+  for it, up to the request timeout times the number of tries — 60 s × 2
+  by default. Decide alongside the time limits above.
 - **A run-wide spend cap (finding 9).** `ResourceLimits` are per task, and
   nothing caps total spend across a run. R27's repetitions multiply
   spend, so the cap needs a row before R27.
@@ -614,9 +634,12 @@ R25's detector:
 
 **R23 — tool environment and runner seam.** Bundles unchanged (0.4).
 Builds:
-- D1–D4, D8–D10, the D11 mode, D14's cross-check function, D22, D24, D25's
-  loader and CLI.
-- The derived benchmark allowlist (ADR-0005 finding 4).
+- D1–D4, D8–D10, the D11 mode, D14's cross-check function, D22.
+- The derived runner and benchmark allowlists (ADR-0005 finding 4; D25's
+  first part).
+- `tests/test_orchestration.py`'s fake benchmark returns the toy
+  environment in its handles (D1's guard would otherwise turn its tasks
+  `not_evaluated`). That file is not one of the three protected ones.
 
 Tests (fail-first where there is a guard):
 - `git diff --exit-code <base> -- tests/test_openai_runner.py tests/test_azure_openai_runner.py tests/test_langgraph_runner.py`
@@ -637,8 +660,9 @@ Tests (fail-first where there is a guard):
   allowlist first.
 - A toy run's bundle is still 0.4 and byte-for-byte the same shape.
 
-Import-linter: layers contract gains the `environments` layer; a new
-forbidden contract keeps `environments` to `core` only. Each is proven
+Import-linter: `environments` joins `catalogue` as an independent
+sibling in the layers contract; a new forbidden contract keeps
+`environments` to `core` only. Each is proven
 against an injected violation first. The seam is the critical path (§4
 item 1).
 
@@ -647,6 +671,9 @@ Builds:
 - The whole 0.5 bump (D21's table): D17's stamping and refs, D19's files,
   D7's snapshot call, D13, D12, D20, D16 (field and preflight), D18's
   fields, D6's seed, D25's `config.json` entry.
+- D24 (entry-point discovery, `domain_packs` group, the log line) and the
+  rest of D25 (`benchmark_options`, the CLI change, the loader no longer
+  importing the toy benchmark).
 - D23, the seed pack's data (D11 trajectories, D26 identifiers),
   `tool_use` and `state_based` evaluators reading `EvaluatorContext`.
 
@@ -710,5 +737,18 @@ list loses "one meaning of failed" (D20); `git_sha` stays.
 - `docs/benchmark_adapters.md` D5's open question on cancelling
   `prepare_environment` is answered by D22 when R23 lands; its note is
   updated then.
-- `DESIGN.md` and `ARCHITECTURE.md` are synced when this ADR is
-  accepted, not now: it is Proposed.
+- A full `ARCHITECTURE.md` refresh stays with R31.
+
+### Required `DESIGN.md` and `ARCHITECTURE.md` edits (on acceptance)
+
+1. **`DESIGN.md` §7** — the bundle tree's planned additions: format 0.5
+   adds `tool_calls.jsonl` and `end_states.jsonl` (D19, D21; R24); the
+   evidence-pack files move to format 0.6 (R28, ADR-0007), and
+   `env_state/` is replaced by `end_states.jsonl`.
+2. **`ARCHITECTURE.md` §1** — a low tier between the adapters and the
+   core: `catalogue/` and `environments/`, importing only `core` (D8).
+3. **`ARCHITECTURE.md` §2** — a note that ADR-0006 adds `ToolEnvironment`
+   (R23) and `DomainPack` (R24).
+4. **`ARCHITECTURE.md` §2.3** — a note that `evaluate` gains a
+   `context: EvaluatorContext` parameter in R24, as does
+   `PolicyChecker.check` (D12).

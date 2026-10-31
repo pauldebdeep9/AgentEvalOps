@@ -9,6 +9,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **ADR-0006 accepted** (2026-11-01). Docs only. At acceptance, entry-point
+  discovery and `benchmark_options` (D24, D25) move from R23 to R24; the
+  real model clients get a 60 s request timeout (a constructor parameter)
+  and one retry; and the exit wait a running model call imposes joins Open
+  questions. The edits the ADR requires: `DESIGN.md` §7's bundle tree (0.5
+  adds `tool_calls.jsonl` and `end_states.jsonl`; the evidence-pack files
+  are 0.6) and notes in `ARCHITECTURE.md` §1, §2 and §2.3. ROADMAP: R23 to
+  Nov 2–8, R24 to Nov 9–22 (two weeks; R22 finished early, R24 re-estimated
+  at about 23 hours); nothing after v0.2 moves. R28's ADR-0007 list gains
+  recording the catalogue source versions a bundle's control IDs resolve
+  against.
+
 - **Control catalogue v0 — R22 met** (2026-11-01, `c3fcdca`).
   `agentevalops.catalogue`, in its own layer between the adapters and
   `core` (ADR-0006 D8), importing only `core`. MGF-Agentic v1.5 and the

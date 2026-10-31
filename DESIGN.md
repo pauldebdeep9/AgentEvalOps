@@ -110,15 +110,18 @@ result_bundle/
 ├── replay_command.txt     # reconstructable invocation + provenance (format 0.4+)
 ├── manifest.json          # format version, per-file size + sha256; written last
 │
-│   # added at format 0.5 — ADR-0005 D6; final names fixed by ADR-0007
+│   # added at format 0.5 — ADR-0006 D19, D21 (R24)
+├── tool_calls.jsonl       # every tool call, as the harness recorded it
+├── end_states.jsonl       # each task run's tool-environment end state
+│
+│   # added at format 0.6 — ADR-0005 D6; final names fixed by ADR-0007 (R28)
 ├── test_plan.json         # system declaration, scenarios, k, thresholds; hashed before the run
 ├── controls.json          # control coverage, computed from executed scenarios
-├── env_state/             # per-task tool-environment end states
 ├── evidence_report.md     # every testing-framework check: evidence pointers; answers left to the organisation
 └── manifest.json.sig      # detached signature over manifest.json
 ```
 
-(Before ADR-0005 this tree listed `config.yaml`, `trace.jsonl`, `scores.json`, `artifacts/`, `logs/`, `cost_report.json` and `failure_analysis.md` — a target that was never built. The list above is the bundle as built, plus format 0.5's planned additions.)
+(Before ADR-0005 this tree listed `config.yaml`, `trace.jsonl`, `scores.json`, `artifacts/`, `logs/`, `cost_report.json` and `failure_analysis.md` — a target that was never built. The list above is the bundle as built, plus format 0.5's and 0.6's planned additions; ADR-0006 replaced the planned `env_state/` folder with `end_states.jsonl`.)
 
 The bundle is the unit of portability. A user can hand the bundle to a colleague, attach it to a GitHub issue, store it in S3 for compliance, or feed it back into the platform for comparison against a later run. The bundle format is versioned and backwards-compatible within a major version.
 

@@ -17,6 +17,8 @@ The **adapter layer** contains concrete implementations of the core protocols: `
 
 Three more packages sit alongside the adapters and don't map to a single protocol: `orchestration/` (the eval loop; wires all the protocols together for a run), `bundles/` (result-bundle read/write/validate), and `replay/` (bundle verification — narrower than §7 describes; see the callout there). `registry.py` and `config/` are top-level, not nested under `core/`, despite earlier drafts of this document describing them that way (see §4).
 
+Between the adapters and the core sits a **low tier** of shared data and machinery that the adapters build on and that imports only the core: `catalogue/` (the control catalogue, R22) and, from R23, `environments/` (the harness-owned tool environment). The two are independent of each other, and each is held to `core` by its own import contract (docs/adr/0006-tool-environment-and-observation-seam.md, D8).
+
 The **edge layer** (`src/agentevalops/cli.py`) is what users interact with — a CLI that composes adapters. The edge layer never reaches into adapter internals. A FastAPI service and a dashboard are out of scope for v0.1 and explicitly deferred.
 
 This three-layer separation is the load-bearing architectural commitment. Everything else in this document is detail.
@@ -26,6 +28,8 @@ This three-layer separation is the load-bearing architectural commitment. Everyt
 ## 2. The nine protocols
 
 These are defined in `src/agentevalops/core/protocols.py`. They are Python `Protocol` classes (PEP 544), not abstract base classes, because we want structural subtyping — an implementation does not need to inherit from the protocol, only match its shape. This makes it trivial to wrap third-party agent frameworks without modifying them.
+
+> **ADR-0006 (accepted 2026-11-01)** adds two protocols to `core/protocols.py`: `ToolEnvironment` (R23), through which runners get tool specs and send tool calls, and `DomainPack` (R24). It also changes two signatures in R24: `Evaluator.evaluate` and `PolicyChecker.check` gain an `EvaluatorContext` (§2.3).
 
 All protocols are typed in strict mode. `mypy --strict` passes on all of `src/` as a CI gate (`mypy src`, see `pyproject.toml`'s `[tool.mypy]`). Earlier drafts of this document also named `pyright --strict`; that tool was never adopted — mypy alone is the actual, running gate.
 
@@ -161,6 +165,8 @@ class Evaluator(Protocol):
         agent failure — a failed agent produces a low score, not an exception."""
         ...
 ```
+
+> **As built** (`core/protocols.py:166-171`), `evaluate(task, output, trace)` has no `context` parameter. ADR-0006 D12 adds `context: EvaluatorContext` in R24 — the harness's tool-call records and end states for the task run — and gives `PolicyChecker.check` the same parameter.
 
 A run is graded by *all* configured evaluators in parallel, and their scores are reported separately. The platform never collapses them into a single composite score by default — that decision belongs to the consumer of the bundle.
 
