@@ -8,12 +8,14 @@ import dataclasses
 import functools
 import logging
 from collections.abc import Sequence
+from typing import Any
 
 from agentevalops.core.errors import ConfigurationError, InfrastructureError
 from agentevalops.core.protocols import (
     AgentRunner,
     BenchmarkAdapter,
     Evaluator,
+    KnownGoodSource,
     PolicyChecker,
     Scorer,
     ToolEnvironment,
@@ -28,6 +30,7 @@ from agentevalops.core.schemas import (
     EvaluatorContext,
     NotEvaluatedCause,
     PolicySpec,
+    PreflightResult,
     RunConfig,
     RunSummary,
     TaskRunResult,
@@ -171,6 +174,7 @@ def _not_evaluated_result(
     *,
     repetition: int = 0,
     stage: str | None = None,
+    cause: NotEvaluatedCause | None = None,
 ) -> TaskRunResult:
     """Build the shared not-evaluated result for an infra/config failure.
 
@@ -181,7 +185,7 @@ def _not_evaluated_result(
     is folded into the error/notes text so the paths stay distinguishable.
     """
     detail = f"{stage}: {exc}" if stage else str(exc)
-    cause = _cause_of(exc)
+    cause = cause or _cause_of(exc)
     output = AgentOutput(
         success=False,
         termination_reason=TerminationReason.INFRA_FAILURE,
@@ -287,12 +291,39 @@ class LocalOrchestrator:
         ]
         summary.total_tasks = len(runs)
 
+        # docs/adr/0006 D16: prove each scenario solvable before the agent
+        # runs it. A scenario whose known-good script fails is defective:
+        # every run of it is not evaluated, and the agent is never called.
+        defective: dict[str, str] = {}
+        if isinstance(self._benchmark, KnownGoodSource):
+            for task in tasks:
+                script = self._benchmark.known_good_script(task)
+                if script is None:
+                    continue
+                check = await self._preflight(task, script)
+                summary.preflight.append(check)
+                if not check.passed:
+                    defective[str(task.task_id)] = check.cause or "failed"
+
         limit = max(1, self._config.max_concurrent_tasks)
         semaphore = asyncio.Semaphore(limit)
 
         async def _guarded(
             task: TaskSpec, repetition: int
         ) -> tuple[TaskRunResult, list[TraceEvent]]:
+            if str(task.task_id) in defective:
+                return (
+                    _not_evaluated_result(
+                        task,
+                        InfrastructureError(defective[str(task.task_id)]),
+                        [],
+                        self._evaluators,
+                        repetition=repetition,
+                        stage="preflight",
+                        cause="environment_defect",
+                    ),
+                    [],
+                )
             async with semaphore:
                 return await self._run_task(task, repetition)
 
@@ -509,6 +540,69 @@ class LocalOrchestrator:
                     repetition=repetition,
                 ),
                 events,
+            )
+        finally:
+            await self._teardown(task, handle)
+
+    async def _preflight(
+        self, task: TaskSpec, script: Sequence[dict[str, Any]]
+    ) -> PreflightResult:
+        """Run *task*'s known-good script with the scripted mock against a
+        fresh environment, judge it with the task's evaluators, and tear the
+        environment down (docs/adr/0006 D16). Nothing here reaches the run's
+        trace or harness streams: the preflight checks the scenario, not the
+        agent."""
+        # Deferred: orchestration otherwise needs no agent implementation.
+        from agentevalops.agents.mock_runner import MockAgentRunner
+
+        try:
+            handle = await self._prepare(task)
+        except (InfrastructureError, ConfigurationError) as exc:
+            return PreflightResult(task.task_id, False, f"prepare_environment: {exc}")
+        try:
+            environment = handle.tools
+            if environment is None:
+                return PreflightResult(task.task_id, False, "no tool environment")
+            try:
+                runner = MockAgentRunner(scripts={str(task.task_id): script})
+            except ConfigurationError as exc:
+                return PreflightResult(task.task_id, False, f"bad script: {exc}")
+            events: list[TraceEvent] = []
+            terminal: TraceEvent | None = None
+            agent_input = AgentInput(
+                task=task,
+                context={"run_id": self._config.run_id},
+                environment=environment,
+            )
+            stream = await runner.run(agent_input, self._config.resource_limits)
+            async for event in stream:
+                event.task_id = task.task_id
+                events.append(event)
+                if event.kind == TraceEventKind.AGENT_TERMINAL:
+                    terminal = event
+            state = EndStateRecord(task.task_id, 0, dict(await environment.snapshot()))
+            context = EvaluatorContext(
+                records=tuple(environment.records()),
+                end_states=(state,),
+                task_id=task.task_id,
+                repetition=0,
+                applicable_evaluators=task.applicable_evaluators,
+            )
+            chosen, missing = _applicable(task, self._evaluators)
+            output = _output_from_terminal(terminal)
+            evaluations = [
+                await e.evaluate(task, output, events, context) for e in chosen
+            ] + [
+                _not_evaluated(kind, kind, "configuration", "not configured")
+                for kind in missing
+            ]
+            verdict = _verdict(evaluations)
+            if verdict.evaluated and verdict.passed:
+                return PreflightResult(task.task_id, True)
+            return PreflightResult(
+                task.task_id,
+                False,
+                f"known-good trajectory did not pass: {verdict.notes}",
             )
         finally:
             await self._teardown(task, handle)

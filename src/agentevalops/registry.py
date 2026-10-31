@@ -291,6 +291,29 @@ class Registry:
 # ---------------------------------------------------------------------------
 
 
+def _agentic_baseline_factory(reg: Registry) -> Callable[..., Any]:
+    """Build ``agentic-baseline`` from YAML options: ``pack`` names a
+    registered domain pack, resolved here (docs/adr/0006 D23, D24) so the
+    benchmark itself never imports the registry."""
+    from agentevalops.benchmarks.agentic_baseline import AgenticBaselineBenchmark
+    from agentevalops.core.protocols import DomainPack
+
+    def build(pack: str = "", scenarios: list[str] | None = None) -> Any:
+        if not pack:
+            raise ConfigurationError(
+                "agentic-baseline needs benchmark_options.pack: the name of "
+                f"a registered domain pack ({sorted(reg.names(KIND_DOMAIN_PACK))})"
+            )
+        resolved = reg.get(KIND_DOMAIN_PACK, str(pack))()
+        if not isinstance(resolved, DomainPack):
+            raise ConfigurationError(
+                f"domain pack '{pack}' does not satisfy the DomainPack protocol"
+            )
+        return AgenticBaselineBenchmark(resolved, scenarios=scenarios)
+
+    return build
+
+
 def _register_builtins(reg: Registry) -> None:
     """Register the components that ship inside this package."""
     # Imports are local to avoid import cycles and to keep module import cheap
@@ -304,6 +327,7 @@ def _register_builtins(reg: Registry) -> None:
     from agentevalops.policy.basic_checker import BasicPolicyChecker
 
     reg.register(KIND_BENCHMARK, "toy", ToyBenchmarkAdapter)
+    reg.register(KIND_BENCHMARK, "agentic-baseline", _agentic_baseline_factory(reg))
     reg.register(KIND_RUNNER, "mock", MockAgentRunner)
     # Registering the langgraph/openai/azure-openai runners does NOT import
     # anthropic/langgraph/openai — those deps are imported lazily inside the

@@ -31,6 +31,7 @@ from agentevalops.core.schemas import (
     ResourceLimits,
     RunConfig,
     RunSummary,
+    Scenario,
     ScoreResult,
     TaskSpec,
     ToolCallRecord,
@@ -38,7 +39,7 @@ from agentevalops.core.schemas import (
     ToolSpec,
     TraceEvent,
 )
-from agentevalops.core.types import AgentId, BackendId, RunId
+from agentevalops.core.types import AgentId, BackendId, RunId, TaskId
 
 
 @runtime_checkable
@@ -143,6 +144,42 @@ class BenchmarkAdapter(Protocol):
 
         docs/benchmark_adapters.md D5: MUST be safe to call more than once.
         """
+        ...
+
+
+@runtime_checkable
+class KnownGoodSource(Protocol):
+    """A benchmark that can say how each task is solved (docs/adr/0006 D16).
+
+    Optional: the orchestrator checks for it with ``isinstance`` and runs
+    the script once per task before the agent -- the known-good preflight.
+    ``None`` means the task has no script, and no preflight.
+    """
+
+    def known_good_script(self, task: TaskSpec) -> Sequence[dict[str, Any]] | None:
+        """The scripted trajectory that solves *task*, as data."""
+        ...
+
+
+@runtime_checkable
+class DomainPack(Protocol):
+    """A domain's scenarios and the tool environment they run against
+    (docs/adr/0006 D23). Discovered through the ``agentevalops.domain_packs``
+    entry-point group (D24) and run by the ``agentic-baseline`` benchmark,
+    one task per scenario.
+    """
+
+    pack_id: str
+    pack_version: str
+
+    def scenarios(self) -> Sequence[Scenario]:
+        """Every scenario the pack offers, in a fixed order."""
+        ...
+
+    def build_environment(
+        self, scenario: Scenario, task_id: TaskId
+    ) -> ToolEnvironment:
+        """A fresh environment for one run of *scenario*."""
         ...
 
 

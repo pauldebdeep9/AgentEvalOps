@@ -161,6 +161,27 @@ class TaskSpec:
 
 
 @dataclass(frozen=True)
+class Scenario:
+    """One scenario of a domain pack (docs/adr/0006 D11, D23).
+
+    ``known_good`` and ``known_bad`` are scripted trajectories as data --
+    steps like ``{"call": tool, "arguments": {...}}``, ``{"say": text}``,
+    ``{"finish": answer}`` -- which ``MockAgentRunner`` runs. ``expected``
+    is what the evaluators check (copied into the task's metadata), and
+    ``control_ids`` are the catalogue controls the scenario evidences.
+    """
+
+    scenario_id: str
+    description: str
+    category: str
+    known_good: tuple[dict[str, Any], ...]
+    known_bad: tuple[dict[str, Any], ...] = ()
+    applicable_evaluators: tuple[str, ...] = ()
+    control_ids: tuple[str, ...] = ()
+    expected: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class EnvHandle:
     """Opaque handle to a task's prepared workspace (docs/benchmark_adapters.md D5).
 
