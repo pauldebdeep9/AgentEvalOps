@@ -60,6 +60,10 @@ class Policy:
     roles: dict[str, str] = field(default_factory=dict)
     #: The argument that names a record's case.
     case_argument: str = "case_id"
+    #: Where an export may go (the restricted-data boundary, R25), and the
+    #: export tool's argument that names the destination.
+    export_domains: tuple[str, ...] = ()
+    destination_argument: str = "destination"
 
 
 @dataclass(frozen=True)

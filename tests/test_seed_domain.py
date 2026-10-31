@@ -462,9 +462,9 @@ def test_every_known_good_runs_clean_and_reaches_its_expected_end_state() -> Non
         assert cross_check(env.records(), events) == [], s.scenario_id
         # A refusal by the approver is scripted, not an error of the run.
         refused = ("denied", "timed_out")
-        assert not any(
-            r.error and r.approval not in refused for r in env.records()
-        ), s.scenario_id
+        assert not any(r.error and r.approval not in refused for r in env.records()), (
+            s.scenario_id
+        )
         if "expected_end_state" in s.expected:
             assert _contains(s.expected["expected_end_state"], _snapshot(env)), (
                 s.scenario_id
@@ -790,6 +790,27 @@ def _dup(key: str) -> Callable[[dict[str, Any]], None]:
         ("policy.yaml", _set("reason_codes", {}), "reason_codes must not be empty"),
         ("policy.yaml", _set("clauses", {}), "clauses must be a non-empty list"),
         ("policy.yaml", _set("clauses.1.id", "P1"), "clause ids repeat"),
+        (
+            "policy.yaml",
+            _set("roles.decide", "rm"),
+            "roles name \\['rm'\\], not seed tools",
+        ),
+        (
+            "policy.yaml",
+            _set("roles", {"lookup": "case_lookup"}),
+            "roles must name a tool",
+        ),
+        ("policy.yaml", _set("export_domains", []), "export_domains must not be empty"),
+        (
+            "policy.yaml",
+            _set("export_domains", ["x@agency.example"]),
+            "not a lowercase domain",
+        ),
+        (
+            "policy.yaml",
+            _set("export_domains", ["Agency.Example"]),
+            "not a lowercase domain",
+        ),
         ("names.yaml", _set("groups", ["a", 1]), "groups must be a list of strings"),
         ("names.yaml", _set("groups", []), "groups must not be empty"),
         ("names.yaml", _set("groups", ["chinese", "chinese"]), "repeats an entry"),

@@ -180,12 +180,24 @@ def _policy(raw: dict[str, Any]) -> Policy:
     if not_tools:
         raise DomainPackError(f"{where}: roles name {not_tools}, not seed tools")
     case_argument = _text(raw.get("case_argument", "case_id"), where, "case_argument")
+    export_domains = _strings(raw.get("export_domains"), where, "export_domains")
+    for domain in export_domains:
+        if "@" in domain or "." not in domain or domain != domain.lower():
+            raise DomainPackError(
+                f"{where}: export_domains entry '{domain}' is not a lowercase "
+                "domain name"
+            )
+    destination_argument = _text(
+        raw.get("destination_argument", "destination"), where, "destination_argument"
+    )
     return Policy(
         scheme=scheme,
         reason_codes=reason_codes,
         clauses=tuple(clauses),
         roles=roles,
         case_argument=case_argument,
+        export_domains=export_domains,
+        destination_argument=destination_argument,
     )
 
 
@@ -381,6 +393,8 @@ def _policy_block(raw: Any, where: str, case: Case, policy: Policy) -> dict[str,
         "case_argument": policy.case_argument,
         "case_id": case.case_id,
         "ambiguous": case.ambiguous,
+        "export_domains": list(policy.export_domains),
+        "destination_argument": policy.destination_argument,
     }
     if ("least_privilege" in rules) != ("allowed_tools" in block):
         raise DomainPackError(
@@ -499,17 +513,18 @@ def _scenarios(
                     f"{here}: case {case_id} is ambiguous, so known_bad must "
                     f"decide it with {STATUS_UPDATE.name}"
                 )
-        elif STATUS_UPDATE.name not in good_calls or (
-            REFER_TO_OFFICER.name in good_calls
-            and good_calls.index(REFER_TO_OFFICER.name)
+        elif REFER_TO_OFFICER.name in good_calls and (
+            STATUS_UPDATE.name not in good_calls
+            or good_calls.index(REFER_TO_OFFICER.name)
             < good_calls.index(STATUS_UPDATE.name)
         ):
-            # A clear case is decided; it may be referred only after the
-            # decision (R25: when the approver refuses the notice).
+            # A clear case is never referred instead of decided; it may be
+            # referred after the decision (R25: when the approver refuses
+            # the notice). A task that neither decides nor refers -- an
+            # export on an officer's instruction -- is allowed.
             raise DomainPackError(
-                f"{here}: case {case_id} has a clear outcome, so known_good must "
-                f"call {STATUS_UPDATE.name} and never {REFER_TO_OFFICER.name} "
-                "before it"
+                f"{here}: case {case_id} has a clear outcome, so known_good may "
+                f"call {REFER_TO_OFFICER.name} only after {STATUS_UPDATE.name}"
             )
 
         scenarios.append(

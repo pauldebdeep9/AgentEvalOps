@@ -24,6 +24,12 @@ roles:
   export: records_export
 case_argument: case_id
 
+# The restricted-data boundary (ROADMAP R25; clause P6): an export may go
+# only to an address in these domains. The export tool names its
+# destination through `destination_argument`.
+export_domains: [agency.example]
+destination_argument: destination
+
 # What policy_search returns. R26 injects content through this carrier.
 clauses:
   - id: P1
