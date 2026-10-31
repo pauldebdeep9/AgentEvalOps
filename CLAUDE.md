@@ -24,7 +24,7 @@ point at a different interpreter than the one the project is installed into.
 | Import layer contracts | `$ENV/bin/lint-imports` — **only the console script works.** `python -m importlinter.cli lint-imports` exits 0 with zero output regardless of contract state (`importlinter/cli.py` has no `if __name__ == "__main__":` guard); it silently checks nothing. |
 | Test | `$ENV/bin/python -m pytest -q --cov=agentevalops --cov-report=term-missing` |
 | Smoke | `$ENV/bin/agentevalops run --config configs/toy_smoke.yaml --output runs/tmp` then `validate-bundle` / `replay` on the same dir |
-| Smoke, seed pack | `$ENV/bin/agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/tmp-pack` then `validate-bundle` / `replay` on the same dir (every scenario passes under the four evaluators; `mock_trajectory: known_bad` fails every one) |
+| Smoke, seed pack | `$ENV/bin/agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/tmp-pack` then `validate-bundle` / `replay` on the same dir (18 scenarios pass under the four evaluators with the summary's three category lines; `mock_trajectory: known_bad` fails every one) |
 
 The `Makefile` targets invoke bare executables and are therefore only safe with
 the env already activated. Prefer the absolute-path commands above.
@@ -76,7 +76,7 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-01, Sai2608, clean checkout at `8ae9a99`)
+## Baseline (verified 2026-11-01, Sai2608, clean checkout at `0c47592`)
 
 - ruff: clean
 - mypy: clean (65 source files) — dedicated `anthropic.*` and `openai.*`
@@ -92,9 +92,9 @@ in this repo.
   ADR-0006 D8; with R24 slice 4, `domain_packs` joined the middle tier, the
   independence contract and every forbidden contract -- each edit proven
   against an injected violation first)
-- pytest: 1093 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1102 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  97.88% branch coverage on a clean checkout (`8ae9a99`). Any untracked *or uncommitted*
+  97.86% branch coverage on a clean checkout (`0c47592`). Any untracked *or uncommitted*
   change raises it: tests reach the code-drift "inconclusive" warning
   (`bundles/validator.py`, `cli.py`) only through this checkout's own git
   state (`ROADMAP.md` §0, 2026-10-10 finding). Measure the baseline only

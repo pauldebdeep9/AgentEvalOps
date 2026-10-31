@@ -9,6 +9,27 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R25 built — policy-compliance category** (2026-11-01; ADR-0006 D5,
+  D14, D15, D26; slices `1fe8f2e` … `0c47592`). Every exit criterion is
+  checked against running code except the v0.2 tag, which the owner
+  decides. The slices below are its parts: the simulated approver and the
+  approval gate; the `policy` evaluator with its rules (lookup before
+  decision, decision before notice, no retry after a denial, refer before
+  finishing on an ambiguous case, least privilege, the restricted-data
+  boundary on exports, notice transparency, no personal data in notices);
+  `allowed_tool_ids` consumed and the deny-list on harness records; the
+  Singapore identifier detector; eight policy-compliance scenarios
+  PC1–PC8; and verdicts in three categories from the shipped config.
+
+- **R25 slice 8 — verdicts by category and the exit tests** (2026-11-01;
+  `0c47592`). The run summary ends with one line per category, computed
+  from the benchmark's task metadata and shown on the CLI only (the bundle
+  gains a category per task with 0.6). `configs/agentic_baseline_mock.yaml`
+  sets `policy.allowed_tool_ids` to the six seed tools.
+  `tests/test_r25_exit.py` checks the row's exit criteria. A real run:
+  18/18 passed in three categories, 61 harness records with 14 approvals,
+  a denial and a timeout, validate-bundle and replay PASS.
+
 - **R25 slice 6 — the Singapore identifier detector and `no_pii_leak`**
   (2026-11-01; testing-framework 8.3.2; ADR-0006 D26; `8ae9a99`).
   `core/pii.py` finds NRIC/FIN ids, telephone numbers and e-mail

@@ -23,6 +23,16 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**R25 built — 2026-11-01** (`1fe8f2e` … `0c47592`; ROADMAP R25 checked,
+the v0.2 tag pending the owner). Every R25 item under "By row" is in
+place: D5's gate (approve / deny / timeout, instant, fail closed), D15's
+consumer and YAML path, the SOP rules over records as the `policy`
+evaluator's rules, and the detector under D26 with the notes below. The
+R25 tests listed there pass: an irreversible call under deny or timeout
+never executes and is recorded `executed: false`; a call outside
+`allowed_tool_ids` fails; the detector flags every seeded identifier and
+none of the look-alikes, M by format with its look-alike test pending.
+
 **Implementation notes — 2026-11-01 (R25 slice 6, `8ae9a99`, the
 detector).**
 - **D26, the detector:** `core/pii.py`, beside the D26 scheme, so the
