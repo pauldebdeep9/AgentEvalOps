@@ -178,3 +178,22 @@ def test_markdown_report_generator_matches_render_report() -> None:
     )
     via_function = render_report(run_config, summary, events, "config.yaml")
     assert via_generator == via_function
+
+
+def test_bundle_audit_lists_every_file_of_the_current_format() -> None:
+    """The audit's file list and count come from the format version the
+    writer produces, so a 0.4 bundle's replay_command.txt is listed
+    (ROADMAP §0, 2026-10-31, finding 12)."""
+    from agentevalops.bundles.constants import (
+        BUNDLE_FORMAT_VERSION,
+        MANIFEST_FILENAME,
+        required_files_for_version,
+    )
+
+    run_config, summary, events = _make_summary()
+    audit = render_report(run_config, summary, events).split("## Bundle Audit")[1]
+    expected = (*required_files_for_version(BUNDLE_FORMAT_VERSION), MANIFEST_FILENAME)
+
+    assert f"- Files written: {len(expected)}" in audit
+    for name in expected:
+        assert name in audit

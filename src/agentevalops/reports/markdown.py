@@ -5,7 +5,11 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime, timezone
 
-from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION, REQUIRED_BUNDLE_FILES
+from agentevalops.bundles.constants import (
+    BUNDLE_FORMAT_VERSION,
+    MANIFEST_FILENAME,
+    required_files_for_version,
+)
 from agentevalops.core.schemas import RunConfig, RunSummary, TraceEvent
 
 
@@ -141,10 +145,14 @@ def render_report(
     lines.append("")
     lines.append(f"- Bundle format version: `{BUNDLE_FORMAT_VERSION}`")
     lines.append("- Manifest: present (written after content files)")
-    lines.append(f"- Files written: {len(REQUIRED_BUNDLE_FILES) + 1}")
-    lines.append(
-        "  (" + ", ".join(REQUIRED_BUNDLE_FILES) + ", manifest.json)"
+    # From the version this code writes, so a format bump (0.4 added
+    # replay_command.txt) cannot leave the audit listing a stale file set.
+    bundle_files = (
+        *required_files_for_version(BUNDLE_FORMAT_VERSION),
+        MANIFEST_FILENAME,
     )
+    lines.append(f"- Files written: {len(bundle_files)}")
+    lines.append("  (" + ", ".join(bundle_files) + ")")
     lines.append(f"- Trace event count: {len(all_events)}")
     lines.append(
         "- Checksums: SHA-256 per file "
