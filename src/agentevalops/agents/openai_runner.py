@@ -42,6 +42,7 @@ the lazy-import and real-client-construction branches carry
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -63,6 +64,12 @@ from agentevalops.core.types import AgentId, RunId
 from agentevalops.environments.toy import run_calculator, toy_environment
 
 logger = logging.getLogger(__name__)
+
+#: Request timeout and retry count for the real SDK client (docs/adr/0006
+#: D10). A model call runs in a worker thread and cannot be cancelled, so
+#: these also bound how long Ctrl-C waits for one at exit: timeout x tries.
+DEFAULT_REQUEST_TIMEOUT_SECONDS: float = 60.0
+MAX_RETRIES: int = 1
 
 # ---------------------------------------------------------------------------
 # Model + pricing table
@@ -270,12 +277,14 @@ class OpenAIRunner:
         agent_factory: Callable[[], Any] | None = None,
         max_steps: int = 6,
         system_prompt: str | None = None,
+        request_timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
     ) -> None:
         resolved_model = model or DEFAULT_MODEL
         self._api_model = resolved_model  # -> the API's `model=` parameter
         self._model_id = resolved_model  # -> pricing table key + agent_id
         self._agent_factory = agent_factory
         self._max_steps = max(1, int(max_steps))
+        self._request_timeout_seconds = float(request_timeout_seconds)
         self._system_prompt = system_prompt or (
             "You are a precise assistant solving a short question-answering "
             "task. Use the calculator tool only when arithmetic is needed. "
@@ -324,7 +333,10 @@ class OpenAIRunner:
                 "Install it with: pip install 'agentevalops[llm]'"
             ) from exc
         try:
-            return openai.OpenAI(api_key=api_key)
+            return openai.OpenAI(api_key=api_key,
+                timeout=self._request_timeout_seconds,
+                max_retries=MAX_RETRIES,
+            )
         except Exception as exc:  # noqa: BLE001 - surface as infra failure
             raise InfrastructureError(
                 f"Failed to construct the OpenAI client: {exc}"
@@ -470,7 +482,11 @@ class OpenAIRunner:
         step += 1
 
         for _iteration in range(self._max_steps):
-            parsed = self._call_model(client, messages, tools)
+            # Off the event loop (docs/adr/0006 D10): the SDK call is
+            # synchronous, and other tasks must keep running meanwhile.
+            parsed = await asyncio.to_thread(
+                self._call_model, client, messages, tools
+            )
 
             # --- cost / token accounting for this response ----------------
             step_tokens = parsed.input_tokens + parsed.output_tokens

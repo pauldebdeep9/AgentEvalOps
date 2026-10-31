@@ -97,7 +97,11 @@ from __future__ import annotations
 import os
 from typing import Any, Callable
 
-from agentevalops.agents.openai_runner import OpenAIRunner
+from agentevalops.agents.openai_runner import (
+    DEFAULT_REQUEST_TIMEOUT_SECONDS,
+    MAX_RETRIES,
+    OpenAIRunner,
+)
 from agentevalops.core.errors import ConfigurationError, InfrastructureError
 from agentevalops.core.types import AgentId
 
@@ -203,12 +207,14 @@ class AzureOpenAIRunner(OpenAIRunner):
         agent_factory: Callable[[], Any] | None = None,
         max_steps: int = 6,
         system_prompt: str | None = None,
+        request_timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
     ) -> None:
         super().__init__(
             model=model,
             agent_factory=agent_factory,
             max_steps=max_steps,
             system_prompt=system_prompt,
+            request_timeout_seconds=request_timeout_seconds,
         )
         if not deployment:
             raise ConfigurationError(
@@ -294,6 +300,8 @@ class AzureOpenAIRunner(OpenAIRunner):
                 azure_endpoint=endpoint,
                 api_key=api_key,
                 api_version=self._api_version,
+                timeout=self._request_timeout_seconds,
+                max_retries=MAX_RETRIES,
             )
         except Exception as exc:  # noqa: BLE001 - surface as infra failure
             raise InfrastructureError(
