@@ -5,6 +5,7 @@ environments from here, and runners fall back to the toy environment when
 called directly. Imports nothing from ``agentevalops`` except ``core``.
 """
 
+from agentevalops.environments.crosscheck import Mismatch, cross_check
 from agentevalops.environments.inprocess import (
     InProcessToolEnvironment,
     ToolEnvironmentError,
@@ -19,8 +20,10 @@ from agentevalops.environments.toy import (
 __all__ = [
     "CALCULATOR_TOOL_SPEC",
     "InProcessToolEnvironment",
+    "Mismatch",
     "ToolEnvironmentError",
     "ToolHandler",
+    "cross_check",
     "run_calculator",
     "toy_environment",
 ]

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, AsyncIterator
+import logging
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
+from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.schemas import (
     AgentInput,
     ResourceLimits,
@@ -12,6 +16,70 @@ from agentevalops.core.schemas import (
     TraceEventKind,
 )
 from agentevalops.core.types import AgentId, RunId
+from agentevalops.environments.toy import toy_environment
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ScriptStep:
+    """One step of a scripted trajectory (docs/adr/0006 D11).
+
+    ``call`` runs ``tool`` with ``arguments`` through the task's environment
+    and reports it -- as ``report_as`` instead, if set, which makes a
+    deliberately divergent script for the self-report cross-check. ``say``
+    is text the scripted agent produces; ``finish`` ends with ``text`` as
+    the answer.
+    """
+
+    kind: Literal["call", "say", "finish"]
+    tool: str = ""
+    arguments: dict[str, Any] = field(default_factory=dict)
+    text: str = ""
+    report_as: str | None = None
+
+
+def parse_script(
+    raw: Sequence[Mapping[str, Any] | ScriptStep],
+) -> tuple[ScriptStep, ...]:
+    """Turn script data -- ``{"call": tool, "arguments": {...}}``,
+    ``{"say": text}`` or ``{"finish": answer}`` -- into steps. Raises
+    ``ConfigurationError`` on anything else, so a broken script fails when
+    the runner is built, not halfway through a run."""
+    steps = []
+    for position, item in enumerate(raw):
+        if isinstance(item, ScriptStep):
+            steps.append(item)
+            continue
+        kinds = [k for k in ("call", "say", "finish") if k in item]
+        if len(kinds) != 1:
+            raise ConfigurationError(
+                f"script step {position}: needs exactly one of 'call', 'say' "
+                f"or 'finish', got {sorted(item)}"
+            )
+        kind = kinds[0]
+        value = item[kind]
+        if not isinstance(value, str) or (kind == "call" and not value):
+            raise ConfigurationError(
+                f"script step {position}: '{kind}' must be a "
+                f"{'tool name' if kind == 'call' else 'string'}"
+            )
+        arguments = item.get("arguments", {})
+        if not isinstance(arguments, Mapping):
+            raise ConfigurationError(
+                f"script step {position}: 'arguments' must be a mapping"
+            )
+        report_as = item.get("report_as")
+        steps.append(
+            ScriptStep(
+                kind=kind,  # type: ignore[arg-type]
+                tool=value if kind == "call" else "",
+                arguments=dict(arguments),
+                text=value if kind != "call" else "",
+                report_as=str(report_as) if report_as is not None else None,
+            )
+        )
+    return tuple(steps)
 
 
 class MockAgentRunner:
@@ -55,6 +123,11 @@ class MockAgentRunner:
     cost_per_task_usd:
         Cost each task reports in its ``AGENT_TERMINAL`` payload.  Defaults
         to ``0.0``.  Used by the ``toy_policy_violation`` demo scenario.
+    scripts:
+        Scripted trajectories keyed by task id (docs/adr/0006 D11). A task
+        with a script runs it -- every ``call`` through the task's real tool
+        environment, so the harness records are genuine -- instead of the
+        metadata-driven mode above. Validated when the runner is built.
     """
 
     agent_id: AgentId = AgentId("mock-agent-v1")
@@ -63,9 +136,16 @@ class MockAgentRunner:
         self,
         should_fail: bool = False,
         cost_per_task_usd: float = 0.0,
+        scripts: (
+            Mapping[str, Sequence[Mapping[str, Any] | ScriptStep]] | None
+        ) = None,
     ) -> None:
         self._should_fail = should_fail
         self._cost_per_task_usd = cost_per_task_usd
+        self._scripts = {
+            str(task_id): parse_script(steps)
+            for task_id, steps in (scripts or {}).items()
+        }
 
     async def run(
         self,
@@ -74,6 +154,9 @@ class MockAgentRunner:
     ) -> AsyncIterator[TraceEvent]:
         """Return an async iterator that yields the fixed demo events."""
         run_id = RunId(str(input.context.get("run_id", "unknown")))
+        script = self._scripts.get(str(input.task.task_id))
+        if script is not None:
+            return self._scripted(run_id, input, script)
         should_fail = self._should_fail
         cost = self._cost_per_task_usd
         metadata = input.task.metadata
@@ -156,3 +239,65 @@ class MockAgentRunner:
                 )
 
         return _gen()
+
+    async def _scripted(
+        self, run_id: RunId, input: AgentInput, script: tuple[ScriptStep, ...]
+    ) -> AsyncGenerator[TraceEvent, None]:
+        environment = input.environment
+        if environment is None:
+            logger.warning(
+                "MockAgentRunner: no tool environment given; using the toy "
+                "environment"
+            )
+            environment = toy_environment(input.task.task_id)
+        cost = self._cost_per_task_usd
+        step = 0
+
+        def _event(kind: TraceEventKind, payload: dict[str, Any]) -> TraceEvent:
+            return TraceEvent(
+                run_id=run_id, step_index=step, kind=kind, payload=payload
+            )
+
+        def _terminal(success: bool, answer: str | None) -> TraceEvent:
+            reason = TerminationReason.AGENT_ERROR
+            if success:
+                reason = TerminationReason.COMPLETED
+            return _event(
+                TraceEventKind.AGENT_TERMINAL,
+                {
+                    "success": success,
+                    "termination_reason": reason.value,
+                    "final_answer": answer,
+                    "total_cost_usd": cost,
+                    "total_tokens": 0,
+                    "wall_seconds": 0.0,
+                },
+            )
+
+        yield _event(
+            TraceEventKind.AGENT_PLAN, {"plan": f"Solve: {input.task.description}"}
+        )
+        step += 1
+        for s in script:
+            if s.kind == "say":
+                yield _event(TraceEventKind.AGENT_PLAN, {"plan": s.text})
+                step += 1
+            elif s.kind == "call":
+                yield _event(
+                    TraceEventKind.AGENT_TOOL_CALL,
+                    {"tool_name": s.report_as or s.tool, "args": dict(s.arguments)},
+                )
+                step += 1
+                result = await environment.call(s.tool, dict(s.arguments))
+                yield _event(
+                    TraceEventKind.AGENT_TOOL_RESULT,
+                    {"tool_name": s.tool, "result": result.content},
+                )
+                step += 1
+            else:
+                yield _event(TraceEventKind.AGENT_FINAL_ANSWER, {"answer": s.text})
+                step += 1
+                yield _terminal(True, s.text)
+                return
+        # A script that never finishes is the agent's failure, as in a real run.
+        yield _terminal(False, None)
