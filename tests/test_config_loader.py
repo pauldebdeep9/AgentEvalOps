@@ -428,27 +428,56 @@ def test_api_version_rejected_for_mock_runner(tmp_path: Path) -> None:
         load_run_config(p)
 
 
-def test_supported_runners_matches_registry() -> None:
-    """Guards against the 2026-08-03 parity bug: a runner registered in
-    ``registry.py`` (``openai``) was left out of this module's
-    ``_SUPPORTED_RUNNERS`` allowlist, making it unreachable from any YAML
-    config even though it was fully wired up everywhere else. The two lists
-    are maintained separately (see the comment above ``_SUPPORTED_RUNNERS``
-    in ``config/loader.py`` — no deliberate design reason was found for
-    that), so nothing else catches them drifting apart except this test.
+@pytest.mark.parametrize(
+    ("kind", "yaml_text"),
+    [
+        ("runner", "run_id: r1\nrunner_id: parity-probe\nmodel: m\n"),
+        ("benchmark", "run_id: r1\nbenchmark_id: parity-probe\n"),
+    ],
+)
+def test_allowlists_follow_the_registry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kind: str, yaml_text: str
+) -> None:
+    """The loader's runner and benchmark allowlists are the registry's names
+    (ROADMAP R23; ADR-0005 finding 4). Guards the 2026-08-03 parity bug,
+    when a runner registered in ``registry.py`` (``openai``) was missing
+    from a hand-kept allowlist and unreachable from YAML.
+
+    Fail-first: against the hand-kept ``_SUPPORTED_RUNNERS`` and
+    ``_SUPPORTED_BENCHMARKS``, a name registered here was rejected.
     """
     from agentevalops import registry as registry_module
-    from agentevalops.config.loader import _SUPPORTED_RUNNERS
 
-    registered = set(registry_module.names(registry_module.KIND_RUNNER))
-    assert _SUPPORTED_RUNNERS == registered, (
-        f"config/loader.py's _SUPPORTED_RUNNERS {sorted(_SUPPORTED_RUNNERS)} "
-        f"has drifted from the registry's actually-registered runner names "
-        f"{sorted(registered)}. A name registered in registry.py but "
-        "missing here is unreachable from YAML; a name here with no "
-        "matching registration is dead config that will raise "
-        "UnknownComponentError at runtime instead of a clean config error."
+    fresh = registry_module.build_default_registry()
+    fresh.register(kind, "parity-probe", object)
+    monkeypatch.setattr(registry_module, "default_registry", fresh)
+
+    loaded = load_run_config(_write(tmp_path, yaml_text))
+    if kind == "runner":
+        assert loaded.runner_id == "parity-probe"
+    else:
+        assert loaded.benchmark_id == "parity-probe"
+
+
+@pytest.mark.parametrize(
+    ("field", "yaml_text"),
+    [
+        ("runner_id", "run_id: r1\nrunner_id: not-registered\nmodel: m\n"),
+        ("benchmark_id", "run_id: r1\nbenchmark_id: not-registered\n"),
+    ],
+)
+def test_unregistered_names_are_rejected_listing_the_registry(
+    tmp_path: Path, field: str, yaml_text: str
+) -> None:
+    from agentevalops import registry as registry_module
+
+    with pytest.raises(ConfigurationError, match=field) as excinfo:
+        load_run_config(_write(tmp_path, yaml_text))
+    kind = registry_module.KIND_RUNNER if field == "runner_id" else (
+        registry_module.KIND_BENCHMARK
     )
+    for name in registry_module.names(kind):
+        assert name in str(excinfo.value)
 
 
 def test_negative_max_trace_events_raises(tmp_path: Path) -> None:

@@ -37,36 +37,21 @@ from agentevalops.core.types import BACKEND_AWS, AgentId, BackendId, RunId
 #: left v0.5 (ADR-0005 D3). Accepting it wrote "aws" into metadata.json and
 #: report.md for a run that was local (ROADMAP §0, 2026-10-31, finding 3).
 _SUPPORTED_BACKENDS: frozenset[str] = frozenset({"local"})
-_SUPPORTED_BENCHMARKS: frozenset[str] = frozenset({"toy"})
-#: Agent runners selectable from a config's ``runner_id``.  ``"mock"`` is the
-#: default and the only runner required for the v0.1 demo path; ``"langgraph"``
-#: is the real Claude-backed runner (ROADMAP W8), ``"openai"`` is the real
-#: OpenAI-backed runner (docs/adr/0001-openai-runner-chat-completions.md),
-#: and ``"azure-openai"`` is the Azure OpenAI-backed runner (docs/adr/0004-
-#: cloud-backend-two-axes.md, Axis B) -- all registered separately.
-#:
-#: This frozenset duplicates the registry's set of registered runner names
-#: (``registry.names(registry.KIND_RUNNER)``) instead of querying it
-#: directly. Investigated 2026-08-03, after ``"openai"`` was registered in
-#: ``registry.py`` but left out here, making the runner unreachable from any
-#: YAML config despite being fully wired up everywhere else: **no deliberate
-#: design reason was found for keeping these two lists separate.** It looks
-#: like accidental duplication from when this module predated the registry
-#: having more than two runners, not an intentional boundary. The actual
-#: guardrail against future drift is
-#: ``test_supported_runners_matches_registry`` in
-#: ``tests/test_config_loader.py``, which asserts this set equals the
-#: registry's registered runner names and fails loudly if they diverge --
-#: this comment records the "why not merged" investigation, not a reason to
-#: leave it duplicated forever. Collapsing this into a direct
-#: ``registry.names(...)`` call is a legitimate future refactor; it was not
-#: done here to keep this fix scoped to the parity bug, and would need
-#: checking against import-linter's layers contract (config/ and registry.py
-#: are already in the same middle tier, so this is expected to be
-#: uncontroversial, just unverified until someone actually does it).
-_SUPPORTED_RUNNERS: frozenset[str] = frozenset(
-    {"mock", "langgraph", "openai", "azure-openai"}
-)
+
+
+def _registered(kind: str) -> frozenset[str]:
+    """The names the registry knows for *kind* (``"runner"`` or
+    ``"benchmark"``): the loader's allowlists are derived from it at load
+    time, never hand-kept (ROADMAP R23; ADR-0005 finding 4).
+
+    Hand-kept lists drifted once: on 2026-08-03 ``"openai"`` was registered
+    but missing from ``_SUPPORTED_RUNNERS``, so no YAML could reach it.
+    Derived at call time, not import time, so anything registered later
+    (e.g. through entry points, ADR-0006 D24) is accepted too.
+    """
+    from agentevalops import registry  # deferred: registry imports adapters
+
+    return frozenset(registry.names(kind))
 
 # ---------------------------------------------------------------------------
 # Public types
@@ -321,10 +306,11 @@ def load_run_config(path: Path) -> LoadedRunConfig:
     # benchmark_id
     # ------------------------------------------------------------------
     benchmark_id = str(raw.get("benchmark_id", "toy"))
-    if benchmark_id not in _SUPPORTED_BENCHMARKS:
+    supported_benchmarks = _registered("benchmark")
+    if benchmark_id not in supported_benchmarks:
         raise ConfigurationError(
             f"Unsupported benchmark_id '{benchmark_id}'. "
-            f"Supported values: {sorted(_SUPPORTED_BENCHMARKS)}"
+            f"Supported values: {sorted(supported_benchmarks)}"
         )
 
     # ------------------------------------------------------------------
@@ -398,10 +384,11 @@ def load_run_config(path: Path) -> LoadedRunConfig:
     # runner selection (mock by default; langgraph for the real runner)
     # ------------------------------------------------------------------
     runner_id = str(raw.get("runner_id", "mock"))
-    if runner_id not in _SUPPORTED_RUNNERS:
+    supported_runners = _registered("runner")
+    if runner_id not in supported_runners:
         raise ConfigurationError(
             f"Unsupported runner_id '{runner_id}'. "
-            f"Supported values: {sorted(_SUPPORTED_RUNNERS)}"
+            f"Supported values: {sorted(supported_runners)}"
         )
 
     # Model-backed runners (everything except "mock") must specify `model`
