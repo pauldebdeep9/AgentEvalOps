@@ -92,11 +92,14 @@ def run(
     except ConfigurationError as exc:
         typer.echo(f"Configuration error: {exc}", err=True)
         raise typer.Exit(code=1)
-    evaluator_cls = default_registry.get(KIND_EVALUATOR, "deterministic")
+    # docs/adr/0006 D13: every evaluator the run configures, in order.
+    evaluators = [
+        default_registry.get(KIND_EVALUATOR, name)() for name in loaded.evaluators
+    ]
     policy_cls = default_registry.get(KIND_POLICY, "basic")
 
     try:
-        runner = _build_runner(loaded)
+        runner = _build_runner(loaded, benchmark)
     except ConfigurationError as exc:
         typer.echo(f"Configuration error: {exc}", err=True)
         raise typer.Exit(code=1)
@@ -124,7 +127,7 @@ def run(
         benchmark=benchmark,
         runner=runner,
         trace_store=store,
-        evaluator=evaluator_cls(),
+        evaluator=evaluators,
         policy_checker=policy_cls(),
         policy_spec=loaded.policy_spec,
     )
@@ -228,10 +231,12 @@ def run(
     _write_bundle(summary, "sealed", store.events(loaded.run_config.run_id))
 
 
-def _build_runner(loaded: LoadedRunConfig) -> Any:
+def _build_runner(loaded: LoadedRunConfig, benchmark: Any = None) -> Any:
     """Construct the agent runner selected by the config's ``runner_id``.
 
-    ``"mock"`` (the default) takes the demo/test knobs.  Model-backed runners
+    ``"mock"`` (the default) takes the demo/test knobs, and with
+    ``mock_trajectory`` set plays back every task's scripted trajectory of
+    that kind from *benchmark* (docs/adr/0006 D11). Model-backed runners
     such as ``"langgraph"`` take a ``model`` and read their provider
     credentials from the environment.
 
@@ -243,13 +248,23 @@ def _build_runner(loaded: LoadedRunConfig) -> Any:
         ``UnknownComponentError`` is a ``ConfigurationError`` subclass, so the
         caller's existing config-error handling surfaces a clear message.
     """
+    from agentevalops.core.errors import ConfigurationError
     from agentevalops.registry import KIND_RUNNER, default_registry
 
     runner_cls = default_registry.get(KIND_RUNNER, loaded.runner_id)
     if loaded.runner_id == "mock":
+        scripts = None
+        if loaded.mock_trajectory is not None:
+            if not hasattr(benchmark, "scripted_trajectories"):
+                raise ConfigurationError(
+                    f"benchmark '{loaded.benchmark_id}' has no scripted "
+                    "trajectories to play back; remove mock_trajectory"
+                )
+            scripts = benchmark.scripted_trajectories(loaded.mock_trajectory)
         return runner_cls(
             should_fail=loaded.mock_fail,
             cost_per_task_usd=loaded.mock_cost_per_task_usd,
+            scripts=scripts,
         )
     if loaded.runner_id == "azure-openai":
         return runner_cls(

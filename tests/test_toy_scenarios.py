@@ -14,12 +14,14 @@ from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
+    EvaluatorContext,
     PolicySpec,
     ResourceLimits,
     RunConfig,
     RunSummary,
     TaskSpec,
     TerminationReason,
+    ToolCallRecord,
     TraceEvent,
     TraceEventKind,
     Verdict,
@@ -440,16 +442,23 @@ def test_required_tool_name_passes_when_present() -> None:
         termination_reason=TerminationReason.COMPLETED,
         final_answer="ok",
     )
-    trace = [
-        TraceEvent(
-            run_id=RunId("r"),
-            step_index=0,
-            kind=TraceEventKind.AGENT_TOOL_CALL,
-            payload={"tool_name": "search", "args": {}},
+    # docs/adr/0006 D14: the harness's record of the call, not the agent's.
+    context = EvaluatorContext(
+        records=(
+            ToolCallRecord(
+                task_id=TaskId("tt"),
+                index=0,
+                tool_name="search",
+                arguments={},
+                permission="read",
+                data_class="normal",
+                executed=True,
+                result="ok",
+            ),
         )
-    ]
+    )
     ev = DeterministicEvaluator()
-    result = asyncio.run(ev.evaluate(task, output, trace))
+    result = asyncio.run(ev.evaluate(task, output, [], context))
     assert result.passed is True
 
 
@@ -465,7 +474,7 @@ def test_required_tool_name_fails_when_absent() -> None:
         termination_reason=TerminationReason.COMPLETED,
         final_answer="ok",
     )
-    # No AGENT_TOOL_CALL events
+    # No harness records (docs/adr/0006 D14)
     ev = DeterministicEvaluator()
     result = asyncio.run(ev.evaluate(task, output, []))
     assert result.passed is False

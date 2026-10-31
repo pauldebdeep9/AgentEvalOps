@@ -108,3 +108,16 @@ class AgenticBaselineBenchmark:
 
     def known_good_script(self, task: TaskSpec) -> Sequence[dict[str, Any]] | None:
         return self._scenario(task).known_good
+
+    def scripted_trajectories(self, which: str) -> dict[str, Sequence[dict[str, Any]]]:
+        """Every task's ``known_good`` or ``known_bad`` trajectory, keyed by
+        task id -- what ``MockAgentRunner(scripts=...)`` takes, so a config
+        can play a whole pack back (``mock_trajectory`` in YAML)."""
+        if which not in ("known_good", "known_bad"):
+            raise ConfigurationError(
+                f"unknown trajectory '{which}': use 'known_good' or 'known_bad'"
+            )
+        return {
+            scenario_id: getattr(scenario, which)
+            for scenario_id, scenario in self._scenarios.items()
+        }

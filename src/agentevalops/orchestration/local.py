@@ -300,9 +300,9 @@ class LocalOrchestrator:
                 script = self._benchmark.known_good_script(task)
                 if script is None:
                     continue
-                check = await self._preflight(task, script)
+                check, defect = await self._preflight(task, script)
                 summary.preflight.append(check)
-                if not check.passed:
+                if defect:
                     defective[str(task.task_id)] = check.cause or "failed"
 
         limit = max(1, self._config.max_concurrent_tasks)
@@ -546,27 +546,36 @@ class LocalOrchestrator:
 
     async def _preflight(
         self, task: TaskSpec, script: Sequence[dict[str, Any]]
-    ) -> PreflightResult:
+    ) -> tuple[PreflightResult, bool]:
         """Run *task*'s known-good script with the scripted mock against a
         fresh environment, judge it with the task's evaluators, and tear the
         environment down (docs/adr/0006 D16). Nothing here reaches the run's
         trace or harness streams: the preflight checks the scenario, not the
-        agent."""
+        agent.
+
+        Returns the result and whether the scenario is *defective* -- its
+        known-good was judged and failed, or could not even be run. A
+        known-good that could not be judged because the run does not
+        configure an evaluator the scenario declares is not a defect: the
+        result says so, and each run of the task is then reported not
+        evaluated with cause ``configuration`` by the normal path (D13).
+        """
         # Deferred: orchestration otherwise needs no agent implementation.
         from agentevalops.agents.mock_runner import MockAgentRunner
 
         try:
             handle = await self._prepare(task)
         except (InfrastructureError, ConfigurationError) as exc:
-            return PreflightResult(task.task_id, False, f"prepare_environment: {exc}")
+            failed = PreflightResult(task.task_id, False, f"prepare_environment: {exc}")
+            return failed, True
         try:
             environment = handle.tools
             if environment is None:
-                return PreflightResult(task.task_id, False, "no tool environment")
+                return PreflightResult(task.task_id, False, "no tool environment"), True
             try:
                 runner = MockAgentRunner(scripts={str(task.task_id): script})
             except ConfigurationError as exc:
-                return PreflightResult(task.task_id, False, f"bad script: {exc}")
+                return PreflightResult(task.task_id, False, f"bad script: {exc}"), True
             events: list[TraceEvent] = []
             terminal: TraceEvent | None = None
             agent_input = AgentInput(
@@ -593,16 +602,31 @@ class LocalOrchestrator:
             evaluations = [
                 await e.evaluate(task, output, events, context) for e in chosen
             ] + [
-                _not_evaluated(kind, kind, "configuration", "not configured")
+                _not_evaluated(
+                    kind,
+                    kind,
+                    "configuration",
+                    f"the task declares '{kind}', which this run does not configure",
+                )
                 for kind in missing
             ]
             verdict = _verdict(evaluations)
             if verdict.evaluated and verdict.passed:
-                return PreflightResult(task.task_id, True)
-            return PreflightResult(
-                task.task_id,
-                False,
-                f"known-good trajectory did not pass: {verdict.notes}",
+                return PreflightResult(task.task_id, True), False
+            if not verdict.evaluated and verdict.not_evaluated_cause == "configuration":
+                return (
+                    PreflightResult(
+                        task.task_id, False, f"known-good trajectory {verdict.notes}"
+                    ),
+                    False,
+                )
+            return (
+                PreflightResult(
+                    task.task_id,
+                    False,
+                    f"known-good trajectory did not pass: {verdict.notes}",
+                ),
+                True,
             )
         finally:
             await self._teardown(task, handle)

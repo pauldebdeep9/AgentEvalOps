@@ -1,0 +1,32 @@
+# AgentEvalOps — the agentic-baseline benchmark on the seed domain pack,
+# played back by the scripted mock (docs/adr/0006 D11, D23; ROADMAP R24).
+# Used by: agentevalops run --config configs/agentic_baseline_mock.yaml
+#
+# Every scenario's known-good trajectory runs, so every task passes under
+# each evaluator that applies. Set mock_trajectory to known_bad to watch
+# every task fail instead. R25 extends this config with the
+# policy-compliance category.
+
+run_id: "agentic-baseline-mock-001"
+agent_id: "mock-agent-v1"
+backend_id: "local"
+max_concurrent_tasks: 1
+resource_limits:
+  max_tokens: 10000
+  max_wall_seconds: 60.0
+  max_cost_usd: 1.0
+
+benchmark_id: "agentic-baseline"
+benchmark_options:
+  pack: seed
+
+# docs/adr/0006 D13: the run configures these; each scenario declares which
+# of them apply to it.
+evaluators: [deterministic, tool_use, state_based]
+
+runner_id: mock
+mock_trajectory: known_good
+
+policy:
+  policy_id: "default"
+  max_cost_usd: 1.0

@@ -91,6 +91,16 @@ class LoadedRunConfig:
         Which registered agent runner to use (``"mock"`` by default, or
         ``"langgraph"`` for the real Claude-backed runner).  The CLI resolves
         this against the component registry.
+    evaluators:
+        The registered evaluators the run configures (docs/adr/0006 D13),
+        ``("deterministic",)`` by default. A scenario that declares an
+        evaluator the run does not configure is not evaluated, with cause
+        ``configuration``.
+    mock_trajectory:
+        ``"known_good"`` or ``"known_bad"`` plays every task's scripted
+        trajectory of that kind through the mock runner (docs/adr/0006
+        D11); ``None`` keeps the mock's metadata-driven mode. Only valid
+        with ``runner_id: mock`` and a benchmark that has scripts.
     """
 
     path: Path
@@ -103,6 +113,8 @@ class LoadedRunConfig:
     benchmark_scenario: str = ""
     benchmark_options: dict[str, Any] = field(default_factory=dict)
     runner_id: str = "mock"
+    evaluators: tuple[str, ...] = ("deterministic",)
+    mock_trajectory: str | None = None
 
     @property
     def model(self) -> str | None:
@@ -317,6 +329,27 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         )
 
     # ------------------------------------------------------------------
+    # evaluators (docs/adr/0006 D13)
+    # ------------------------------------------------------------------
+    evaluators_raw = raw.get("evaluators", ["deterministic"])
+    if not isinstance(evaluators_raw, list) or not all(
+        isinstance(name, str) for name in evaluators_raw
+    ):
+        raise ConfigurationError("evaluators must be a YAML list of names")
+    if not evaluators_raw:
+        raise ConfigurationError("evaluators must name at least one evaluator")
+    if len(set(evaluators_raw)) != len(evaluators_raw):
+        raise ConfigurationError(f"evaluators repeats a name: {evaluators_raw}")
+    supported_evaluators = _registered("evaluator")
+    for name in evaluators_raw:
+        if name not in supported_evaluators:
+            raise ConfigurationError(
+                f"Unsupported evaluator '{name}'. "
+                f"Supported values: {sorted(supported_evaluators)}"
+            )
+    evaluators: tuple[str, ...] = tuple(evaluators_raw)
+
+    # ------------------------------------------------------------------
     # policy
     # ------------------------------------------------------------------
     policy_raw = raw.get("policy", {})
@@ -460,6 +493,23 @@ def load_run_config(path: Path) -> LoadedRunConfig:
             "set runner_id: azure-openai."
         )
 
+    # ------------------------------------------------------------------
+    # mock_trajectory (docs/adr/0006 D11): scripted playback, mock only
+    # ------------------------------------------------------------------
+    trajectory_raw = raw.get("mock_trajectory")
+    mock_trajectory = str(trajectory_raw) if trajectory_raw is not None else None
+    if mock_trajectory is not None:
+        if mock_trajectory not in ("known_good", "known_bad"):
+            raise ConfigurationError(
+                f"mock_trajectory must be 'known_good' or 'known_bad', got "
+                f"'{mock_trajectory}'"
+            )
+        if runner_id != "mock":
+            raise ConfigurationError(
+                "mock_trajectory is only valid with runner_id: mock "
+                f"(got runner_id: '{runner_id}')"
+            )
+
     return LoadedRunConfig(
         path=path,
         raw=raw,
@@ -471,4 +521,6 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         benchmark_scenario=benchmark_scenario,
         benchmark_options=benchmark_options,
         runner_id=runner_id,
+        evaluators=evaluators,
+        mock_trajectory=mock_trajectory,
     )

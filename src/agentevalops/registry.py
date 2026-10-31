@@ -325,6 +325,8 @@ def _register_builtins(reg: Registry) -> None:
     from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
     from agentevalops.domain_packs.seed import SeedDomainPack
     from agentevalops.evaluators.deterministic import DeterministicEvaluator
+    from agentevalops.evaluators.state_based import StateBasedEvaluator
+    from agentevalops.evaluators.tool_use import ToolUseEvaluator
     from agentevalops.policy.basic_checker import BasicPolicyChecker
 
     reg.register(KIND_BENCHMARK, "toy", ToyBenchmarkAdapter)
@@ -344,6 +346,10 @@ def _register_builtins(reg: Registry) -> None:
     # concern only; unrelated to the (out-of-scope) CloudBackend Azure axis.
     reg.register(KIND_RUNNER, "azure-openai", AzureOpenAIRunner)
     reg.register(KIND_EVALUATOR, "deterministic", DeterministicEvaluator)
+    # docs/adr/0006 D13: a run configures any set of these under
+    # ``evaluators:``; a scenario declares which apply.
+    reg.register(KIND_EVALUATOR, "tool_use", ToolUseEvaluator)
+    reg.register(KIND_EVALUATOR, "state_based", StateBasedEvaluator)
     reg.register(KIND_POLICY, "basic", BasicPolicyChecker)
 
 

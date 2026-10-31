@@ -6,8 +6,10 @@ import asyncio
 
 from agentevalops.core.schemas import (
     AgentOutput,
+    EvaluatorContext,
     TaskSpec,
     TerminationReason,
+    ToolCallRecord,
     TraceEvent,
     TraceEventKind,
 )
@@ -342,19 +344,39 @@ def _tool_event(tool_name: str, step: int = 0) -> TraceEvent:
     )
 
 
-def test_required_tool_name_present_passes() -> None:
+def _records(*tool_names: str) -> EvaluatorContext:
+    """A context whose harness records show *tool_names* called, in order
+    (docs/adr/0006 D14)."""
+    return EvaluatorContext(
+        records=tuple(
+            ToolCallRecord(
+                task_id=TaskId("t-tools"),
+                index=index,
+                tool_name=name,
+                arguments={},
+                permission="read",
+                data_class="normal",
+                executed=True,
+                result="ok",
+            )
+            for index, name in enumerate(tool_names)
+        )
+    )
+
+
+def test_required_tool_name_present_in_the_harness_records_passes() -> None:
     ev = DeterministicEvaluator()
     task = _task_with_required_tools(["search"])
-    trace = [_tool_event("search")]
-    result = asyncio.run(ev.evaluate(task, _completed_output(), trace))
+    result = asyncio.run(ev.evaluate(task, _completed_output(), [], _records("search")))
     assert result.passed is True
+    assert "required_tool=search:found" in result.notes
+    assert [(r.stream, r.index) for r in result.refs] == [("tool_calls", 0)]
 
 
-def test_required_tool_name_absent_fails() -> None:
+def test_required_tool_name_absent_from_the_records_fails() -> None:
     ev = DeterministicEvaluator()
     task = _task_with_required_tools(["search"])
-    trace = [_tool_event("fetch")]  # wrong tool
-    result = asyncio.run(ev.evaluate(task, _completed_output(), trace))
+    result = asyncio.run(ev.evaluate(task, _completed_output(), [], _records("fetch")))
     assert result.passed is False
 
 
@@ -365,12 +387,16 @@ def test_required_tool_name_absent_notes_missing() -> None:
     assert "missing" in result.notes
 
 
-def test_required_tool_name_no_tool_events_fails() -> None:
+def test_a_self_reported_call_with_no_harness_record_does_not_count() -> None:
+    """docs/adr/0006 D14. Fail-first: before R24 slice 5 the agent's own
+    AGENT_TOOL_CALL event satisfied the check, so an agent could claim a
+    call it never made."""
     ev = DeterministicEvaluator()
     task = _task_with_required_tools(["search"])
-    trace = [_event(TraceEventKind.AGENT_PLAN)]
-    result = asyncio.run(ev.evaluate(task, _completed_output(), trace))
+    trace = [_tool_event("search")]
+    result = asyncio.run(ev.evaluate(task, _completed_output(), trace, _records()))
     assert result.passed is False
+    assert "required_tool=search:missing" in result.notes
 
 
 # ---------------------------------------------------------------------------
@@ -398,7 +424,7 @@ def test_all_new_checks_pass_together() -> None:
         final_answer="hello world",
     )
     trace = [_tool_event("search")]
-    result = asyncio.run(ev.evaluate(task, output, trace))
+    result = asyncio.run(ev.evaluate(task, output, trace, _records("search")))
     assert result.passed is True
 
 

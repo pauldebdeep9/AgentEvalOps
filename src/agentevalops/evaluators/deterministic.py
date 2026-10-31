@@ -9,9 +9,26 @@ from agentevalops.core.schemas import (
     Ref,
     TaskSpec,
     TerminationReason,
+    ToolCallRecord,
     TraceEvent,
     TraceEventKind,
 )
+
+
+def _scoped_records(context: EvaluatorContext | None) -> list[ToolCallRecord]:
+    """This task run's harness records, in call order; none without a
+    context."""
+    if context is None:
+        return []
+    records = context.records
+    if context.task_id is not None:
+        records = tuple(
+            r
+            for r in records
+            if r.task_id == context.task_id
+            and (context.repetition is None or r.repetition == context.repetition)
+        )
+    return sorted(records, key=lambda r: r.index)
 
 
 class DeterministicEvaluator:
@@ -42,8 +59,11 @@ class DeterministicEvaluator:
        value string must appear in the trace.
 
     5. **Required tool names** — if ``task.metadata["required_tool_names"]``
-       is set, every listed tool name must appear in an ``AGENT_TOOL_CALL``
-       event's ``payload["tool_name"]`` field.
+       is set, every listed tool name must appear in the harness's own call
+       records for this task run (``context.records``, docs/adr/0006 D14)
+       -- never in the agent's self-reported ``AGENT_TOOL_CALL`` events,
+       which an agent can emit without calling anything. With no context
+       there are no records, and every required tool is missing.
 
     6. **Final-answer event** — informational only (does not change the
        pass/fail result); if the trace is non-empty and contains no
@@ -134,17 +154,22 @@ class DeterministicEvaluator:
 
         # --- check 5: required_tool_names ---------------------------------
         required_tools_raw = task.metadata.get("required_tool_names")
+        tool_refs: list[Ref] = []
         if required_tools_raw is not None and isinstance(
             required_tools_raw, list
         ):
-            observed_tools = {
-                e.payload.get("tool_name")
-                for e in trace
-                if e.kind == TraceEventKind.AGENT_TOOL_CALL
-            }
+            # docs/adr/0006 D14: the harness's records, not the agent's word.
+            records = _scoped_records(context)
             for tool_name in required_tools_raw:
-                if tool_name in observed_tools:
-                    parts.append(f"required_tool={tool_name}:found")
+                made = [r for r in records if r.tool_name == tool_name]
+                if made:
+                    first = made[0]
+                    parts.append(
+                        f"required_tool={tool_name}:found(record {first.index})"
+                    )
+                    tool_refs.append(
+                        Ref("tool_calls", first.task_id, first.repetition, first.index)
+                    )
                 else:
                     parts.append(f"required_tool={tool_name}:missing")
                     all_passed = False
@@ -153,6 +178,7 @@ class DeterministicEvaluator:
         terminals = [e for e in trace if e.kind == TraceEventKind.AGENT_TERMINAL]
         citations = [e.step_index for e in terminals]
         refs = [Ref("trace", e.task_id, e.repetition, e.step_index) for e in terminals]
+        refs.extend(tool_refs)
 
         # --- check 6: informational AGENT_FINAL_ANSWER presence ----------
         if trace and not any(
