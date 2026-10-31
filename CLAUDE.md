@@ -75,10 +75,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-01, Sai2608, clean checkout at `59a690f`)
+## Baseline (verified 2026-11-01, Sai2608, clean checkout at `5d9b90a`)
 
 - ruff: clean
-- mypy: clean (52 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (59 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -88,9 +88,11 @@ in this repo.
   row 14's SWE-bench spike: "swebench never imported"; 8th with catalogue
   v0: "catalogue imports only core"; 9th with R23: "environments imports
   only core"; the layers contract's low tier is `catalogue | environments`,
-  ADR-0006 D8)
-- pytest: 881 passed, 1 skipped (opt-in `@pytest.mark.live`), 97.16% branch
-  coverage on a clean checkout (`59a690f`). Any untracked *or uncommitted*
+  ADR-0006 D8; with R24 slice 4, `domain_packs` joined the middle tier, the
+  independence contract and every forbidden contract -- each edit proven
+  against an injected violation first)
+- pytest: 975 passed, 1 skipped (opt-in `@pytest.mark.live`), 97.62% branch
+  coverage on a clean checkout (`5d9b90a`). Any untracked *or uncommitted*
   change raises it: tests reach the code-drift "inconclusive" warning
   (`bundles/validator.py`, `cli.py`) only through this checkout's own git
   state (`ROADMAP.md` §0, 2026-10-10 finding). Measure the baseline only

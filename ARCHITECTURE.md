@@ -13,7 +13,7 @@ The architecture has three layers:
 
 The **core layer** (`src/agentevalops/core/`) defines protocols, schemas, and errors. It has no dependencies on any cloud provider, model provider, or agent framework — it is plain Python `@dataclass` models, not Pydantic (see `core/schemas.py`'s own docstring: "no Pydantic, no ORM," to keep this layer dependency-free). OpenTelemetry wiring is planned (ROADMAP W9) but not yet implemented; nothing in `core/` depends on it today.
 
-The **adapter layer** contains concrete implementations of the core protocols: `agents/` (`AgentRunner`), `benchmarks/` (`BenchmarkAdapter`), `evaluators/` (`Evaluator`), `scorers/` (`Scorer`), `stores/` (`TraceStore`), `reports/` (`ReportGenerator`), `policy/` (`PolicyChecker`). `cloud/` (`CloudBackend`) is planned but not yet created — nothing submits cloud jobs yet, so there is no real `CloudBackend` implementation, only a test-only mock. `observability/` exists as of the W9 scaffold (see §8) but instruments nothing yet. Adapters depend on the core; the core never depends on adapters. New benchmarks, agents, clouds, and evaluators are added by writing new adapters.
+The **adapter layer** contains concrete implementations of the core protocols: `agents/` (`AgentRunner`), `benchmarks/` (`BenchmarkAdapter`), `evaluators/` (`Evaluator`), `scorers/` (`Scorer`), `stores/` (`TraceStore`), `reports/` (`ReportGenerator`), `policy/` (`PolicyChecker`), and, from R24, `domain_packs/` (`DomainPack`, docs/adr/0006 D23 -- the seed domain is its first pack; the registry resolves packs by name for the generic `agentic-baseline` benchmark, so no adapter family imports another). `cloud/` (`CloudBackend`) is planned but not yet created — nothing submits cloud jobs yet, so there is no real `CloudBackend` implementation, only a test-only mock. `observability/` exists as of the W9 scaffold (see §8) but instruments nothing yet. Adapters depend on the core; the core never depends on adapters. New benchmarks, agents, clouds, and evaluators are added by writing new adapters.
 
 Three more packages sit alongside the adapters and don't map to a single protocol: `orchestration/` (the eval loop; wires all the protocols together for a run), `bundles/` (result-bundle read/write/validate), and `replay/` (bundle verification — narrower than §7 describes; see the callout there). `registry.py` and `config/` are top-level, not nested under `core/`, despite earlier drafts of this document describing them that way (see §4).
 
@@ -412,6 +412,8 @@ AgentEvalOps/
 │       │   ├── protocols.py        # the nine Protocol definitions
 │       │   ├── schemas.py          # plain @dataclass models (no Pydantic) incl. RunSummary
 │       │   ├── types.py            # RunId/TaskId/AgentId/BackendId newtypes
+│       │   ├── scripts.py          # scripted-trajectory grammar (ADR-0006 D11)
+│       │   ├── identifiers.py      # synthetic-identifier scheme (ADR-0006 D26)
 │       │   └── errors.py
 │       │
 │       ├── orchestration/
@@ -444,6 +446,14 @@ AgentEvalOps/
 │       │       ├── scenarios.py
 │       │       └── tasks.py
 │       │   # Future: swebench/, mlebench/, etc. (not started)
+│       │
+│       ├── domain_packs/           # DomainPack adapters (docs/adr/0006 D23; R24)
+│       │   ├── __init__.py         # DomainPackError
+│       │   └── seed/               # the seed domain: public-sector case handling
+│       │       ├── environment.py  # six tools over InProcessToolEnvironment
+│       │       ├── pack.py         # SeedDomainPack: loads and validates data/
+│       │       ├── schema.py
+│       │       └── data/           # policy, names, cases, scenarios (YAML)
 │       │
 │       ├── evaluators/             # Evaluator adapters
 │       │   ├── __init__.py

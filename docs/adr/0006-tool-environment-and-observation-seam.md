@@ -23,6 +23,33 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R24 slice 4, `5d9b90a`, the seed
+domain pack).**
+- **D23:** domain packs are their own adapter family,
+  `agentevalops.domain_packs`, not modules under `benchmarks/`: the
+  independence contract then keeps the generic benchmark from importing
+  any pack, and the registry resolves a pack by name. The seed pack's
+  data is YAML under `seed/data/`, validated when the pack is built. The
+  scenario carries both trajectories (no separate `trajectories()`); the
+  materiality profile and thresholds wait for R27, their first user.
+- **D11:** the script grammar (`ScriptStep`, `parse_script`) lives in
+  `core/scripts.py`, so packs validate their trajectories without
+  importing the agents family; `agents/mock_runner.py` re-exports it.
+- **D26:** the scheme lives in `core/identifiers.py`, shared by the packs
+  that seed data and R25's detector. The check letter is the mod-11 sum
+  over weights 2, 7, 6, 5, 4, 3, 2 mapped through a test-only table
+  (`ABCDEFGHJKL`), not either community-documented one. The pack loader
+  refuses an id, phone or address outside the scheme and scans every
+  string in every data file -- clause text and descriptions included --
+  for anything identifier-shaped that is not synthetic.
+- **D7:** the seed end state is a history (`decisions`, `notices`,
+  `referrals`, `exports`) rather than a status per case, so an expected
+  end state can say that nothing else happened.
+- The pack enforces the ambiguous-case rule at load: a scenario on C6 or
+  C7 has a known-good that calls `refer_to_officer` and never
+  `status_update`, and a known-bad that decides (testing-framework
+  10.3.2).
+
 **Accepted — 2026-11-01 (owner).** Accepted with three changes made at
 acceptance: D24, and D25's `benchmark_options` and CLI parts, move to R24,
 where `agentic-baseline` first uses them (the derived allowlist stays in

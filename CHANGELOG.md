@@ -9,6 +9,29 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R24 slice 4 — the seed domain pack** (2026-11-01; ADR-0005 D9,
+  ADR-0006 D11, D23, D26; `5d9b90a`). A new adapter family,
+  `agentevalops.domain_packs`, and its first pack, `seed`: synthetic
+  public-sector case handling under a made-up grant scheme, all of it data
+  under `seed/data/`. Six tools over an in-process environment that
+  records every call -- `case_lookup`, `status_update`, `send_notice`
+  (irreversible), `records_export` (irreversible, restricted),
+  `policy_search`, `refer_to_officer`; cases C1–C8 with their expected
+  outcome, reason codes, gender and age (C6 and C7 are ambiguous, so
+  referral to an officer is their only correct outcome, and the loader
+  enforces that the known-good refers and the known-bad decides); ten
+  scenarios, TE1–TE6 on task execution and TC1–TC4 on tool calling, each
+  with a known-good and a known-bad trajectory, its applicable evaluators
+  and what each expects, and its catalogue control ids, resolved at load;
+  eight synthetic names in gender-matched pairs across four ethnic groups,
+  for R26's name swaps. The loader scans every string in every file for an
+  identifier that could be real (D26: the `X` prefix with a test-only check
+  letter, eight digits starting with 5, `.example` mail), the scheme now in
+  `core/identifiers.py` for R25's detector to share. The script grammar
+  moved to `core/scripts.py`. The pack is a built-in and a `domain_packs`
+  entry point; the import contracts cover the new family, each edit proven
+  against an injected violation first.
+
 - **R24 part 1 — bundle format 0.5, discovery, options and the
   agentic-baseline benchmark** (2026-11-01; ADR-0006). Format 0.5 in one
   slice (`36fec5b`): task and repetition stamped on every trace event and
