@@ -29,7 +29,7 @@ from pathlib import Path
 #: required_files_for_version(). All bumps are additive/backward-compatible
 #: (old bundles simply lack what's new; nothing new is required of them),
 #: so all are minor bumps, not breaks.
-BUNDLE_FORMAT_VERSION: str = "0.4"
+BUNDLE_FORMAT_VERSION: str = "0.5"
 
 #: Older format versions that validate_bundle()/BundleReader still accept,
 #: even though BundleWriter never produces them anymore. "0.1" bundles
@@ -41,7 +41,9 @@ BUNDLE_FORMAT_VERSION: str = "0.4"
 #: needs to read (the preserved incident fixture and the runs/toy-smoke*
 #: bundles on disk, as of 2026-08-05, cover "0.1"); do not add a new legacy
 #: entry speculatively.
-LEGACY_BUNDLE_FORMAT_VERSIONS: frozenset[str] = frozenset({"0.1", "0.2", "0.3"})
+LEGACY_BUNDLE_FORMAT_VERSIONS: frozenset[str] = frozenset(
+    {"0.1", "0.2", "0.3", "0.4"}
+)
 
 #: Files that every bundle up through format "0.3" must contain. Kept as a
 #: flat tuple -- not renamed, not restructured -- specifically so this is an
@@ -77,6 +79,24 @@ REQUIRED_BUNDLE_FILES_0_4: tuple[str, ...] = (
     REPLAY_COMMAND_FILENAME,
 )
 
+#: Harness streams added in format "0.5" (docs/adr/0006 D19, D21): every
+#: tool call as the environment recorded it, and each task run's end state.
+TOOL_CALLS_FILENAME: str = "tool_calls.jsonl"
+END_STATES_FILENAME: str = "end_states.jsonl"
+
+#: Files required by format "0.5" -- the 0.4 set plus the harness streams.
+REQUIRED_BUNDLE_FILES_0_5: tuple[str, ...] = (
+    *REQUIRED_BUNDLE_FILES_0_4,
+    TOOL_CALLS_FILENAME,
+    END_STATES_FILENAME,
+)
+
+#: Required files by declared version, for versions that grew the set.
+_REQUIRED_FILES_BY_VERSION: dict[str, tuple[str, ...]] = {
+    "0.4": REQUIRED_BUNDLE_FILES_0_4,
+    "0.5": REQUIRED_BUNDLE_FILES_0_5,
+}
+
 
 def required_files_for_version(version: str | None) -> tuple[str, ...]:
     """Return the required bundle files for a bundle's *declared* format
@@ -88,14 +108,15 @@ def required_files_for_version(version: str | None) -> tuple[str, ...]:
     ``version=None`` (manifest missing, unparseable, or lacking the key --
     exactly the cases where we can't even tell what a bundle claims to be)
     is the conservative default: the pre-"0.4" flat set, the same
-    requirement every version through "0.3" already had. Only a bundle that
-    explicitly declares the current ``BUNDLE_FORMAT_VERSION`` is held to the
-    newer, larger set -- a bundle declaring some other/unrecognized version
-    string also falls back to the flat set rather than guessing.
+    requirement every version through "0.3" already had. A bundle that
+    explicitly declares "0.4" or "0.5" is held to that version's larger set
+    (0.4 added ``replay_command.txt``; 0.5 the two harness streams) -- a
+    bundle declaring some other/unrecognized version string falls back to
+    the flat set rather than guessing.
     """
-    if version == BUNDLE_FORMAT_VERSION:
-        return REQUIRED_BUNDLE_FILES_0_4
-    return REQUIRED_BUNDLE_FILES
+    if version is None:
+        return REQUIRED_BUNDLE_FILES
+    return _REQUIRED_FILES_BY_VERSION.get(version, REQUIRED_BUNDLE_FILES)
 
 
 def peek_declared_format_version(bundle_dir: Path) -> str | None:

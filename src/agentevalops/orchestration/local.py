@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import dataclasses
 import functools
 import logging
+from collections.abc import Sequence
 
 from agentevalops.core.errors import ConfigurationError, InfrastructureError
 from agentevalops.core.protocols import (
@@ -13,19 +15,25 @@ from agentevalops.core.protocols import (
     BenchmarkAdapter,
     Evaluator,
     PolicyChecker,
+    Scorer,
+    ToolEnvironment,
     TraceStore,
 )
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
+    EndStateRecord,
     EnvHandle,
     EvaluationResult,
+    EvaluatorContext,
+    NotEvaluatedCause,
     PolicySpec,
     RunConfig,
     RunSummary,
     TaskRunResult,
     TaskSpec,
     TerminationReason,
+    ToolCallRecord,
     TraceEvent,
     TraceEventKind,
 )
@@ -80,42 +88,117 @@ def _output_from_terminal(terminal: TraceEvent | None) -> AgentOutput:
     )
 
 
+def _cause_of(exc: Exception) -> NotEvaluatedCause:
+    return "configuration" if isinstance(exc, ConfigurationError) else "infrastructure"
+
+
+def _applicable(
+    task: TaskSpec, evaluators: Sequence[Evaluator]
+) -> tuple[list[Evaluator], list[str]]:
+    """The configured evaluators that apply to *task*, and any kind the task
+    declares that the run did not configure (docs/adr/0006 D13)."""
+    if not task.applicable_evaluators:
+        return list(evaluators), []
+    declared = set(task.applicable_evaluators)
+    chosen = [e for e in evaluators if e.evaluator_kind in declared]
+    configured = {e.evaluator_kind for e in evaluators}
+    return chosen, sorted(declared - configured)
+
+
+def _not_evaluated(
+    evaluator_id: str, evaluator_kind: str, cause: NotEvaluatedCause, detail: str
+) -> EvaluationResult:
+    return EvaluationResult(
+        evaluator_id=evaluator_id,
+        evaluator_kind=evaluator_kind,
+        score=0.0,
+        passed=False,
+        evaluated=False,
+        not_evaluated_cause=cause,
+        notes=f"not evaluated: {cause} ({detail})",
+    )
+
+
+def _verdict(results: Sequence[EvaluationResult]) -> EvaluationResult:
+    """A task run's verdict from its evaluators' results (docs/adr/0006 D13).
+
+    Results an evaluator marked not applicable are not counted. If any
+    counted evaluator ran and failed, the task failed -- a real failure is
+    never downgraded. Otherwise, if any could not evaluate, the task is not
+    evaluated. Otherwise it passed. With exactly one counted result, that
+    result is the verdict.
+    """
+    counted = [r for r in results if r.applicable]
+    if len(counted) == 1:
+        return counted[0]
+    if not counted:
+        return _not_evaluated(
+            "task-verdict", "verdict", "configuration", "no evaluator applied"
+        )
+    failed = [r for r in counted if r.evaluated and not r.passed]
+    unevaluated = [r for r in counted if not r.evaluated]
+    notes = "; ".join(
+        f"{r.evaluator_kind}: "
+        + ("not evaluated" if not r.evaluated else "passed" if r.passed else "failed")
+        for r in counted
+    )
+    refs = [ref for r in counted for ref in r.refs]
+    if failed:
+        return EvaluationResult(
+            "task-verdict", "verdict", 0.0, False, notes=notes, refs=refs
+        )
+    if unevaluated:
+        return EvaluationResult(
+            "task-verdict",
+            "verdict",
+            0.0,
+            False,
+            evaluated=False,
+            not_evaluated_cause=unevaluated[0].not_evaluated_cause,
+            notes=notes,
+            refs=refs,
+        )
+    return EvaluationResult(
+        "task-verdict", "verdict", 1.0, True, notes=notes, refs=refs
+    )
+
+
 def _not_evaluated_result(
     task: TaskSpec,
     exc: Exception,
     events: list[TraceEvent],
-    evaluator: Evaluator,
+    evaluators: Sequence[Evaluator],
     *,
+    repetition: int = 0,
     stage: str | None = None,
 ) -> TaskRunResult:
     """Build the shared not-evaluated result for an infra/config failure.
 
-    Used by both the W12a runner-failure catch and the
-    ``prepare_environment`` guard (docs/benchmark_adapters.md D5) so the two
-    paths share one construction site instead of two copies. ``stage``, when
-    given, is folded into the error/notes text so the two paths stay
-    distinguishable (e.g. "prepare_environment: <exc>") without adding any
-    new schema field.
+    Used by the W12a runner-failure catch, the ``prepare_environment``
+    guard (docs/benchmark_adapters.md D5) and the missing-environment guard
+    (docs/adr/0006 D1). Every evaluator that would have applied records the
+    task run as not evaluated, with the cause (D16). ``stage``, when given,
+    is folded into the error/notes text so the paths stay distinguishable.
     """
     detail = f"{stage}: {exc}" if stage else str(exc)
+    cause = _cause_of(exc)
     output = AgentOutput(
         success=False,
         termination_reason=TerminationReason.INFRA_FAILURE,
         error=detail,
     )
-    evaluation = EvaluationResult(
-        evaluator_id=evaluator.evaluator_id,
-        evaluator_kind=evaluator.evaluator_kind,
-        score=0.0,
-        passed=False,
-        evaluated=False,
-        notes=f"not evaluated: infrastructure failure before completion ({detail})",
-    )
+    chosen, missing = _applicable(task, evaluators)
+    evaluations = [
+        _not_evaluated(e.evaluator_id, e.evaluator_kind, cause, detail)
+        for e in chosen
+    ] + [_not_evaluated(kind, kind, cause, detail) for kind in missing]
     return TaskRunResult(
         task_id=task.task_id,
         output=output,
-        evaluation=evaluation,
+        evaluation=_verdict(evaluations),
         event_count=len(events),
+        evaluations=evaluations,
+        repetition=repetition,
     )
 
 
@@ -140,7 +223,7 @@ class LocalOrchestrator:
         benchmark: BenchmarkAdapter,
         runner: AgentRunner,
         trace_store: TraceStore,
-        evaluator: Evaluator,
+        evaluator: Evaluator | Sequence[Evaluator],
         policy_checker: PolicyChecker,
         policy_spec: PolicySpec | None = None,
     ) -> None:
@@ -148,9 +231,38 @@ class LocalOrchestrator:
         self._benchmark = benchmark
         self._runner = runner
         self._trace_store = trace_store
-        self._evaluator = evaluator
+        #: docs/adr/0006 D13: every evaluator the run configures.
+        self._evaluators: list[Evaluator] = (
+            list(evaluator) if isinstance(evaluator, Sequence) else [evaluator]
+        )
         self._policy_checker = policy_checker
         self._policy_spec = policy_spec or PolicySpec(policy_id="default")
+        # Harness data (docs/adr/0006 D4, D7, D19), kept as each task run
+        # finishes so an interrupted run still writes what it observed.
+        self._records: list[ToolCallRecord] = []
+        self._end_states: list[EndStateRecord] = []
+        self._order: dict[str, int] = {}
+
+    def _ordered(self, key: tuple[str, int]) -> tuple[int, int]:
+        return (self._order.get(key[0], len(self._order)), key[1])
+
+    @property
+    def tool_call_records(self) -> list[ToolCallRecord]:
+        """Every harness call record so far, by task order, repetition and
+        call index -- what ``tool_calls.jsonl`` holds."""
+        return sorted(
+            self._records,
+            key=lambda r: (*self._ordered((str(r.task_id), r.repetition)), r.index),
+        )
+
+    @property
+    def end_states(self) -> list[EndStateRecord]:
+        """Each finished task run's end state -- what ``end_states.jsonl``
+        holds."""
+        return sorted(
+            self._end_states,
+            key=lambda s: self._ordered((str(s.task_id), s.repetition)),
+        )
 
     async def run(self) -> RunSummary:
         """Execute all benchmark tasks and return a summary.
@@ -165,20 +277,28 @@ class LocalOrchestrator:
         """
         summary = RunSummary(run_id=self._config.run_id)
         tasks = list(self._benchmark.list_tasks())
-        summary.total_tasks = len(tasks)
+        self._order = {str(t.task_id): i for i, t in enumerate(tasks)}
+        # docs/adr/0006 D18: the orchestrator owns repetitions; task_id
+        # stays the scenario's id and each run carries its repetition.
+        runs = [
+            (task, repetition)
+            for task in tasks
+            for repetition in range(max(1, self._config.repetitions))
+        ]
+        summary.total_tasks = len(runs)
 
         limit = max(1, self._config.max_concurrent_tasks)
         semaphore = asyncio.Semaphore(limit)
 
         async def _guarded(
-            task: TaskSpec,
+            task: TaskSpec, repetition: int
         ) -> tuple[TaskRunResult, list[TraceEvent]]:
             async with semaphore:
-                return await self._run_task(task)
+                return await self._run_task(task, repetition)
 
         all_events: list[TraceEvent] = []
 
-        futures = [asyncio.ensure_future(_guarded(t)) for t in tasks]
+        futures = [asyncio.ensure_future(_guarded(t, r)) for t, r in runs]
         try:
             results = await asyncio.gather(*futures)
         except (KeyboardInterrupt, asyncio.CancelledError):
@@ -199,6 +319,10 @@ class LocalOrchestrator:
             summary.task_results.append(result)
             if not result.evaluation.evaluated:
                 summary.not_evaluated_tasks += 1
+                cause = result.evaluation.not_evaluated_cause or "unknown"
+                summary.not_evaluated_by_cause[cause] = (
+                    summary.not_evaluated_by_cause.get(cause, 0) + 1
+                )
             elif result.evaluation.passed:
                 summary.passed_tasks += 1
             summary.total_cost_usd += result.output.total_cost_usd
@@ -219,9 +343,9 @@ class LocalOrchestrator:
         )
         summary.trace_event_count = len(all_events)
 
-        all_evals = [r.evaluation for r in summary.task_results]
-        summary.score_result = SimpleScorer().score(
-            self._config.run_id, all_evals
+        scorer: Scorer = SimpleScorer(self._config.run_id)
+        summary.score_result = scorer.summarize(
+            [r.evaluation for r in summary.task_results]
         )
 
         combined = _combined_output(summary)
@@ -229,12 +353,16 @@ class LocalOrchestrator:
             self._policy_spec,
             combined,
             all_events,
+            EvaluatorContext(
+                records=tuple(self.tool_call_records),
+                end_states=tuple(self.end_states),
+            ),
         )
 
         return summary
 
     async def _run_task(
-        self, task: TaskSpec
+        self, task: TaskSpec, repetition: int = 0
     ) -> tuple[TaskRunResult, list[TraceEvent]]:
         """Run a single task end-to-end and return its result + events.
 
@@ -285,7 +413,8 @@ class LocalOrchestrator:
                     task,
                     exc,
                     events,
-                    self._evaluator,
+                    self._evaluators,
+                    repetition=repetition,
                     stage="prepare_environment",
                 ),
                 events,
@@ -305,11 +434,13 @@ class LocalOrchestrator:
                             "environment for this task (docs/adr/0006 D1)"
                         ),
                         events,
-                        self._evaluator,
+                        self._evaluators,
+                        repetition=repetition,
                         stage="prepare_environment",
                     ),
                     events,
                 )
+            environment = handle.tools
             agent_input = AgentInput(
                 task=task,
                 context={"run_id": run_id},
@@ -321,35 +452,85 @@ class LocalOrchestrator:
                 trace_iter = await self._runner.run(agent_input, limits)
                 terminal: TraceEvent | None = None
                 async for event in trace_iter:
+                    # docs/adr/0006 D17: the orchestrator, not the runner,
+                    # says which task run an event belongs to.
+                    event.task_id = task.task_id
+                    event.repetition = repetition
                     await self._trace_store.append(run_id, event)
                     events.append(event)
                     if event.kind == TraceEventKind.AGENT_TERMINAL:
                         terminal = event
             except (InfrastructureError, ConfigurationError) as exc:
+                await self._harvest(task, repetition, environment)
                 return (
-                    _not_evaluated_result(task, exc, events, self._evaluator),
+                    _not_evaluated_result(
+                        task, exc, events, self._evaluators, repetition=repetition
+                    ),
                     events,
                 )
 
+            # docs/adr/0006 D7: the end state is taken after the agent stops
+            # and before any evaluator runs or the environment is torn down.
+            end_state, records = await self._harvest(task, repetition, environment)
             output = _output_from_terminal(terminal)
             # Scoring is routed through the Evaluator (DeterministicEvaluator
             # by default), not BenchmarkAdapter.grade().  grade() is the
             # benchmark's own official grading and is reserved for future
             # use when an upstream benchmark's deterministic test suite
             # needs to run post-hoc.
-            evaluation = await self._evaluator.evaluate(task, output, events)
+            chosen, missing = _applicable(task, self._evaluators)
+            context = EvaluatorContext(
+                records=records,
+                end_states=(end_state,),
+                task_id=task.task_id,
+                repetition=repetition,
+                applicable_evaluators=task.applicable_evaluators,
+            )
+            evaluations = [
+                await evaluator.evaluate(task, output, events, context)
+                for evaluator in chosen
+            ] + [
+                _not_evaluated(
+                    kind,
+                    kind,
+                    "configuration",
+                    f"the task declares '{kind}', which this run does not configure",
+                )
+                for kind in missing
+            ]
 
             return (
                 TaskRunResult(
                     task_id=task.task_id,
                     output=output,
-                    evaluation=evaluation,
+                    evaluation=_verdict(evaluations),
                     event_count=len(events),
+                    evaluations=evaluations,
+                    repetition=repetition,
                 ),
                 events,
             )
         finally:
             await self._teardown(task, handle)
+
+    async def _harvest(
+        self, task: TaskSpec, repetition: int, environment: ToolEnvironment
+    ) -> tuple[EndStateRecord, tuple[ToolCallRecord, ...]]:
+        """Take the environment's end state and its call records for this
+        task run, stamped with the run's task and repetition (the
+        environment may not know its repetition), and keep both for the
+        bundle (docs/adr/0006 D4, D7, D19)."""
+        state = await environment.snapshot()
+        end_state = EndStateRecord(
+            task_id=task.task_id, repetition=repetition, state=dict(state)
+        )
+        records = tuple(
+            dataclasses.replace(r, task_id=task.task_id, repetition=repetition)
+            for r in environment.records()
+        )
+        self._end_states.append(end_state)
+        self._records.extend(records)
+        return end_state, records
 
     async def _prepare(self, task: TaskSpec) -> EnvHandle:
         """Run ``BenchmarkAdapter.prepare_environment`` off the event loop,

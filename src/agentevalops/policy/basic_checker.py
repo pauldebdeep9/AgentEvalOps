@@ -5,8 +5,10 @@ from __future__ import annotations
 from agentevalops.core.schemas import (
     TOOL_NAME_PAYLOAD_KEY,
     AgentOutput,
+    EvaluatorContext,
     PolicySpec,
     PolicyVerdict,
+    Ref,
     TraceEvent,
     TraceEventKind,
     Verdict,
@@ -40,9 +42,11 @@ class BasicPolicyChecker:
         policy: PolicySpec,
         output: AgentOutput,
         trace: list[TraceEvent],
+        context: EvaluatorContext | None = None,
     ) -> PolicyVerdict:
         """Return a ``PolicyVerdict`` for the given run."""
         citations: list[int] = []
+        refs: list[Ref] = []
         notes_parts: list[str] = []
 
         # --- check 1: cost ceiling ----------------------------------------
@@ -63,6 +67,9 @@ class BasicPolicyChecker:
                 tool_id: str = event.payload.get(TOOL_NAME_PAYLOAD_KEY, "")
                 if tool_id in policy.deny_tool_ids:
                     citations.append(event.step_index)
+                    refs.append(
+                        Ref("trace", event.task_id, event.repetition, event.step_index)
+                    )
                     notes_parts.append(
                         f"denied tool '{tool_id}' at step"
                         f" {event.step_index}"
@@ -123,4 +130,5 @@ class BasicPolicyChecker:
             verdict=verdict,
             citations=citations,
             notes=notes,
+            refs=refs,
         )

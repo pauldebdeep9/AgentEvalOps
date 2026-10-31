@@ -25,6 +25,7 @@ from agentevalops.core.schemas import (
     EndState,
     EnvHandle,
     EvaluationResult,
+    EvaluatorContext,
     PolicySpec,
     PolicyVerdict,
     ResourceLimits,
@@ -202,8 +203,15 @@ class Evaluator(Protocol):
         task: TaskSpec,
         output: AgentOutput,
         trace: list[TraceEvent],
+        context: EvaluatorContext,
     ) -> EvaluationResult:
-        """Return a score for this evaluator's dimension."""
+        """Return a score for this evaluator's dimension.
+
+        ``context`` (docs/adr/0006 D12) carries the harness's own records
+        and end state for this task run. An evaluator that finds none of
+        the inputs it needs returns ``applicable=False`` rather than a
+        failure (D13).
+        """
         ...
 
 
@@ -242,6 +250,7 @@ class PolicyChecker(Protocol):
         policy: PolicySpec,
         output: AgentOutput,
         trace: list[TraceEvent],
+        context: EvaluatorContext,
     ) -> PolicyVerdict:
         """Return PASS / FAIL / WARN with citations to specific events."""
         ...

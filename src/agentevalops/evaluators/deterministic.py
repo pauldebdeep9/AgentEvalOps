@@ -5,6 +5,8 @@ from __future__ import annotations
 from agentevalops.core.schemas import (
     AgentOutput,
     EvaluationResult,
+    EvaluatorContext,
+    Ref,
     TaskSpec,
     TerminationReason,
     TraceEvent,
@@ -56,6 +58,7 @@ class DeterministicEvaluator:
         task: TaskSpec,
         output: AgentOutput,
         trace: list[TraceEvent],
+        context: EvaluatorContext | None = None,
     ) -> EvaluationResult:
         """Return a deterministic score for one completed task."""
         parts: list[str] = []
@@ -147,11 +150,9 @@ class DeterministicEvaluator:
                     all_passed = False
 
         # --- citations: step indices of AGENT_TERMINAL events -------------
-        citations = [
-            e.step_index
-            for e in trace
-            if e.kind == TraceEventKind.AGENT_TERMINAL
-        ]
+        terminals = [e for e in trace if e.kind == TraceEventKind.AGENT_TERMINAL]
+        citations = [e.step_index for e in terminals]
+        refs = [Ref("trace", e.task_id, e.repetition, e.step_index) for e in terminals]
 
         # --- check 6: informational AGENT_FINAL_ANSWER presence ----------
         if trace and not any(
@@ -169,4 +170,5 @@ class DeterministicEvaluator:
             passed=passed,
             citations=citations,
             notes="; ".join(parts),
+            refs=refs,
         )

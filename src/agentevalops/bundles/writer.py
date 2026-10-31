@@ -34,17 +34,21 @@ from urllib.parse import urlparse
 from agentevalops import __version__
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
+    END_STATES_FILENAME,
     REPLAY_COMMAND_FILENAME,
     REQUIRED_BUNDLE_FILES,
+    TOOL_CALLS_FILENAME,
 )
 from agentevalops.bundles.manifest import write_manifest
 from agentevalops.bundles.serializers import to_jsonable
 from agentevalops.core.errors import BundleError
 from agentevalops.core.schemas import (
+    EndStateRecord,
     PolicySpec,
     ResultBundleMetadata,
     RunConfig,
     RunSummary,
+    ToolCallRecord,
     TraceEvent,
 )
 from agentevalops.reports.markdown import MarkdownReportGenerator
@@ -160,6 +164,9 @@ class BundleWriter:
         benchmark_id: str = "",
         benchmark_scenario: str = "",
         status: Literal["sealed", "interrupted", "partial"] = "sealed",
+        benchmark_options: dict[str, Any] | None = None,
+        tool_calls: list[ToolCallRecord] | None = None,
+        end_states: list[EndStateRecord] | None = None,
     ) -> Path:
         """Write all bundle files including manifest; return output dir.
 
@@ -183,9 +190,13 @@ class BundleWriter:
         self._write_metadata(run_config, summary, status, git_sha, git_dirty)
         self._write_config(
             run_config, policy_spec, config_name,
-            benchmark_id, benchmark_scenario,
+            benchmark_id, benchmark_scenario, benchmark_options or {},
         )
         self._write_traces(all_events)
+        # Format 0.5's harness streams (docs/adr/0006 D19): always written,
+        # empty when nothing was recorded, so a 0.5 bundle never lacks them.
+        self._write_jsonl(TOOL_CALLS_FILENAME, tool_calls or [])
+        self._write_jsonl(END_STATES_FILENAME, end_states or [])
         self._write_evaluations(summary)
         self._write_policy(summary)
         self._write_summary(summary)
@@ -247,6 +258,7 @@ class BundleWriter:
         config_name: str,
         benchmark_id: str = "",
         benchmark_scenario: str = "",
+        benchmark_options: dict[str, Any] | None = None,
     ) -> None:
         data: dict[str, Any] = {
             "config_name": config_name,
@@ -257,6 +269,9 @@ class BundleWriter:
             data["benchmark_id"] = benchmark_id
         if benchmark_scenario:
             data["benchmark_scenario"] = benchmark_scenario
+        # docs/adr/0006 D25 (format 0.5): the options the benchmark was
+        # built with, always recorded.
+        data["benchmark_options"] = dict(benchmark_options or {})
         self._write_json("config.json", data)
 
     def _write_traces(self, events: list[TraceEvent]) -> None:
@@ -268,11 +283,25 @@ class BundleWriter:
                 )
                 fh.write("\n")
 
+    def _write_jsonl(self, filename: str, items: list[Any]) -> None:
+        with open(self._dir / filename, "w", encoding="utf-8") as fh:
+            for item in items:
+                fh.write(json.dumps(to_jsonable(item), ensure_ascii=False))
+                fh.write("\n")
+
     def _write_evaluations(self, summary: RunSummary) -> None:
-        self._write_json(
-            "evaluations.json",
-            [r.evaluation for r in summary.task_results],
-        )
+        """One entry per evaluator per task run (docs/adr/0006 D13, format
+        0.5), each an ``EvaluationResult`` plus the task run it belongs to.
+        A task run without per-evaluator results contributes its verdict,
+        so every task run appears."""
+        entries = []
+        for r in summary.task_results:
+            for evaluation in r.evaluations or [r.evaluation]:
+                entry = to_jsonable(evaluation)
+                entry["task_id"] = r.task_id
+                entry["repetition"] = r.repetition
+                entries.append(entry)
+        self._write_json("evaluations.json", entries)
 
     def _write_policy(self, summary: RunSummary) -> None:
         self._write_json("policy.json", summary.policy_verdict)

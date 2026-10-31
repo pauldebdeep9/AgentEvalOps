@@ -117,14 +117,18 @@ def test_replay_command_txt_written_by_bundle_writer(tmp_path: Path) -> None:
     assert (bundle_dir / REPLAY_COMMAND_FILENAME).exists()
 
 
-def test_fresh_bundle_is_0_4_and_requires_replay_command(
+def test_fresh_bundle_is_current_format_and_requires_replay_command(
     tmp_path: Path,
 ) -> None:
+    """replay_command.txt became required at 0.4 and stays required in
+    every later format (0.5 added the harness streams on top)."""
+    from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION
+
     bundle_dir = _make_bundle(tmp_path)
     manifest = json.loads(
         (bundle_dir / MANIFEST_FILENAME).read_text(encoding="utf-8")
     )
-    assert manifest["bundle_format_version"] == "0.4"
+    assert manifest["bundle_format_version"] == BUNDLE_FORMAT_VERSION
     assert REPLAY_COMMAND_FILENAME in manifest["required_files"]
     assert REPLAY_COMMAND_FILENAME in manifest["files"]
 

@@ -40,8 +40,10 @@ from pathlib import Path
 
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
+    END_STATES_FILENAME,
     LEGACY_BUNDLE_FORMAT_VERSIONS,
     MANIFEST_FILENAME,
+    TOOL_CALLS_FILENAME,
     peek_declared_format_version,
     required_files_for_version,
 )
@@ -321,6 +323,28 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
         except OSError as exc:
             errors.append(f"Cannot read traces.jsonl: {exc}")
     trace_event_count = trace_line_count
+
+    # ------------------------------------------------------------------ #
+    # 9b. Format 0.5's harness streams parse line-by-line (docs/adr/0006
+    # D19). Whether they must exist is check 2's job, by declared version.
+    # ------------------------------------------------------------------ #
+    for stream in (TOOL_CALLS_FILENAME, END_STATES_FILENAME):
+        stream_path = bundle_path / stream
+        if not stream_path.exists():
+            continue
+        try:
+            lines = stream_path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            errors.append(f"Cannot read {stream}: {exc}")
+            continue
+        for lineno, raw_line in enumerate(lines, start=1):
+            if not raw_line.strip():
+                continue
+            try:
+                if not isinstance(json.loads(raw_line), dict):
+                    errors.append(f"{stream} line {lineno}: expected a JSON object")
+            except json.JSONDecodeError as exc:
+                errors.append(f"{stream} line {lineno}: invalid JSON: {exc}")
 
     # ------------------------------------------------------------------ #
     # 10. trace_event_count cross-check

@@ -145,6 +145,9 @@ def run(
             benchmark_id=loaded.benchmark_id,
             benchmark_scenario=loaded.benchmark_scenario,
             status=status,
+            benchmark_options={"scenario": loaded.benchmark_scenario},
+            tool_calls=orchestrator.tool_call_records,
+            end_states=orchestrator.end_states,
         )
         suffix = "" if status == "sealed" else f" (status: {status})"
         typer.echo(f"Bundle written to: {output.resolve()}{suffix}")

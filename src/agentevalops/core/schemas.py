@@ -134,6 +134,12 @@ class RunConfig:
     model: str | None = None
     deployment: str | None = None
     api_version: str | None = None
+    #: docs/adr/0006 D18: the orchestrator runs each task this many times.
+    #: Always 1 until R27 gives it a YAML path.
+    repetitions: int = 1
+    #: docs/adr/0006 D6: base of the per-(task, repetition) seeds. Unused
+    #: until R26's perturbations; recorded so a run is reproducible.
+    seed: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +155,9 @@ class TaskSpec:
     benchmark_id: str
     description: str
     metadata: dict[str, Any] = field(default_factory=dict)
+    #: docs/adr/0006 D13: the evaluator kinds that apply to this task.
+    #: Empty means every evaluator the run configures. Not serialised.
+    applicable_evaluators: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -313,6 +322,26 @@ class TraceEvent:
     timestamp: datetime = field(default_factory=_utcnow)
     cost_delta_usd: float = 0.0
     tokens_delta: int = 0
+    #: docs/adr/0006 D17 (format 0.5): which task run emitted this event.
+    #: Stamped by the orchestrator, not the runner; ``step_index`` restarts
+    #: at 0 for every task run, so it is unique only together with these.
+    task_id: TaskId | None = None
+    repetition: int = 0
+
+
+@dataclass(frozen=True)
+class Ref:
+    """Addresses one trace event or one harness call record across a whole
+    run (docs/adr/0006 D17, format 0.5)."""
+
+    stream: Literal["trace", "tool_calls"]
+    task_id: TaskId | None
+    repetition: int
+    index: int
+
+
+#: Why a task run was not evaluated (docs/adr/0006 D16, format 0.5).
+NotEvaluatedCause = Literal["infrastructure", "configuration", "environment_defect"]
 
 
 # ---------------------------------------------------------------------------
@@ -351,6 +380,14 @@ class EvaluationResult:
     latency_ms: float = 0.0
     citations: list[int] = field(default_factory=list)
     notes: str = ""
+    #: docs/adr/0006 D13: ``False`` when the evaluator found none of the
+    #: inputs it needs in this task; such a result is not counted.
+    applicable: bool = True
+    #: docs/adr/0006 D16: set when ``evaluated`` is ``False``.
+    not_evaluated_cause: NotEvaluatedCause | None = None
+    #: docs/adr/0006 D17: run-wide addresses of what the score rests on.
+    #: ``citations`` stays, for 0.1-0.4 readers.
+    refs: list[Ref] = field(default_factory=list)
 
 
 @dataclass
@@ -363,9 +400,12 @@ class ScoreResult:
     aggregate_score: float = 0.0
     total_tasks: int = 0
     passed_tasks: int = 0
+    #: Evaluated and failed (docs/adr/0006 D20, format 0.5). Before 0.5 it
+    #: also counted not-evaluated tasks.
     failed_tasks: int = 0
     pass_rate: float = 0.0
     baseline_delta: float | None = None
+    not_evaluated_tasks: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -401,6 +441,8 @@ class PolicyVerdict:
     verdict: Verdict
     citations: list[int] = field(default_factory=list)
     notes: str = ""
+    #: docs/adr/0006 D17: run-wide addresses of the cited events.
+    refs: list[Ref] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -415,12 +457,66 @@ class PolicyVerdict:
 
 @dataclass
 class TaskRunResult:
-    """Outcome of a single task within a run."""
+    """Outcome of a single task run (one repetition of one task).
+
+    ``evaluation`` is the task run's verdict (docs/adr/0006 D13): the one
+    counted result when a single evaluator applies, otherwise derived from
+    ``evaluations`` -- a real failure wins, then "not evaluated".
+    """
 
     task_id: TaskId
     output: AgentOutput
     evaluation: EvaluationResult
     event_count: int
+    evaluations: list[EvaluationResult] = field(default_factory=list)
+    repetition: int = 0
+
+
+@dataclass(frozen=True)
+class EndStateRecord:
+    """One task run's tool-environment end state (docs/adr/0006 D7, D19)."""
+
+    task_id: TaskId
+    repetition: int
+    state: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class PreflightResult:
+    """A scenario's known-good preflight (docs/adr/0006 D16): run once per
+    scenario before the agent, so the bundle shows the scenario was
+    solvable at run time."""
+
+    task_id: TaskId
+    passed: bool
+    cause: str | None = None
+
+
+@dataclass(frozen=True)
+class EvaluatorContext:
+    """What the harness observed, for evaluators and the policy checker
+    (docs/adr/0006 D12).
+
+    An evaluator gets one task run's context (``task_id`` and
+    ``repetition`` set); the policy checker gets the whole run's.
+    """
+
+    records: tuple[ToolCallRecord, ...] = ()
+    end_states: tuple[EndStateRecord, ...] = ()
+    task_id: TaskId | None = None
+    repetition: int | None = None
+    applicable_evaluators: tuple[str, ...] = ()
+
+    @property
+    def end_state(self) -> dict[str, Any] | None:
+        """This task run's end state, if the context is scoped to one."""
+        for record in self.end_states:
+            if (record.task_id, record.repetition) == (
+                self.task_id,
+                self.repetition,
+            ):
+                return record.state
+        return None
 
 
 @dataclass
@@ -448,6 +544,10 @@ class RunSummary:
     trace_event_count: int = 0
     total_cost_usd: float = 0.0
     total_tokens: int = 0
+    #: docs/adr/0006 D16 (format 0.5): not-evaluated task runs by cause.
+    not_evaluated_by_cause: dict[str, int] = field(default_factory=dict)
+    #: docs/adr/0006 D16 (format 0.5): each scenario's known-good preflight.
+    preflight: list[PreflightResult] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

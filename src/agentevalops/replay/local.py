@@ -87,13 +87,26 @@ class LocalReplayVerifier:
                     f"actual len(traces)={trace_count}"
                 )
 
-        # ---- cross-check: metadata task_count == len(evaluations) ------
+        # ---- cross-check: metadata task_count == task runs evaluated -----
+        # Before format 0.5 evaluations.json held one entry per task; from
+        # 0.5 it holds one per evaluator per task run, each naming its task
+        # run (docs/adr/0006 D13), so count distinct task runs instead.
+        evaluated_runs = eval_count
+        entries = self._bundle.evaluations
+        if any(isinstance(e, dict) and "task_id" in e for e in entries):
+            evaluated_runs = len(
+                {
+                    (e.get("task_id"), e.get("repetition", 0))
+                    for e in self._bundle.evaluations
+                    if isinstance(e, dict)
+                }
+            )
         meta_task_count = self._bundle.metadata.get("task_count")
-        if isinstance(meta_task_count, int) and meta_task_count != eval_count:
+        if isinstance(meta_task_count, int) and meta_task_count != evaluated_runs:
             errors.append(
                 f"task count mismatch: "
                 f"metadata task_count={meta_task_count}, "
-                f"evaluations count={eval_count}"
+                f"evaluated task runs={evaluated_runs}"
             )
 
         return errors, warnings

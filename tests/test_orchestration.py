@@ -476,7 +476,7 @@ class _RecordingEvaluator:
         self._calls = calls
         self._error = error
 
-    async def evaluate(self, task, output, trace):  # type: ignore[no-untyped-def]
+    async def evaluate(self, task, output, trace, context=None):  # type: ignore[no-untyped-def]
         self._calls.append(f"evaluate:{task.task_id}")
         if self._error is not None:
             raise self._error
