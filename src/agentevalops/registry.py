@@ -29,11 +29,14 @@ Design notes
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from typing import Any, Callable
 
 from agentevalops.core.errors import ConfigurationError
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Public constants
@@ -51,11 +54,23 @@ KIND_EVALUATOR: str = "evaluator"
 #: Policy checkers (e.g. ``"basic"``).
 KIND_POLICY: str = "policy"
 
+#: Domain packs (docs/adr/0006 D23, D24), e.g. the seed domain.
+KIND_DOMAIN_PACK: str = "domain_pack"
+
 #: Entry-point group external packages publish benchmark adapters under.
 ENTRY_POINT_GROUP: str = "agentevalops.adapters"
 
+#: Entry-point group for domain packs (docs/adr/0006 D24).
+DOMAIN_PACK_ENTRY_POINT_GROUP: str = "agentevalops.domain_packs"
+
+#: Which kind each entry-point group registers under.
+_GROUP_KINDS: dict[str, str] = {
+    ENTRY_POINT_GROUP: KIND_BENCHMARK,
+    DOMAIN_PACK_ENTRY_POINT_GROUP: KIND_DOMAIN_PACK,
+}
+
 _KNOWN_KINDS: frozenset[str] = frozenset(
-    {KIND_BENCHMARK, KIND_RUNNER, KIND_EVALUATOR, KIND_POLICY}
+    {KIND_BENCHMARK, KIND_RUNNER, KIND_EVALUATOR, KIND_POLICY, KIND_DOMAIN_PACK}
 )
 
 
@@ -205,11 +220,12 @@ class Registry:
         *,
         replace: bool = False,
     ) -> tuple[str, ...]:
-        """Load benchmark adapters published under *group* via entry points.
+        """Load components published under *group* via entry points.
 
         Each entry point's ``name`` becomes the registry name; its loaded
-        object becomes the factory and is registered under
-        :data:`KIND_BENCHMARK`.
+        object becomes the factory, registered under the group's kind --
+        :data:`KIND_BENCHMARK` for :data:`ENTRY_POINT_GROUP`,
+        :data:`KIND_DOMAIN_PACK` for :data:`DOMAIN_PACK_ENTRY_POINT_GROUP`.
 
         Parameters
         ----------
@@ -221,26 +237,45 @@ class Registry:
         Returns
         -------
         tuple[str, ...]
-            Names of entry points actually loaded (skipping any that fail to
-            import).  Failures are silently skipped so a broken third-party
-            plugin can't crash the CLI; callers wanting strict behaviour
-            should iterate the entry points themselves.
+            Names of entry points actually loaded. A plugin that fails to
+            import, or whose name is already registered (a built-in shadows
+            it), is skipped and logged as a warning (docs/adr/0006 D24) -- a
+            broken third-party plugin can't crash the CLI, and can't vanish
+            unnoticed either.
         """
+        kind = _GROUP_KINDS.get(group, KIND_BENCHMARK)
         loaded: list[str] = []
         for ep in importlib_metadata.entry_points(group=group):
             try:
                 factory = ep.load()
-            except Exception:  # pragma: no cover - defensive
+            except Exception as exc:  # noqa: BLE001 - a plugin's own failure
+                logger.warning(
+                    "Skipped plugin '%s' (entry-point group %s): it failed "
+                    "to import: %s",
+                    ep.name,
+                    group,
+                    exc,
+                )
                 continue
             try:
-                self.register(
-                    KIND_BENCHMARK, ep.name, factory, replace=replace
-                )
+                self.register(kind, ep.name, factory, replace=replace)
             except ConfigurationError:
-                # Already registered (built-in shadows plugin) — skip silently.
+                logger.warning(
+                    "Skipped plugin '%s' (entry-point group %s): a %s of "
+                    "that name is already registered",
+                    ep.name,
+                    group,
+                    kind,
+                )
                 continue
             loaded.append(ep.name)
         return tuple(loaded)
+
+    def discover_all(self) -> dict[str, tuple[str, ...]]:
+        """Discover every entry-point group this platform knows; returns the
+        names loaded per group. The CLI calls it once, before resolving any
+        name from a config (docs/adr/0006 D24)."""
+        return {group: self.discover_entry_points(group) for group in _GROUP_KINDS}
 
 
 # ---------------------------------------------------------------------------
@@ -314,9 +349,16 @@ def discover_entry_points(
     return default_registry.discover_entry_points(group, replace=replace)
 
 
+def discover_all() -> dict[str, tuple[str, ...]]:
+    """Discover every known entry-point group on the default registry."""
+    return default_registry.discover_all()
+
+
 __all__ = [
+    "DOMAIN_PACK_ENTRY_POINT_GROUP",
     "ENTRY_POINT_GROUP",
     "KIND_BENCHMARK",
+    "KIND_DOMAIN_PACK",
     "KIND_EVALUATOR",
     "KIND_POLICY",
     "KIND_RUNNER",
@@ -325,6 +367,7 @@ __all__ = [
     "UnknownComponentError",
     "build_default_registry",
     "default_registry",
+    "discover_all",
     "discover_entry_points",
     "get",
     "names",

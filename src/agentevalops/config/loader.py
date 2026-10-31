@@ -18,13 +18,12 @@ Public API
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from agentevalops.benchmarks.toy.scenarios import SUPPORTED_SCENARIOS
 from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.schemas import PolicySpec, ResourceLimits, RunConfig
 from agentevalops.core.types import BACKEND_AWS, AgentId, BackendId, RunId
@@ -81,10 +80,13 @@ class LoadedRunConfig:
     mock_cost_per_task_usd:
         Per-task cost the :class:`MockAgentRunner` reports in its terminal
         payload.  Used by the ``toy_policy_violation`` scenario.
+    benchmark_options:
+        Options the CLI passes to the benchmark's constructor
+        (docs/adr/0006 D25). Opaque here: the benchmark validates them.
     benchmark_scenario:
-        Named scenario within the toy benchmark (``"smoke"``, ``"failure"``,
-        ``"policy_violation"``, ``"trace_limit"``, ``"mixed"``).
-        Defaults to ``"smoke"``.
+        ``benchmark_options["scenario"]``, or ``""`` -- kept because
+        ``config.json`` and the manifest record it. Top-level
+        ``benchmark_scenario:`` in YAML is an alias for that option.
     runner_id:
         Which registered agent runner to use (``"mock"`` by default, or
         ``"langgraph"`` for the real Claude-backed runner).  The CLI resolves
@@ -98,7 +100,8 @@ class LoadedRunConfig:
     benchmark_id: str
     mock_fail: bool = False
     mock_cost_per_task_usd: float = 0.0
-    benchmark_scenario: str = "smoke"
+    benchmark_scenario: str = ""
+    benchmark_options: dict[str, Any] = field(default_factory=dict)
     runner_id: str = "mock"
 
     @property
@@ -371,14 +374,28 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         )
 
     # ------------------------------------------------------------------
-    # benchmark_scenario
+    # benchmark_options (docs/adr/0006 D25)
     # ------------------------------------------------------------------
-    benchmark_scenario = str(raw.get("benchmark_scenario", "smoke"))
-    if benchmark_scenario not in SUPPORTED_SCENARIOS:
+    # Opaque to the loader: the benchmark validates its own options when the
+    # CLI builds it, so the loader knows no benchmark's vocabulary (finding
+    # 8). ``benchmark_scenario`` stays as an alias for ``scenario``, so
+    # existing toy configs keep working.
+    options_raw = raw.get("benchmark_options", {})
+    if not isinstance(options_raw, dict):
         raise ConfigurationError(
-            f"Unsupported benchmark_scenario '{benchmark_scenario}'. "
-            f"Supported values: {sorted(SUPPORTED_SCENARIOS)}"
+            f"benchmark_options must be a YAML mapping, "
+            f"got {type(options_raw).__name__}"
         )
+    benchmark_options: dict[str, Any] = {str(k): v for k, v in options_raw.items()}
+    if "benchmark_scenario" in raw:
+        alias = str(raw["benchmark_scenario"])
+        if "scenario" in benchmark_options and benchmark_options["scenario"] != alias:
+            raise ConfigurationError(
+                "benchmark_scenario and benchmark_options.scenario disagree "
+                f"('{alias}' vs '{benchmark_options['scenario']}'); set one"
+            )
+        benchmark_options["scenario"] = alias
+    benchmark_scenario = str(benchmark_options.get("scenario", ""))
 
     # ------------------------------------------------------------------
     # runner selection (mock by default; langgraph for the real runner)
@@ -452,5 +469,6 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         mock_fail=mock_fail,
         mock_cost_per_task_usd=mock_cost_raw,
         benchmark_scenario=benchmark_scenario,
+        benchmark_options=benchmark_options,
         runner_id=runner_id,
     )

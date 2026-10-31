@@ -64,10 +64,14 @@ def run(
         KIND_EVALUATOR,
         KIND_POLICY,
         default_registry,
+        discover_all,
     )
     from agentevalops.stores.local import LocalTraceStore
     from agentevalops.stores.memory import InMemoryTraceStore
 
+    # docs/adr/0006 D24: plugins first, so a config can name a benchmark or
+    # domain pack an installed package provides.
+    discover_all()
     try:
         loaded = load_run_config(config)
     except ConfigurationError as exc:
@@ -75,6 +79,19 @@ def run(
         raise typer.Exit(code=1)
 
     benchmark_cls = default_registry.get(KIND_BENCHMARK, loaded.benchmark_id)
+    # docs/adr/0006 D25: the benchmark validates its own options.
+    try:
+        benchmark = benchmark_cls(**loaded.benchmark_options)
+    except TypeError as exc:
+        typer.echo(
+            f"Configuration error: benchmark '{loaded.benchmark_id}' does not "
+            f"accept these benchmark_options: {exc}",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    except ConfigurationError as exc:
+        typer.echo(f"Configuration error: {exc}", err=True)
+        raise typer.Exit(code=1)
     evaluator_cls = default_registry.get(KIND_EVALUATOR, "deterministic")
     policy_cls = default_registry.get(KIND_POLICY, "basic")
 
@@ -104,7 +121,7 @@ def run(
 
     orchestrator = LocalOrchestrator(
         run_config=loaded.run_config,
-        benchmark=benchmark_cls(scenario=loaded.benchmark_scenario),
+        benchmark=benchmark,
         runner=runner,
         trace_store=store,
         evaluator=evaluator_cls(),
@@ -145,7 +162,7 @@ def run(
             benchmark_id=loaded.benchmark_id,
             benchmark_scenario=loaded.benchmark_scenario,
             status=status,
-            benchmark_options={"scenario": loaded.benchmark_scenario},
+            benchmark_options=loaded.benchmark_options,
             tool_calls=orchestrator.tool_call_records,
             end_states=orchestrator.end_states,
         )
