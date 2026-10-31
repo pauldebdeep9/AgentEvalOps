@@ -9,6 +9,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Control catalogue v0 — R22 met** (2026-11-01, `c3fcdca`).
+  `agentevalops.catalogue`, in its own layer between the adapters and
+  `core` (ADR-0006 D8), importing only `core`. MGF-Agentic v1.5 and the
+  Starter Kit v1.0 are pinned by title, publisher, version, published and
+  updated dates, URL, the sha256 of the file retrieved on 2026-10-31 and
+  an IP posture; eleven controls (MGF-Agentic §1.1.3, §1.2.2, §2.1.1,
+  §2.2.2, §2.3.2, §2.3.3 and the Starter Kit's five risks) with
+  version-free IDs (`<source-id>:<locator>`) and labels reused from
+  `docs/imda-alignment.md` §6/§7. The loader rejects an unpinned source,
+  unknown sources, duplicate IDs, empty labels, "AI Verify" in IDs or
+  names, and compliance or certification claims — each guard seen failing
+  first. One YAML file per source version, shipped in the wheel. A new
+  import contract keeps the catalogue to `core` (8 contracts).
+  `scripts/check_catalogue_ip.py` (dev only; the PDFs are never committed)
+  found no label sharing five consecutive words with either source.
+  Nothing uses the catalogue until R24. Baseline: 768 passed, 1 skipped,
+  97.05% on a clean checkout.
+
 - **ADR-0006 amended, still Proposed — bundle 0.5 moves from R23 to R24**
   (2026-11-01). Docs only. Task and repetition stamping, several
   evaluators per task, `EvaluatorContext`, the three-way `ScoreResult` and

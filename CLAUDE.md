@@ -75,19 +75,21 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-10-31, Sai2608, clean checkout at `d8c94c0`)
+## Baseline (verified 2026-11-01, Sai2608, clean checkout at `c3fcdca`)
 
 - ruff: clean
-- mypy: clean (44 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (46 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
   `openai` and `opentelemetry-api` installed, so local `mypy src` is more
   permissive than CI's — see "Local env vs CI" above.
-- `lint-imports`: **7 kept, 0 broken** (7th contract added alongside
-  row 14's SWE-bench spike: "swebench never imported")
-- pytest: 721 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.80% branch
-  coverage on a clean checkout (`d8c94c0`). Any untracked *or uncommitted*
+- `lint-imports`: **8 kept, 0 broken** (7th contract added alongside
+  row 14's SWE-bench spike: "swebench never imported"; 8th with catalogue
+  v0: "catalogue imports only core", and the layers contract gained the
+  `catalogue` tier, ADR-0006 D8)
+- pytest: 768 passed, 1 skipped (opt-in `@pytest.mark.live`), 97.05% branch
+  coverage on a clean checkout (`c3fcdca`). Any untracked *or uncommitted*
   change raises it: tests reach the code-drift "inconclusive" warning
   (`bundles/validator.py`, `cli.py`) only through this checkout's own git
   state (`ROADMAP.md` §0, 2026-10-10 finding). Measure the baseline only
