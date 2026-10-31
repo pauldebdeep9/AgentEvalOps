@@ -147,6 +147,26 @@ class LoadedRunConfig:
 # ---------------------------------------------------------------------------
 
 
+def _as_int(value: Any, field_name: str) -> int:
+    """``int(value)``, or a ``ConfigurationError`` naming *field_name*."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ConfigurationError(
+            f"{field_name} must be an integer, got {value!r}"
+        ) from None
+
+
+def _as_float(value: Any, field_name: str) -> float:
+    """``float(value)``, or a ``ConfigurationError`` naming *field_name*."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ConfigurationError(
+            f"{field_name} must be a number, got {value!r}"
+        ) from None
+
+
 def load_run_config(path: Path) -> LoadedRunConfig:
     """Load and validate *path* as a run configuration YAML file.
 
@@ -214,9 +234,15 @@ def load_run_config(path: Path) -> LoadedRunConfig:
             f"got {type(rl_raw).__name__}"
         )
 
-    max_tokens = int(rl_raw.get("max_tokens", 100_000))
-    max_wall_seconds = float(rl_raw.get("max_wall_seconds", 3_600.0))
-    rl_max_cost = float(rl_raw.get("max_cost_usd", 10.0))
+    max_tokens = _as_int(
+        rl_raw.get("max_tokens", 100_000), "resource_limits.max_tokens"
+    )
+    max_wall_seconds = _as_float(
+        rl_raw.get("max_wall_seconds", 3_600.0), "resource_limits.max_wall_seconds"
+    )
+    rl_max_cost = _as_float(
+        rl_raw.get("max_cost_usd", 10.0), "resource_limits.max_cost_usd"
+    )
 
     if max_tokens <= 0:
         raise ConfigurationError(
@@ -272,7 +298,9 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         run_id=RunId(str(raw.get("run_id", "unnamed-run"))),
         agent_id=AgentId(str(raw.get("agent_id", "mock-agent-v1"))),
         backend_id=BackendId(backend_id_str),
-        max_concurrent_tasks=int(raw.get("max_concurrent_tasks", 1)),
+        max_concurrent_tasks=_as_int(
+            raw.get("max_concurrent_tasks", 1), "max_concurrent_tasks"
+        ),
         resource_limits=resource_limits,
         model=model,
         deployment=deployment,
@@ -301,7 +329,7 @@ def load_run_config(path: Path) -> LoadedRunConfig:
 
     p_max_cost: float | None = None
     if "max_cost_usd" in policy_raw:
-        p_max_cost = float(policy_raw["max_cost_usd"])
+        p_max_cost = _as_float(policy_raw["max_cost_usd"], "policy.max_cost_usd")
         if p_max_cost < 0:
             raise ConfigurationError(
                 f"policy.max_cost_usd must be >= 0, got {p_max_cost}"
@@ -309,7 +337,9 @@ def load_run_config(path: Path) -> LoadedRunConfig:
 
     p_max_trace: int | None = None
     if "max_trace_events" in policy_raw:
-        p_max_trace = int(policy_raw["max_trace_events"])
+        p_max_trace = _as_int(
+            policy_raw["max_trace_events"], "policy.max_trace_events"
+        )
         if p_max_trace < 1:
             raise ConfigurationError(
                 f"policy.max_trace_events must be >= 1, "
@@ -336,7 +366,9 @@ def load_run_config(path: Path) -> LoadedRunConfig:
     # ------------------------------------------------------------------
     mock_fail = bool(raw.get("mock_fail", False))
 
-    mock_cost_raw = float(raw.get("mock_cost_per_task_usd", 0.0))
+    mock_cost_raw = _as_float(
+        raw.get("mock_cost_per_task_usd", 0.0), "mock_cost_per_task_usd"
+    )
     if mock_cost_raw < 0:
         raise ConfigurationError(
             f"mock_cost_per_task_usd must be >= 0, got {mock_cost_raw}"

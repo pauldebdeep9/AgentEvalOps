@@ -195,6 +195,32 @@ def test_negative_resource_max_cost_raises(tmp_path: Path) -> None:
         load_run_config(p)
 
 
+@pytest.mark.parametrize(
+    ("yaml_fragment", "field"),
+    [
+        ("resource_limits:\n  max_tokens: lots\n", "resource_limits.max_tokens"),
+        (
+            "resource_limits:\n  max_wall_seconds: forever\n",
+            "resource_limits.max_wall_seconds",
+        ),
+        ("resource_limits:\n  max_cost_usd: [1]\n", "resource_limits.max_cost_usd"),
+        ("max_concurrent_tasks: many\n", "max_concurrent_tasks"),
+        ("policy:\n  max_cost_usd: cheap\n", "policy.max_cost_usd"),
+        ("policy:\n  max_trace_events: '1e9x'\n", "policy.max_trace_events"),
+        ("mock_cost_per_task_usd: free\n", "mock_cost_per_task_usd"),
+    ],
+)
+def test_non_number_raises_configuration_error(
+    tmp_path: Path, yaml_fragment: str, field: str
+) -> None:
+    """A non-number in a numeric field is a config error naming the field,
+    not a raw ValueError/TypeError traceback (ROADMAP §0, 2026-10-31,
+    finding 10)."""
+    p = _write(tmp_path, "run_id: r1\nbenchmark_id: toy\n" + yaml_fragment)
+    with pytest.raises(ConfigurationError, match=field.replace(".", r"\.")):
+        load_run_config(p)
+
+
 def test_zero_max_tokens_raises(tmp_path: Path) -> None:
     p = _write(
         tmp_path,
