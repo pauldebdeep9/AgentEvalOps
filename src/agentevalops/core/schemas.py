@@ -14,9 +14,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from agentevalops.core.types import AgentId, BackendId, RunId, TaskId
+
+if TYPE_CHECKING:  # protocols.py imports this module; avoid the cycle
+    from agentevalops.core.protocols import ToolEnvironment
 
 # ---------------------------------------------------------------------------
 # Shared payload key constants
@@ -161,14 +164,116 @@ class EnvHandle:
     task_id: TaskId
     workspace_path: Path | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    #: The task's tool environment (docs/adr/0006 D1), returned by
+    #: ``prepare_environment`` and handed to the runner by the orchestrator.
+    tools: ToolEnvironment | None = None
 
 
 @dataclass
 class AgentInput:
-    """Everything the agent receives when starting a task."""
+    """Everything the agent receives when starting a task.
+
+    ``environment`` (docs/adr/0006 D1): where the runner gets its tool specs
+    and sends its tool calls. The orchestrator always sets it; ``None`` only
+    happens when a runner is called directly, as the runner tests do.
+    """
 
     task: TaskSpec
     context: dict[str, Any] = field(default_factory=dict)
+    environment: ToolEnvironment | None = None
+
+
+# ---------------------------------------------------------------------------
+# Tools (docs/adr/0006-tool-environment-and-observation-seam.md)
+# ---------------------------------------------------------------------------
+
+#: Permission class of a tool (D3). ``irreversible`` calls go through the
+#: environment's approval gate (D5, built in R25).
+ToolPermission = Literal["read", "write", "irreversible"]
+
+#: Sensitivity of the data a tool returns or exports (D3).
+ToolDataClass = Literal["normal", "restricted"]
+
+#: Approval state of one recorded call (D4, D5).
+ToolApproval = Literal["not_required", "approved", "denied", "timed_out"]
+
+#: A tool environment's end state (D7): a JSON object whose ``schema`` key is
+#: chosen by the domain pack.
+EndState = dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    """One tool, in one provider-neutral shape (D3).
+
+    ``input_schema`` is a JSON Schema object. ``permission`` and
+    ``data_class`` are harness-side and never sent to a model provider; each
+    runner converts the rest to its own provider format (D9).
+    """
+
+    name: str
+    description: str
+    input_schema: dict[str, Any]
+    permission: ToolPermission = "read"
+    data_class: ToolDataClass = "normal"
+
+
+@dataclass(frozen=True)
+class ToolResult:
+    """What the agent sees for one tool call (D2)."""
+
+    content: str
+    error: bool = False
+
+
+@dataclass(frozen=True)
+class ToolCallRecord:
+    """The harness's own record of one tool call (D4).
+
+    Written only by the environment, never by the agent. ``index`` orders
+    the calls within one task run; ``timestamp`` is information only and is
+    never compared by ``rescore``.
+    """
+
+    task_id: TaskId
+    index: int
+    tool_name: str
+    arguments: dict[str, Any]
+    permission: ToolPermission | None
+    data_class: ToolDataClass | None
+    executed: bool
+    result: str
+    error: bool = False
+    approval: ToolApproval = "not_required"
+    fault: str | None = None
+    injections: tuple[str, ...] = ()
+    repetition: int = 0
+    timestamp: datetime = field(default_factory=lambda: _utcnow())
+
+
+#: Names no environment may declare (D3): ``finish`` is the runners' own
+#: control, never an environment tool.
+RESERVED_TOOL_NAMES: frozenset[str] = frozenset({"finish"})
+
+#: The ``finish`` control's spec (D9). Every runner offers it after the
+#: environment's tools and handles the call itself.
+FINISH_TOOL_SPEC = ToolSpec(
+    name="finish",
+    description=(
+        "Return the final answer to the user's task. Call this exactly "
+        "once when you are confident in the answer."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "answer": {
+                "type": "string",
+                "description": "The final answer string.",
+            }
+        },
+        "required": ["answer"],
+    },
+)
 
 
 @dataclass

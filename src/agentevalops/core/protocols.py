@@ -1,4 +1,4 @@
-"""The nine core Protocol definitions for AgentEvalOps.
+"""The core Protocol definitions for AgentEvalOps.
 
 These are PEP 544 structural protocols.  Implementations do NOT need to
 inherit from these classes — they only need to match the declared shape.
@@ -22,6 +22,7 @@ from typing import Any, Protocol, runtime_checkable
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
+    EndState,
     EnvHandle,
     EvaluationResult,
     PolicySpec,
@@ -31,9 +32,42 @@ from agentevalops.core.schemas import (
     RunSummary,
     ScoreResult,
     TaskSpec,
+    ToolCallRecord,
+    ToolResult,
+    ToolSpec,
     TraceEvent,
 )
 from agentevalops.core.types import AgentId, BackendId, RunId
+
+
+@runtime_checkable
+class ToolEnvironment(Protocol):
+    """A task's tool environment: the harness's observation point
+    (docs/adr/0006-tool-environment-and-observation-seam.md, D2).
+
+    Runners get tool specs from it and send every tool call except
+    ``finish`` to it. It records each call itself, so verdicts can rest on
+    the harness's record rather than on what the agent reports (D4, D14).
+    Async so that an MCP transport (v0.6) is another implementation of the
+    same protocol, not a change to it.
+    """
+
+    async def list_tools(self) -> Sequence[ToolSpec]:
+        """The tools this environment offers, in a fixed order."""
+        ...
+
+    async def call(self, name: str, arguments: dict[str, Any]) -> ToolResult:
+        """Run one tool call and record it. Never raises on a bad call: an
+        unknown tool or a failed call is an error result, recorded."""
+        ...
+
+    async def snapshot(self) -> EndState:
+        """The environment's end state (D7)."""
+        ...
+
+    def records(self) -> Sequence[ToolCallRecord]:
+        """Every call so far, in order (D4)."""
+        ...
 
 
 @runtime_checkable
