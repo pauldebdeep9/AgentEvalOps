@@ -23,6 +23,13 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R25 slice 5, `ecf019c`, notice
+transparency).**
+- The notice rule reads the executed notify records, not the end state:
+  the records are the harness's own account (D14) and carry the notify
+  arguments the pack names in `notice_fields`. "Exactly the case's codes"
+  is a set comparison, so order never matters and an extra code fails.
+
 **Implementation notes — 2026-11-01 (R25 slice 4, `594a53d`, the
 restricted-data boundary).**
 - The boundary is the `restricted_export_destination` policy rule over
