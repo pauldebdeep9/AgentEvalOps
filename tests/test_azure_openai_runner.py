@@ -189,10 +189,20 @@ def test_missing_api_version_raises_configuration_error() -> None:
 
 def test_unknown_model_id_raises_configuration_error_at_construction() -> None:
     """D3: an unpriced model id must fail loudly at construction, not
-    silently fall back to any rate -- unlike OpenAIRunner's
-    _FALLBACK_PRICE_PER_1M_USD, there is deliberately no Azure fallback.
+    silently fall back to any rate. (OpenAIRunner had a fallback rate until
+    2026-10-31; it now refuses unpriced ids too.)
     """
     with pytest.raises(ConfigurationError, match="made-up-model"):
+        AzureOpenAIRunner(
+            model="made-up-model", deployment="my-deployment",
+            api_version="2024-10-21", agent_factory=_factory([]),
+        )
+
+
+def test_unknown_model_error_names_the_azure_table() -> None:
+    # The Azure table decides, not OpenAIRunner's direct-API one: a model
+    # id unknown to both must get the Azure message.
+    with pytest.raises(ConfigurationError, match="Azure price table"):
         AzureOpenAIRunner(
             model="made-up-model", deployment="my-deployment",
             api_version="2024-10-21", agent_factory=_factory([]),

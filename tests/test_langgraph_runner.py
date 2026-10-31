@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from agentevalops.agents.langgraph_runner import (
+    _PRICE_PER_1M_USD,
     DEFAULT_MODEL,
     LangGraphRunner,
     _cost_usd,
@@ -194,10 +195,20 @@ def test_price_table_and_cost() -> None:
     assert _cost_usd("claude-haiku-4-5", 1000, 1000) == pytest.approx(0.006)
 
 
-def test_price_table_unknown_model_uses_fallback() -> None:
-    assert _model_price_per_token("made-up-model") == _model_price_per_token(
-        "claude-haiku-4-5"
-    )
+def test_price_lookup_refuses_unknown_model() -> None:
+    """No fallback rate: an unpriced id would under-report cost (ROADMAP §0,
+    2026-10-31, finding 6; same rule as AzureOpenAIRunner, ADR-0004 D3)."""
+    with pytest.raises(ConfigurationError, match="made-up-model"):
+        _model_price_per_token("made-up-model")
+
+
+def test_default_model_is_priced() -> None:
+    assert DEFAULT_MODEL in _PRICE_PER_1M_USD
+
+
+def test_unpriced_model_refused_at_construction() -> None:
+    with pytest.raises(ConfigurationError, match="claude-opus-9"):
+        LangGraphRunner(model="claude-opus-9", agent_factory=_factory([]))
 
 
 # ---------------------------------------------------------------------------

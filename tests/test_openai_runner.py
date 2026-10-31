@@ -16,6 +16,7 @@ from typing import Any
 import pytest
 
 from agentevalops.agents.openai_runner import (
+    _PRICE_PER_1M_USD,
     DEFAULT_MODEL,
     OpenAIRunner,
     _cost_usd,
@@ -202,10 +203,20 @@ def test_price_table_and_cost() -> None:
     assert _cost_usd(DEFAULT_MODEL, 1000, 1000) == pytest.approx(0.002)
 
 
-def test_price_table_unknown_model_uses_fallback() -> None:
-    assert _model_price_per_token("made-up-model") == _model_price_per_token(
-        DEFAULT_MODEL
-    )
+def test_price_lookup_refuses_unknown_model() -> None:
+    """No fallback rate: an unpriced id would under-report cost (ROADMAP §0,
+    2026-10-31, finding 6; same rule as AzureOpenAIRunner, ADR-0004 D3)."""
+    with pytest.raises(ConfigurationError, match="made-up-model"):
+        _model_price_per_token("made-up-model")
+
+
+def test_default_model_is_priced() -> None:
+    assert DEFAULT_MODEL in _PRICE_PER_1M_USD
+
+
+def test_unpriced_model_refused_at_construction() -> None:
+    with pytest.raises(ConfigurationError, match="gpt-4.1"):
+        OpenAIRunner(model="gpt-4.1", agent_factory=_factory([]))
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +230,9 @@ def test_default_model_and_agent_id() -> None:
     assert runner.agent_id == f"openai-chat:{DEFAULT_MODEL}"
 
 
-def test_explicit_model_in_agent_id() -> None:
+def test_explicit_model_in_agent_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Only one model is priced; give the explicit one a test-only price.
+    monkeypatch.setitem(_PRICE_PER_1M_USD, "gpt-4o-mini", (0.15, 0.60))
     runner = OpenAIRunner(model="gpt-4o-mini", agent_factory=_factory([]))
     assert runner.agent_id == "openai-chat:gpt-4o-mini"
 

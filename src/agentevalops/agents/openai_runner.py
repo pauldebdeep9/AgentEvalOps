@@ -88,18 +88,27 @@ _PRICE_PER_1M_USD: dict[str, tuple[float, float]] = {
     "gpt-4.1-mini-2025-04-14": (0.40, 1.60),
 }
 
-#: Fallback price used when a model id is not in the table above.  Only one
-#: model is priced today, so the fallback is that same (cheapest available)
-#: rate — same "never over-report cost for an unknown model" reasoning as
-#: LangGraphRunner's fallback.
-_FALLBACK_PRICE_PER_1M_USD: tuple[float, float] = _PRICE_PER_1M_USD[
-    "gpt-4.1-mini-2025-04-14"
-]
 
 
 def _model_price_per_token(model: str) -> tuple[float, float]:
-    """Return ``(input_per_token, output_per_token)`` USD prices for *model*."""
-    in_1m, out_1m = _PRICE_PER_1M_USD.get(model, _FALLBACK_PRICE_PER_1M_USD)
+    """Return ``(input_per_token, output_per_token)`` USD prices for *model*.
+
+    An unpriced model id raises ``ConfigurationError`` -- there is no
+    fallback rate. Until 2026-10-31 an unknown id got gpt-4.1-mini's rate,
+    so e.g. gpt-4.1 was costed at $0.40 / 1M input tokens, under-reporting
+    it and weakening cost ceilings and R30's cost check (ROADMAP §0,
+    2026-10-31, finding 6; the same rule as AzureOpenAIRunner, docs/adr/0004
+    D3).
+    """
+    try:
+        in_1m, out_1m = _PRICE_PER_1M_USD[model]
+    except KeyError:
+        raise ConfigurationError(
+            f"Unknown OpenAI model id '{model}': not in OpenAIRunner's price "
+            "table (_PRICE_PER_1M_USD in openai_runner.py). Add a citable "
+            "price for it, or use a priced model id; refusing to guess a "
+            "rate (docs/adr/0004, D3)."
+        ) from None
     return (in_1m / 1_000_000.0, out_1m / 1_000_000.0)
 
 
@@ -324,6 +333,15 @@ class OpenAIRunner:
         )
         self._client: Any = None
         self.agent_id = AgentId(f"openai-chat:{self._model_id}")
+        self._require_priced_model()
+
+    def _require_priced_model(self) -> None:
+        """Refuse, at construction, a model id this runner cannot price.
+
+        Overridden by ``AzureOpenAIRunner``, which checks its own Azure
+        table later in its ``__init__`` (docs/adr/0004, D3).
+        """
+        _model_price_per_token(self._model_id)
 
     # ------------------------------------------------------------------
     # Client construction

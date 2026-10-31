@@ -43,13 +43,14 @@ cost/identity are still computed and reported against the right model.
 
 Pricing: own table, fail loud on unknown model, never guess
 --------------------------------------------------------------
-Unlike ``OpenAIRunner``'s ``_FALLBACK_PRICE_PER_1M_USD`` (a deliberate
-"never over-report for an unknown model" choice, sound because an unknown
-OpenAI model id is an occasional miss), an unknown model id here would be
-wrong on *every* Azure run: the API is keyed by deployment name, so nothing
-the user configures could ever coincidentally match a model-id-keyed price
-table. A silent fallback would under-report cost on 100% of Azure runs with
-no error. ``AzureOpenAIRunner.__init__`` therefore raises
+``OpenAIRunner`` once fell back to its cheapest rate for an unknown model
+id, on the reasoning that an unknown OpenAI id is an occasional miss; since
+2026-10-31 it refuses unpriced ids too (ROADMAP §0, finding 6). Here a
+fallback would be wrong on *every* Azure run: the API is keyed by
+deployment name, so nothing the user configures could ever coincidentally
+match a model-id-keyed price table. A silent fallback would under-report
+cost on 100% of Azure runs with no error. ``AzureOpenAIRunner.__init__``
+therefore raises
 :class:`~agentevalops.core.errors.ConfigurationError` at **construction
 time** if the resolved model id is not in :data:`_AZURE_PRICE_PER_1M_USD` —
 mirroring how ``config/loader.py`` already fails at load time when a
@@ -102,7 +103,7 @@ from agentevalops.core.types import AgentId
 
 # ---------------------------------------------------------------------------
 # Azure price table — deliberately separate from openai_runner.py's
-# _PRICE_PER_1M_USD / _FALLBACK_PRICE_PER_1M_USD. No fallback: see the
+# _PRICE_PER_1M_USD. No fallback: see the
 # module docstring's "Pricing" section for why an unknown model id must
 # raise here instead of silently defaulting.
 #
@@ -246,6 +247,12 @@ class AzureOpenAIRunner(OpenAIRunner):
     # ------------------------------------------------------------------
     # Client construction — the seam that differs from OpenAIRunner
     # ------------------------------------------------------------------
+
+    def _require_priced_model(self) -> None:
+        """No-op: ``__init__`` checks the model id against
+        :data:`_AZURE_PRICE_PER_1M_USD`, after the deployment and
+        api_version checks -- OpenAIRunner's direct-API table does not
+        apply to Azure (docs/adr/0004, D3)."""
 
     def _build_real_client(self) -> Any:  # pragma: no cover - live path only
         """Construct the real ``openai.AzureOpenAI`` client (lazy import).

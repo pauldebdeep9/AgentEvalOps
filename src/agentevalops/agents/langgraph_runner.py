@@ -76,16 +76,26 @@ _PRICE_PER_1M_USD: dict[str, tuple[float, float]] = {
     "claude-opus-4-8": (5.00, 25.00),
 }
 
-#: Fallback price used when a model id is not in the table above.  Uses the
-#: Haiku (cheapest) rate so unknown models never over-report cost.
-_FALLBACK_PRICE_PER_1M_USD: tuple[float, float] = _PRICE_PER_1M_USD[
-    "claude-haiku-4-5"
-]
 
 
 def _model_price_per_token(model: str) -> tuple[float, float]:
-    """Return ``(input_per_token, output_per_token)`` USD prices for *model*."""
-    in_1m, out_1m = _PRICE_PER_1M_USD.get(model, _FALLBACK_PRICE_PER_1M_USD)
+    """Return ``(input_per_token, output_per_token)`` USD prices for *model*.
+
+    An unpriced model id raises ``ConfigurationError`` -- there is no
+    fallback rate. Until 2026-10-31 an unknown id got Haiku's rate, the
+    cheapest, which under-reports every dearer model and so weakens cost
+    ceilings and R30's cost check (ROADMAP §0, 2026-10-31, finding 6; the
+    same rule as AzureOpenAIRunner, docs/adr/0004 D3).
+    """
+    try:
+        in_1m, out_1m = _PRICE_PER_1M_USD[model]
+    except KeyError:
+        raise ConfigurationError(
+            f"Unknown Claude model id '{model}': not in LangGraphRunner's "
+            "price table (_PRICE_PER_1M_USD in langgraph_runner.py). Add a "
+            "citable price for it, or use a priced model id; refusing to "
+            "guess a rate (docs/adr/0004, D3)."
+        ) from None
     return (in_1m / 1_000_000.0, out_1m / 1_000_000.0)
 
 
@@ -261,6 +271,7 @@ class LangGraphRunner:
         system_prompt: str | None = None,
     ) -> None:
         self._model = model or DEFAULT_MODEL
+        _model_price_per_token(self._model)  # unpriced -> ConfigurationError
         self._agent_factory = agent_factory
         self._max_steps = max(1, int(max_steps))
         self._system_prompt = system_prompt or (
