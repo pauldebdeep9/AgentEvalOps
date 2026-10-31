@@ -55,7 +55,7 @@
 - **Decision: take the W25 cut only, and move the dates.** Cut now (§6): confidence intervals (R27), every perturbation family beyond the first (R26), and `docs/domain-packs.md` (R31, to v0.6) — about ½ week. The W28 cut stays in reserve for the W28 checkpoint. Rejected: both cuts plus the holiday weeks with v0.2 around Nov 22 — that count left out the rest of R22, and neither cut touches R22–R25.
 - **Arithmetic.** From Nov 2: the rest of R22 (about ⅔ week) + R23–R31 (nine rows) − the W25 cut (about ½ week) ≈ 9⅙ weeks, then the release week. The holiday weeks (R32, R33: Dec 21–Jan 3) stay light, with no rows planned into them. Ten working weeks fit before Jan 25, leaving about ⅚ week of slack; a Jan 18–24 release would have been about ⅙ week short, with none.
 - **New dates (§2b, §3).** Rest of R22 Nov 2–8 (R23 may start in its spare third); R23 Nov 9–15; R24 Nov 16–22; R25 Nov 23–29, **v0.2**; R26 Nov 30–Dec 6; R27 Dec 7–13, **v0.3**; R28 Dec 14–20; holidays Dec 21–Jan 3; R29 Jan 4–10; R30 Jan 11–17, the live run, with E3 due Jan 4 (the start of R29 — the same one-row lead as before); R31 Jan 18–24, **v0.4**; R34 Jan 25–31, 2027, **v0.5**. Rows keep their numbers and contents; only the calendar moved. ADR-0005's Status records the move.
-- **Next checkpoints (§7):** W28 at the end of R28 (Dec 20); W31 at the end of R31 (Jan 24).
+- **Next checkpoints (§7):** v0.2 at the end of R25 (Nov 29); W28 at the end of R28 (Dec 20); W31 at the end of R31 (Jan 24). The v0.2 checkpoint was added the same day: the re-dating had left seven weeks until the next one, and §7 and risk 7 assume about three. If v0.2 is not tagged by Nov 29, the W28 cut is taken then, not on Dec 20 (§6).
 
 ### History (2026-07-05 → 2026-09-15), unchanged — every entry below is still accurate about what it describes
 
@@ -288,6 +288,8 @@ Checked at each §7 checkpoint. If behind, execute the cut immediately; don't ho
 
 **If 2 weeks behind at W25 (Nov 8) — taken 2026-10-31, §0:** cut confidence intervals and every perturbation family beyond the first, and let `docs/domain-packs.md` slip to v0.6. Keep fault injection and the call budget, indirect injection, one perturbation family (testing-framework 6.1.1), the counterfactual pairs (7.2.1), the PII detector (8.3.2), and raw counts with k: the technical-testing checks are what the evidence report exists to answer (`docs/imda-alignment.md`). Saves ~½ week; if that is not enough, take the W28 cut early.
 
+**If v0.2 is not tagged at the v0.2 checkpoint (end of R25, Nov 29):** take the W28 cut then, rather than waiting until Dec 20. *(Added 2026-10-31, §0.)*
+
 **If 4 weeks behind at W28 (end of R28: Dec 20 since 2026-10-31):** cut `evidence_report.md` down to its table — one row per check, with classification and evidence pointer, no narrative — and the rescore fixtures down to one. Saves ~1 week.
 
 **If 6 weeks behind at W31 (end of R31: Jan 24 since 2026-10-31), or E3 is still undone:** ship v0.5 without the live run, and say plainly in the README and the release notes that all evidence in the release comes from scripted trajectories. **This is the load-bearing cut.** The tool-environment seam and the evidence pack are the product; one live bundle is the demonstration, and it depends on an account this project does not control.
@@ -299,6 +301,7 @@ Checked at each §7 checkpoint. If behind, execute the cut immediately; don't ho
 ## 7. Re-baselining cadence (re-baselined 2026-10-10)
 
 - **W25 checkpoint (Nov 8):** is v0.2 tagged? Is the tool seam in the mock runner and at least one real runner? *Taken early, 2026-10-31: both "no"; the W25 cut taken and the dates moved (§0).*
+- **v0.2 checkpoint (end of R25, Nov 29):** is v0.2 tagged? Is the tool seam in the mock runner and at least one real runner? *(Added 2026-10-31: the re-dating left seven weeks between the W25 and W28 checkpoints; this list and risk 7 assume about three.)*
 - **W28 checkpoint (end of R28, Dec 20):** is v0.3 tagged? Is E3 done?
 - **W31 checkpoint (end of R31, Jan 24):** is v0.4 tagged, the live run reconciled, the external dry run done?
 

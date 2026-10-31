@@ -257,20 +257,20 @@ One table per principle, in the framework's order. *Applies to* is the framework
 
 ## 5. The WBS, row by row
 
-Which checks each row's work evidences or supports. §8 lists what this review added to each row; R32–R34 are buffer and release weeks.
+Which checks each row's work evidences or supports. §8 lists what this review added to each row; R32–R34 are buffer and release weeks. Row dates live in one place, `ROADMAP.md` §2b — rows keep their numbers when the calendar moves (it did on 2026-10-31).
 
-| Row | Weeks | Evidences (direct or partial) | Supports | MGF-Agentic v1.5 and Starter Kit v1.0 |
-|---|---|---|---|---|
-| R22 | Oct 12–18 | — | — | Catalogue v0: MGF-Agentic sections and the Starter Kit's five risks, as data |
-| R23 | Oct 19–25 | — | 6.7.2 | MGF-Agentic §2.3.2's deterministic tool-call checks become possible (harness-side records) |
-| R24 | Oct 26–Nov 1 | 3.12.1, 4.10.1, 10.3.2 | 2.2.1, 6.7.2 | §2.3.2 task execution and tool calling; §1.2.2 erroneous actions; §1.1.3 referral to a person; hallucination and inaccuracy |
-| R25 | Nov 2–8 | 1.1.3, 1.1.4, 4.3.1, 5.9.1, 8.3.2, 10.3.2 | 5.2.1, 8.5.1, 9.1.1, 10.3.1 | §2.3.2 policy compliance; §1.1.3 approval gates; §1.2.2 unauthorised actions and data breaches; data leakage |
-| R26 | Nov 9–15 | 4.1.1, 4.3.1, 4.10.1, 5.9.1, 6.1.1, 7.2.1 | 2.2.1, 4.6.3, 5.2.1, 6.4.1, 7.4.1, 10.4.1 | §2.3.2 robustness, with perturbations; §1.2.2 biased actions and disruption to connected systems; bias in decision making; adversarial prompts |
-| R27 | Nov 16–22 | 3.6.1, 3.7.1, 4.10.1, 5.9.1 | 1.2.1, 3.8.1, 4.2.1, 4.3.2, 4.7.1, 5.12.1, 6.5.1, 6.7.1, 9.2.1, 9.3.1, 10.2.1, 10.3.1, 10.5.1, 10.6.1 | §2.1.1 scoping; §2.3.2 repetitions; the Starter Kit's Identify step and thresholds set before testing |
-| R28 | Nov 23–29 | — | 1.1.6, 1.7.2, 4.7.1, 6.3.1, 10.2.2, 10.4.1 | The Starter Kit's Assess step; the testing framework's checklist shape |
-| R29 | Nov 30–Dec 6 | 5.9.1 | 5.5.1, 9.8.1, 10.1.1 | Re-derivable verdicts for reviewers |
-| R30 | Dec 7–13 | 3.12.1, 9.9.2 | 9.3.1, 9.7.1 | Catalogue v1 adds CSA addendum and ARC references; one live run on a real model |
-| R31 | Dec 14–20 | — | — | — |
+| Row | Evidences (direct or partial) | Supports | MGF-Agentic v1.5 and Starter Kit v1.0 |
+|---|---|---|---|
+| R22 | — | — | Catalogue v0: MGF-Agentic sections and the Starter Kit's five risks, as data |
+| R23 | — | 6.7.2 | MGF-Agentic §2.3.2's deterministic tool-call checks become possible (harness-side records) |
+| R24 | 3.12.1, 4.10.1, 10.3.2 | 2.2.1, 6.7.2 | §2.3.2 task execution and tool calling; §1.2.2 erroneous actions; §1.1.3 referral to a person; hallucination and inaccuracy |
+| R25 | 1.1.3, 1.1.4, 4.3.1, 5.9.1, 8.3.2, 10.3.2 | 5.2.1, 8.5.1, 9.1.1, 10.3.1 | §2.3.2 policy compliance; §1.1.3 approval gates; §1.2.2 unauthorised actions and data breaches; data leakage |
+| R26 | 4.1.1, 4.3.1, 4.10.1, 5.9.1, 6.1.1, 7.2.1 | 2.2.1, 4.6.3, 5.2.1, 6.4.1, 7.4.1, 10.4.1 | §2.3.2 robustness, with perturbations; §1.2.2 biased actions and disruption to connected systems; bias in decision making; adversarial prompts |
+| R27 | 3.6.1, 3.7.1, 4.10.1, 5.9.1 | 1.2.1, 3.8.1, 4.2.1, 4.3.2, 4.7.1, 5.12.1, 6.5.1, 6.7.1, 9.2.1, 9.3.1, 10.2.1, 10.3.1, 10.5.1, 10.6.1 | §2.1.1 scoping; §2.3.2 repetitions; the Starter Kit's Identify step and thresholds set before testing |
+| R28 | — | 1.1.6, 1.7.2, 4.7.1, 6.3.1, 10.2.2, 10.4.1 | The Starter Kit's Assess step; the testing framework's checklist shape |
+| R29 | 5.9.1 | 5.5.1, 9.8.1, 10.1.1 | Re-derivable verdicts for reviewers |
+| R30 | 3.12.1, 9.9.2 | 9.3.1, 9.7.1 | Catalogue v1 adds CSA addendum and ARC references; one live run on a real model |
+| R31 | — | — | — |
 
 Already built at bundle format 0.4: provenance and the trace, which support 3.1.1, 5.12.1, 6.5.1, 6.7.2, 9.8.1. Every row from R28 on also feeds the evidence report, which lists all 112 checks.
 
@@ -310,7 +310,7 @@ Already built at bundle format 0.4: provenance and the trace, which support 3.1.
 | R31 | `docs/domain-packs.md`, with the seed domain as the worked example (slack); the dry-run tester gets read access to the private repository | 3.12.1 outside the seed domain | ~2 h, slack |
 | R34 | A private release to named partners instead of a public one; no PyPI upload; the release notes say how outside reviewers get access | — | — |
 
-**Net cost: about eleven hours across R24–R30, plus two for the domain-pack guide if it survives, against the ~130 the re-baseline budgeted.** About half falls in R24–R25, before the W25 checkpoint; if R25 runs over, its two additions move to R26 rather than holding the v0.2 tag. The rest comes out of `ROADMAP.md` §4's slack — confidence intervals, perturbation families beyond the first, evidence-report polish — and, if needed, R32's catch-up week. The release week does not move. `ROADMAP.md` §6's ladder now cuts confidence intervals and extra perturbation families first, and keeps what the technical-testing checks depend on.
+**Net cost: about eleven hours across R24–R30, plus two for the domain-pack guide if it survives, against the ~130 the re-baseline budgeted.** About half falls in R24–R25, before the v0.2 checkpoint at the end of R25 (`ROADMAP.md` §7); if R25 runs over, its two additions move to R26 rather than holding the v0.2 tag. The rest comes out of `ROADMAP.md` §4's slack — evidence-report polish and catalogue entries. *(Updated 2026-10-31: the W25 checkpoint took the W25 cut — confidence intervals, perturbation families beyond the first and the domain-pack guide leave v0.5 — the holiday weeks carry no rows, and the release week moved to Jan 25–31, 2027; `ROADMAP.md` §0.)* `ROADMAP.md` §6's ladder now cuts confidence intervals and extra perturbation families first, and keeps what the technical-testing checks depend on.
 
 Outside the rows: E7 is decided, so R30's run stays in the private repository, R34 is a private release, and `ROADMAP.md` §3 and §8 say so. E1's fallback now points to this document's labels. `ROADMAP.md` §5 gains risk 9 and clarifies risks 3 and 8. `DESIGN.md` §5 and §10 no longer say "published", and §7 describes the report's new shape. `CLAUDE.md` gains a rule against pasting the framework's text.
 
