@@ -205,12 +205,15 @@ include_external_packages = true
 # -- "no adapter module imports from a different adapter family" -- is the
 # separate independence contract below.
 [[tool.importlinter.contracts]]
-name = "Layers: cli > (adapters + orchestration/bundles/replay/registry/config) > core (ARCHITECTURE.md §1, §4)"
+name = "Layers: cli > (adapters + orchestration/bundles/replay/registry/config) > catalogue > core (ARCHITECTURE.md §1, §4; ADR-0006 D8)"
 type = "layers"
 containers = ["agentevalops"]
 layers = [
     "cli",
     "agents:benchmarks:bundles:config:evaluators:observability:orchestration:policy:registry:replay:reports:scorers:stores",
+    # ADR-0006 D8's low tier: shared data and machinery the adapters build
+    # on, importing only core. environments/ joins it in R23.
+    "catalogue",
     "core",
 ]
 
@@ -415,5 +418,32 @@ source_modules = [
     "agentevalops.reports",
     "agentevalops.scorers",
     "agentevalops.stores",
+    "agentevalops.catalogue",
 ]
 forbidden_modules = ["swebench"]
+
+# ADR-0006 D8 / ROADMAP R22: the control catalogue imports nothing from
+# agentevalops except core. The layers contract already ranks it below the
+# adapters; this says the narrower thing outright, so a future sibling in
+# the same tier (environments/, R23) cannot become a dependency by accident.
+# Proven against an injected `import agentevalops.config` before trusting it.
+[[tool.importlinter.contracts]]
+name = "catalogue imports only core (ADR-0006 D8)"
+type = "forbidden"
+source_modules = ["agentevalops.catalogue"]
+forbidden_modules = [
+    "agentevalops.agents",
+    "agentevalops.benchmarks",
+    "agentevalops.bundles",
+    "agentevalops.cli",
+    "agentevalops.config",
+    "agentevalops.evaluators",
+    "agentevalops.observability",
+    "agentevalops.orchestration",
+    "agentevalops.policy",
+    "agentevalops.registry",
+    "agentevalops.replay",
+    "agentevalops.reports",
+    "agentevalops.scorers",
+    "agentevalops.stores",
+]

@@ -1,0 +1,48 @@
+# Control catalogue v0 -- one source version per file (ADR-0005 D5).
+# Identifiers and this project's own labels only: never paste the source's
+# text here (CLAUDE.md, "Third-party framework text"). Labels are reused from
+# docs/imda-alignment.md §7 and checked with scripts/check_catalogue_ip.py.
+# The five risks are keyed by name, not section number: a risk outlives a
+# renumbering. `locator` records where each is covered in this version.
+source:
+  id: starter-kit
+  title: Starter Kit for Testing LLM-Based Applications for Safety and Reliability
+  publisher: Info-communications Media Development Authority (IMDA), Singapore
+  version: "1.0"
+  published: 2026-01-01
+  url: https://www.imda.gov.sg/-/media/imda/files/about/emerging-tech-and-research/artificial-intelligence/starter-kit-for-testing-llm-based-applications-for-safety-and-reliability.pdf
+  sha256: 4c89249eb2297fc557c50a7f92d26ec23055ab24fb6979e93a7361a2b8d94c94
+  retrieved_on: 2026-10-31
+  ip_posture: identifiers-and-own-labels
+  date_precision: month
+
+controls:
+  - id: starter-kit:risk.hallucination-inaccuracy
+    kind: risk
+    locator: "3.2"
+    label: Hallucination and inaccuracy
+    links: [mgf-agentic:1.2.2]
+
+  - id: starter-kit:risk.bias-in-decisions
+    kind: risk
+    locator: "3.3"
+    label: Bias in decision making
+    links: [mgf-agentic:1.2.2]
+
+  - id: starter-kit:risk.undesirable-content
+    kind: risk
+    locator: "3.4"
+    label: Undesirable content
+    links: []
+
+  - id: starter-kit:risk.data-leakage
+    kind: risk
+    locator: "3.5"
+    label: Data leakage
+    links: [mgf-agentic:1.2.2]
+
+  - id: starter-kit:risk.adversarial-prompts
+    kind: risk
+    locator: "3.6"
+    label: Vulnerability to adversarial prompts
+    links: []
