@@ -23,6 +23,22 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R25 slice 2, `d9984cd`, the policy
+evaluator).**
+- **D14, per task:** the pack's policy rules are judged by a sixth
+  evaluator kind, `policy` (`evaluators/policy_compliance.py`), per task
+  run from the harness records -- the owner's choice, so a
+  policy-compliance scenario gets the same known-good / known-bad verdict
+  as the other categories. `BasicPolicyChecker` keeps the run-level
+  `PolicySpec` rules (cost, deny-list, `allowed_tool_ids`, trace count).
+  The rules are a closed vocabulary in `core.schemas.POLICY_RULES`,
+  written over tool roles (lookup, decide, notify, refer, export) that the
+  pack maps to its tools; "ask first" needs no rule of its own, since the
+  gate is the only approval mechanism.
+- Record-based findings carry `refs` into the `tool_calls` stream and
+  leave the legacy `citations` empty: a step index cannot address a
+  record.
+
 **Implementation notes — 2026-11-01 (R25 slice 1, `1fe8f2e`, the
 approval gate).**
 - **D5:** the approver is `environments.ScriptedApprover`, behind a small

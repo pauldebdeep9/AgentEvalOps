@@ -126,7 +126,7 @@ The split between `grade` (deterministic, benchmark-native) and `Evaluator` (eve
 
 ### 2.3 `Evaluator`
 
-Scores a completed run on a single dimension. Five evaluator types are first-class; the protocol is uniform across all five.
+Scores a completed run on a single dimension. Six evaluator types are first-class; the protocol is uniform across all six.
 
 ```python
 from typing import Protocol
@@ -137,13 +137,17 @@ from agentevalops.core.schemas import (
 class Evaluator(Protocol):
     """Scores one dimension of a completed run.
 
-    Five canonical kinds, all behind this same interface:
+    Six canonical kinds, all behind this same interface:
       - DeterministicEvaluator: unit tests, exact match, state assertions
-      - LLMJudgeEvaluator: quality, relevance, policy compliance via a model
+      - LLMJudgeEvaluator: quality, relevance via a model
         (optional; not required for v0.1)
-      - ToolUseEvaluator: tool-call validity, argument correctness
+      - ToolUseEvaluator: tool-call validity, argument correctness, from
+        the harness records
       - StateBasedEvaluator: final filesystem/db/cloud state vs target
       - TraceQualityEvaluator: loops, hallucinated tool outputs, dead-ends
+      - PolicyComplianceEvaluator: a domain pack's policy rules, per task
+        run, from the harness records (ROADMAP R25); the run-level
+        PolicyChecker keeps the config's PolicySpec rules
 
     Evaluators are pure functions of (task, result, trace). They MUST NOT
     mutate the environment. They MAY make outbound LLM calls (for judges)
@@ -152,7 +156,7 @@ class Evaluator(Protocol):
 
     evaluator_id: str  # e.g. "swebench-pytest", "claude-judge-relevance"
     evaluator_kind: str  # one of: "deterministic", "llm_judge", "tool_use",
-                         #         "state_based", "trace_quality"
+                         #         "state_based", "trace_quality", "policy"
 
     async def evaluate(
         self,
@@ -166,7 +170,7 @@ class Evaluator(Protocol):
         ...
 ```
 
-> **As built** (`core/protocols.py:166-171`), `evaluate(task, output, trace)` has no `context` parameter. ADR-0006 D12 adds `context: EvaluatorContext` in R24 — the harness's tool-call records and end states for the task run — and gives `PolicyChecker.check` the same parameter.
+> **As built.** `evaluate(task, output, trace, context)` takes the `EvaluatorContext` ADR-0006 D12 specified, since R24 — the harness's tool-call records and end states for the task run — as does `PolicyChecker.check`. The built kinds are `deterministic`, `tool_use`, `state_based` and, from R25, `policy` (`evaluators/policy_compliance.py`): a scenario declares which apply to it (D13), and a run configures them under `evaluators:` in its YAML. `llm_judge` and `trace_quality` are not built.
 
 A run is graded by *all* configured evaluators in parallel, and their scores are reported separately. The platform never collapses them into a single composite score by default — that decision belongs to the consumer of the bundle.
 

@@ -9,6 +9,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R25 slice 2 — the `policy` evaluator and the SOP-ordering rules**
+  (2026-11-01; ADR-0006 D14; `d9984cd`). A sixth evaluator kind, `policy`:
+  a domain pack's rules judged per task run from the harness records,
+  while `BasicPolicyChecker` keeps the run-level `PolicySpec` rules. Four
+  rules, named in `core.schemas.POLICY_RULES` and written over tool roles
+  the pack maps to its tools: lookup before decision, decision before
+  notice, no re-attempt after a denial or timeout, and refer before
+  finishing on an ambiguous case. Findings cite records in the
+  `tool_calls` stream. The seed pack names its roles, gains
+  `REFER-APPROVAL` and two clauses, TE5 and TE6 apply the rule, and
+  scenarios PC1 (decision before notice) and PC2 (a denied notice is
+  never retried) open the policy-compliance category. The shipped config
+  runs the four evaluators.
+
 - **R25 slice 1 — the simulated approver and the approval gate**
   (2026-11-01; ADR-0006 D5; `1fe8f2e`). `ScriptedApprover` answers every
   call to an irreversible tool from the scenario's schedule -- per tool,
