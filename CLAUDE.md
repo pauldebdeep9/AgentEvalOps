@@ -75,10 +75,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-01, Sai2608, clean checkout at `deb08fd`)
+## Baseline (verified 2026-11-01, Sai2608, clean checkout at `59a690f`)
 
 - ruff: clean
-- mypy: clean (50 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (52 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -89,8 +89,8 @@ in this repo.
   v0: "catalogue imports only core"; 9th with R23: "environments imports
   only core"; the layers contract's low tier is `catalogue | environments`,
   ADR-0006 D8)
-- pytest: 839 passed, 1 skipped (opt-in `@pytest.mark.live`), 97.34% branch
-  coverage on a clean checkout (`deb08fd`). Any untracked *or uncommitted*
+- pytest: 881 passed, 1 skipped (opt-in `@pytest.mark.live`), 97.16% branch
+  coverage on a clean checkout (`59a690f`). Any untracked *or uncommitted*
   change raises it: tests reach the code-drift "inconclusive" warning
   (`bundles/validator.py`, `cli.py`) only through this checkout's own git
   state (`ROADMAP.md` §0, 2026-10-10 finding). Measure the baseline only
@@ -106,7 +106,8 @@ push, and don't end a session while CI on `main` is red. CI ran red from
 passed on macOS by thread timing and nobody looked at the Actions runs
 (`ROADMAP.md` §0, 2026-10-31; the W8 entry there is the same pattern). A
 local green gate is not CI: CI runs Linux and installs only `.[dev]`.
-- Bundle format: `BUNDLE_FORMAT_VERSION = "0.4"` (`bundles/constants.py`);
+- Bundle format: `BUNDLE_FORMAT_VERSION = "0.5"` (`bundles/constants.py`;
+  0.5 since `36fec5b`, ADR-0006 D21, with `"0.4"` in the legacy set);
   `"0.1"` bundles (incl. `runs/toy-smoke*` on disk) still validate/read —
   see `docs/adr/0002-outcome-taxonomy.md`
 

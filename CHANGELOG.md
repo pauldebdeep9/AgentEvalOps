@@ -9,6 +9,25 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R24 part 1 — bundle format 0.5, discovery, options and the
+  agentic-baseline benchmark** (2026-11-01; ADR-0006). Format 0.5 in one
+  slice (`36fec5b`): task and repetition stamped on every trace event and
+  harness record; typed `refs` beside the legacy `citations`;
+  `tool_calls.jsonl` and `end_states.jsonl`; several evaluators per task
+  with the verdict rule (a real failure wins, then not evaluated;
+  not-applicable results uncounted); `EvaluatorContext` for evaluators and
+  the policy checker; `ScoreResult`'s three-way split (finding 2);
+  `not_evaluated_cause`; `RunSummary.preflight`; `RunConfig.repetitions`
+  and `.seed`; `benchmark_options` in `config.json`. `"0.4"` joined the
+  legacy set, and 0.1–0.4 bundles still validate. Entry-point discovery
+  with a `domain_packs` group, logging any plugin it skips, and
+  `benchmark_options` in the loader and CLI (`3e098eb`, `3997468`). The
+  `agentic-baseline` benchmark, the `DomainPack` and `KnownGoodSource`
+  protocols, and the known-good preflight, which records each scenario's
+  result and turns a broken scenario into `environment_defect` without
+  calling the agent (`59a690f`). Every CI job now times out after 15
+  minutes (`2697266`).
+
 - **R23 met — tool environment and runner seam** (2026-11-01, seven
   slices `7c2fc43`…`deb08fd`; ADR-0006). Core tool types and the async
   `ToolEnvironment` protocol; `agentevalops.environments` (in-process

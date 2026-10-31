@@ -2,6 +2,27 @@
 
 ## Status
 
+**Implementation notes — 2026-11-01 (R24 part 1, slices `36fec5b`,
+`3e098eb`, `3997468`, `59a690f`).** Where the build departs from the text
+below:
+- **Two more 0.5 fields, owner's changes:** `EvaluationResult.applicable`
+  (an evaluator that finds none of its inputs reports not-applicable
+  instead of failing) and `RunSummary.preflight` (each scenario's
+  known-good result, in the bundle). Both are in D21's table below.
+- **D25:** a benchmark validates its options in its constructor, not a
+  classmethod; the constructor already did that job.
+- **D6:** `prepare_environment`'s `seed` parameter waits for R26, its
+  first user. `RunConfig.seed` is recorded in 0.5 as planned.
+- **D23:** `AgenticBaselineBenchmark` takes the pack object; the registry
+  registers it through a factory that resolves `benchmark_options.pack`
+  by name. A registry import inside the benchmark broke the
+  adapter-independence contract.
+- **D16:** the known-good hook is a small runtime-checkable protocol,
+  `KnownGoodSource`, checked with `isinstance` (owner's change).
+- **D24:** an entry point that re-finds the very object already
+  registered (`pyproject.toml` publishes the built-in toy benchmark) is
+  skipped quietly; a different object shadowed by a name still warns.
+
 **Accepted — 2026-11-01 (owner).** Accepted with three changes made at
 acceptance: D24, and D25's `benchmark_options` and CLI parts, move to R24,
 where `agentic-baseline` first uses them (the derived allowlist stays in
@@ -436,6 +457,8 @@ the `Scorer` protocol (finding 2).**
 | `ScoreResult.not_evaluated_tasks`; `failed_tasks` redefined | `summary.json` | D20 |
 | `RunConfig.repetitions`, `.seed` | `config.json` | D6, D18 |
 | `benchmark_options` recorded | `config.json` | D25 |
+| `EvaluationResult.applicable` (owner's change, 2026-11-01) | `evaluations.json`, `summary.json` | D13 |
+| `RunSummary.preflight` (owner's change, 2026-11-01) | `summary.json` | D16 |
 | `evaluations.json` holds one entry per evaluator per task run | `evaluations.json` | D13 |
 
 All additive except `ScoreResult.failed_tasks`'s meaning, which is why it
