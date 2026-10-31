@@ -9,6 +9,22 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **ADR-0006 Proposed — tool environment and observation seam**
+  (2026-10-31, `docs/adr/0006-tool-environment-and-observation-seam.md`).
+  Docs only. Answers every question on R22's ADR-0006 list, with
+  `file:line` references: a typed, async `ToolEnvironment` that supplies
+  tool specs and records every call; `environments/` as its own layer
+  between the adapters and `core`; per-runner spec conversion inside each
+  loop (0001), with `finish` a reserved runner control; SDK calls off the
+  event loop; `EvaluatorContext` for evaluators and the policy checker;
+  several evaluators per task, where a real failure wins over "not
+  evaluated"; repetitions owned by the orchestrator; bundle format 0.5 in
+  R23, once, and the evidence pack at 0.6 (R28 and ADR-0005's Status
+  updated); synthetic identifiers argued, with sources, not to be anyone's.
+  Two `/tmp` spikes back the runner seam: the refactored runners passed the
+  three runner test files unmodified, with byte-identical tool payloads.
+  R22 stays open for catalogue v0.
+
 - **W25 checkpoint, taken early 2026-10-31 — v0.5 moves to Jan 25–31,
   2027** (`ROADMAP.md` §0, §2b, §3; ADR-0005 Status). Docs only. Both
   Nov 8 checks would have been "no" (R22 partly met, R23–R24 not
