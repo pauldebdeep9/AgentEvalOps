@@ -31,8 +31,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   cancellation gaps (`prepare_environment` cancellation leaking the
   environment; no time limit on `_teardown`'s wait), join R22's ADR-0006
   list; items 2 and 11 join R28's ADR-0007 list. `CLAUDE.md` gains a
-  "watch CI after every push" rule and a re-verified baseline (706
-  passed, 1 skipped, 96.93% on a clean checkout).
+  "watch CI after every push" rule and a re-verified baseline.
+  *Correction, same day:* the 96.93% recorded here as clean-checkout
+  coverage was measured before the fix was committed (a dirty tree); the
+  clean-checkout figure after the five fixes below is 96.80% (721 passed,
+  1 skipped).
 
 - **IMDA alignment review — the package targets the AI Verify Testing
   Framework report; the repository stays private** (2026-10-11,
@@ -705,6 +708,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     this change for the full reasoning.
 
 ### Fixed
+
+- **Five small fixes from the 2026-10-31 external review** (`ROADMAP.md`
+  §0; finding numbers there), one commit each, each with a fail-first test:
+  - **Finding 10 (`3ca34c1`):** a non-number in any of the loader's seven
+    numeric fields (e.g. `resource_limits.max_tokens: lots`) raises
+    `ConfigurationError` naming the field, not a raw `ValueError`.
+  - **Finding 5 (`97bd5b6`):** both runners' calculators refuse `**`
+    before `eval`; `'9**9**9'` never returned.
+  - **Finding 12, report part (`d18ced8`):** `report.md`'s Bundle Audit
+    lists the current format's files (9 for 0.4, including
+    `replay_command.txt`), from `required_files_for_version()`.
+  - **Finding 6 (`2994b23`):** `OpenAIRunner` and `LangGraphRunner`
+    refuse an unpriced model id at construction instead of pricing it at
+    the cheapest rate; the fallback constants are removed, both default
+    models are priced, and `AzureOpenAIRunner` is unchanged (ADR-0004 D3).
+  - **Finding 3 (`d8c94c0`):** `backend_id: aws` is rejected with a
+    message naming ADR-0005 D3 (it was accepted, recorded, and ignored);
+    README's config reference corrected; `BACKEND_AWS` kept.
 
 - **Teardown skipped under repeated cancellation; CI red on `main` from
   2026-09-15 to 2026-10-31** (`9cc2b00`). `LocalOrchestrator._run_task`

@@ -75,7 +75,7 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-10-31, Sai2608; CI green at `9cc2b00`)
+## Baseline (verified 2026-10-31, Sai2608, clean checkout at `d8c94c0`)
 
 - ruff: clean
 - mypy: clean (44 source files) — dedicated `anthropic.*` and `openai.*`
@@ -86,11 +86,13 @@ in this repo.
   permissive than CI's — see "Local env vs CI" above.
 - `lint-imports`: **7 kept, 0 broken** (7th contract added alongside
   row 14's SWE-bench spike: "swebench never imported")
-- pytest: 706 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.93% branch
-  coverage on a clean checkout. Any untracked file raises it: tests reach
-  the code-drift "inconclusive" warning (`bundles/validator.py`, `cli.py`)
-  only through this checkout's own git state (`ROADMAP.md` §0, 2026-10-10
-  finding). Compare against the clean-checkout figure.
+- pytest: 721 passed, 1 skipped (opt-in `@pytest.mark.live`), 96.80% branch
+  coverage on a clean checkout (`d8c94c0`). Any untracked *or uncommitted*
+  change raises it: tests reach the code-drift "inconclusive" warning
+  (`bundles/validator.py`, `cli.py`) only through this checkout's own git
+  state (`ROADMAP.md` §0, 2026-10-10 finding). Measure the baseline only
+  after committing — on 2026-10-31 a pre-commit run was recorded as clean
+  and had to be corrected. Compare against the clean-checkout figure.
 - CI floor: `--cov-fail-under=94`
 
 ## CI — watch every push
