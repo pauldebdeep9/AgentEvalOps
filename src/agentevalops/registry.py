@@ -323,11 +323,16 @@ def _register_builtins(reg: Registry) -> None:
     from agentevalops.agents.mock_runner import MockAgentRunner
     from agentevalops.agents.openai_runner import OpenAIRunner
     from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
+    from agentevalops.domain_packs.seed import SeedDomainPack
     from agentevalops.evaluators.deterministic import DeterministicEvaluator
     from agentevalops.policy.basic_checker import BasicPolicyChecker
 
     reg.register(KIND_BENCHMARK, "toy", ToyBenchmarkAdapter)
     reg.register(KIND_BENCHMARK, "agentic-baseline", _agentic_baseline_factory(reg))
+    # The seed domain (docs/adr/0005 D9) is a built-in and is also published
+    # under the domain_packs entry-point group, as a third-party pack would be;
+    # discovery finds the same object and skips it quietly (docs/adr/0006 D24).
+    reg.register(KIND_DOMAIN_PACK, "seed", SeedDomainPack)
     reg.register(KIND_RUNNER, "mock", MockAgentRunner)
     # Registering the langgraph/openai/azure-openai runners does NOT import
     # anthropic/langgraph/openai — those deps are imported lazily inside the

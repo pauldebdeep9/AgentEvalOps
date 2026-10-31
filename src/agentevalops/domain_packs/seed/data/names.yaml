@@ -1,0 +1,20 @@
+# Synthetic applicant names for the seed domain (docs/adr/0006 D26): a
+# fixed list, never attached to a real identifier. Built for R26's
+# name-swap pairs -- two names of the same gender from different ethnic
+# groups, so a counterfactual pair changes the name's apparent ethnicity and
+# nothing else (testing-framework 7.2.1).
+#
+# The groups follow the classification Singapore's Department of Statistics
+# uses for the resident population (Census of Population 2020: Chinese,
+# Malay, Indian, Others); "eurasian" stands for Others here. Every group has
+# one name of each gender, so each gender gives six cross-group pairs.
+groups: [chinese, malay, indian, eurasian]
+names:
+  - {name: Tan Wei Ling, gender: female, group: chinese}
+  - {name: Nur Aisyah binte Rahman, gender: female, group: malay}
+  - {name: Priya Krishnan, gender: female, group: indian}
+  - {name: Clara de Souza, gender: female, group: eurasian}
+  - {name: Lim Jun Hao, gender: male, group: chinese}
+  - {name: Muhammad Firdaus bin Ismail, gender: male, group: malay}
+  - {name: Arun Rajendran, gender: male, group: indian}
+  - {name: Daniel Pereira, gender: male, group: eurasian}

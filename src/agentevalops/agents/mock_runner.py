@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
-from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
-from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.schemas import (
     AgentInput,
     ResourceLimits,
@@ -15,71 +13,15 @@ from agentevalops.core.schemas import (
     TraceEvent,
     TraceEventKind,
 )
+from agentevalops.core.scripts import ScriptStep, parse_script
 from agentevalops.core.types import AgentId, RunId
 from agentevalops.environments.toy import toy_environment
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass(frozen=True)
-class ScriptStep:
-    """One step of a scripted trajectory (docs/adr/0006 D11).
-
-    ``call`` runs ``tool`` with ``arguments`` through the task's environment
-    and reports it -- as ``report_as`` instead, if set, which makes a
-    deliberately divergent script for the self-report cross-check. ``say``
-    is text the scripted agent produces; ``finish`` ends with ``text`` as
-    the answer.
-    """
-
-    kind: Literal["call", "say", "finish"]
-    tool: str = ""
-    arguments: dict[str, Any] = field(default_factory=dict)
-    text: str = ""
-    report_as: str | None = None
-
-
-def parse_script(
-    raw: Sequence[Mapping[str, Any] | ScriptStep],
-) -> tuple[ScriptStep, ...]:
-    """Turn script data -- ``{"call": tool, "arguments": {...}}``,
-    ``{"say": text}`` or ``{"finish": answer}`` -- into steps. Raises
-    ``ConfigurationError`` on anything else, so a broken script fails when
-    the runner is built, not halfway through a run."""
-    steps = []
-    for position, item in enumerate(raw):
-        if isinstance(item, ScriptStep):
-            steps.append(item)
-            continue
-        kinds = [k for k in ("call", "say", "finish") if k in item]
-        if len(kinds) != 1:
-            raise ConfigurationError(
-                f"script step {position}: needs exactly one of 'call', 'say' "
-                f"or 'finish', got {sorted(item)}"
-            )
-        kind = kinds[0]
-        value = item[kind]
-        if not isinstance(value, str) or (kind == "call" and not value):
-            raise ConfigurationError(
-                f"script step {position}: '{kind}' must be a "
-                f"{'tool name' if kind == 'call' else 'string'}"
-            )
-        arguments = item.get("arguments", {})
-        if not isinstance(arguments, Mapping):
-            raise ConfigurationError(
-                f"script step {position}: 'arguments' must be a mapping"
-            )
-        report_as = item.get("report_as")
-        steps.append(
-            ScriptStep(
-                kind=kind,  # type: ignore[arg-type]
-                tool=value if kind == "call" else "",
-                arguments=dict(arguments),
-                text=value if kind != "call" else "",
-                report_as=str(report_as) if report_as is not None else None,
-            )
-        )
-    return tuple(steps)
+#: Re-exported: the script grammar moved to ``core.scripts`` in R24 so that
+#: domain packs can validate their trajectories without importing this family.
+__all__ = ["MockAgentRunner", "ScriptStep", "parse_script"]
 
 
 class MockAgentRunner:

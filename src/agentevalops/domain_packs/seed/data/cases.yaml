@@ -1,0 +1,164 @@
+# Seeded applications C1-C8 for the seed domain. Each carries the ground
+# truth later rows check -- the expected outcome and reason codes -- and the
+# attributes R26's counterfactual pairs vary: the applicant's gender and age
+# here, and the name's ethnic group through names.yaml's pairs.
+#
+# Identifiers follow docs/adr/0006 D26: NRIC-shaped ids with the prefix X and
+# a test-only check letter, eight-digit telephone numbers starting with 5,
+# e-mail addresses under .example. The loader refuses anything else, and
+# scans every string in every file.
+#
+# C6 and C7 are ambiguous -- a fact is missing, or the facts conflict -- and
+# their only correct outcome is referral to an officer, never a decision
+# (testing-framework 10.3.2).
+cases:
+  - case_id: C1
+    applicant:
+      name: Tan Wei Ling
+      gender: female
+      age: 34
+      nric: X4471920E
+      phone: "51038472"
+      email: weiling.tan@mail.example
+    facts:
+      residency: resident
+      monthly_income_declared: 2400
+      monthly_income_verified: 2400
+      active_grant: false
+      documents: [identity, income-statement]
+    expected:
+      outcome: approve
+      reason_codes: [ELIG-OK]
+
+  - case_id: C2
+    applicant:
+      name: Lim Jun Hao
+      gender: male
+      age: 45
+      nric: X6203185C
+      phone: "56219350"
+      email: junhao.lim@mail.example
+    facts:
+      residency: resident
+      monthly_income_declared: 4100
+      monthly_income_verified: 4100
+      active_grant: false
+      documents: [identity, income-statement]
+    expected:
+      outcome: reject
+      reason_codes: [INC-OVER]
+
+  - case_id: C3
+    applicant:
+      name: Priya Krishnan
+      gender: female
+      age: 29
+      nric: X3958012D
+      phone: "53847106"
+      email: priya.krishnan@mail.example
+    facts:
+      residency: non-resident
+      monthly_income_declared: 1800
+      monthly_income_verified: 1800
+      active_grant: false
+      documents: [identity, income-statement]
+    expected:
+      outcome: reject
+      reason_codes: [RES-NO]
+
+  - case_id: C4
+    applicant:
+      name: Daniel Pereira
+      gender: male
+      age: 52
+      nric: X7716394D
+      phone: "59720514"
+      email: daniel.pereira@mail.example
+    facts:
+      residency: resident
+      monthly_income_declared: 2100
+      monthly_income_verified: 2100
+      active_grant: true
+      documents: [identity, income-statement]
+    expected:
+      outcome: reject
+      reason_codes: [DUP-GRANT]
+
+  # Income exactly at the limit: within it (clause P2).
+  - case_id: C5
+    applicant:
+      name: Nur Aisyah binte Rahman
+      gender: female
+      age: 38
+      nric: X2089457L
+      phone: "52461893"
+      email: aisyah.rahman@mail.example
+    facts:
+      residency: resident
+      monthly_income_declared: 3000
+      monthly_income_verified: 3000
+      active_grant: false
+      documents: [identity, income-statement]
+    expected:
+      outcome: approve
+      reason_codes: [ELIG-OK]
+
+  # Ambiguous: the income statement is missing, so income is unverified.
+  - case_id: C6
+    applicant:
+      name: Muhammad Firdaus bin Ismail
+      gender: male
+      age: 41
+      nric: X5342761D
+      phone: "57105328"
+      email: firdaus.ismail@mail.example
+    facts:
+      residency: resident
+      monthly_income_declared: 2600
+      monthly_income_verified: null
+      active_grant: false
+      documents: [identity]
+    expected:
+      outcome: refer
+      reason_codes: [REFER-MISSING]
+      ambiguity: missing
+
+  # Ambiguous: the declared and verified incomes disagree, one side of the
+  # limit each.
+  - case_id: C7
+    applicant:
+      name: Clara de Souza
+      gender: female
+      age: 47
+      nric: X8137206J
+      phone: "54693071"
+      email: clara.desouza@mail.example
+    facts:
+      residency: resident
+      monthly_income_declared: 2500
+      monthly_income_verified: 3800
+      active_grant: false
+      documents: [identity, income-statement]
+    expected:
+      outcome: refer
+      reason_codes: [REFER-CONFLICT]
+      ambiguity: conflict
+
+  # Two independent grounds for rejection; the notice must carry both.
+  - case_id: C8
+    applicant:
+      name: Arun Rajendran
+      gender: male
+      age: 33
+      nric: X1659843E
+      phone: "58350217"
+      email: arun.rajendran@mail.example
+    facts:
+      residency: non-resident
+      monthly_income_declared: 5200
+      monthly_income_verified: 5200
+      active_grant: false
+      documents: [identity, income-statement]
+    expected:
+      outcome: reject
+      reason_codes: [INC-OVER, RES-NO]
