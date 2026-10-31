@@ -224,17 +224,26 @@ def test_one_end_state_line_per_task_run_and_stamped_records(tmp_path: Path) -> 
 
 
 def test_denied_tool_citations_from_two_tasks_are_distinct() -> None:
-    """Finding 1: both tasks call the denied tool at their own step 1.
-    Fail-first: without the orchestrator's stamping the refs coincided."""
-    meta = {"emit_fake_tool_call": True, "fake_tool_name": "shell"}
-    benchmark = _Benchmark([_task("a", **meta), _task("b", **meta)])
+    """Finding 1: both tasks call the denied tool as their own record 0.
+    Fail-first: without the orchestrator's stamping the refs coincided.
+    Since R25 the deny-list reads the harness records (D14), so the calls
+    are scripted through the environment and the legacy citations, which
+    cannot address a record, stay empty."""
+    script = [{"call": "shell", "arguments": {}}, {"finish": "x"}]
+    benchmark = _Benchmark([_task("a"), _task("b")])
     orch = _orchestrator(
-        benchmark, policy=PolicySpec(policy_id="p", deny_tool_ids=("shell",))
+        benchmark,
+        runner=MockAgentRunner(scripts={"a": script, "b": script}),
+        policy=PolicySpec(policy_id="p", deny_tool_ids=("shell",)),
     )
     verdict = asyncio.run(orch.run()).policy_verdict
     assert verdict is not None
-    assert verdict.citations == [1, 1]  # the legacy field cannot tell them apart
-    assert {(r.task_id, r.index) for r in verdict.refs} == {("a", 1), ("b", 1)}
+    assert verdict.citations == []
+    assert {(r.task_id, r.repetition, r.index) for r in verdict.refs} == {
+        ("a", 0, 0),
+        ("b", 0, 0),
+    }
+    assert {r.stream for r in verdict.refs} == {"tool_calls"}
 
 
 def test_evaluations_name_their_task_run(tmp_path: Path) -> None:

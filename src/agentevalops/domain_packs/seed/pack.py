@@ -365,7 +365,7 @@ def _policy_block(raw: Any, where: str, case: Case, policy: Policy) -> dict[str,
     """The scenario's ``policy`` expectation: its rules, plus what the
     ``policy`` evaluator needs to apply them to this pack and case."""
     block = _mapping(raw, where, "expected.policy")
-    unknown = sorted(set(block) - {"rules"})
+    unknown = sorted(set(block) - {"rules", "allowed_tools"})
     if unknown:
         raise DomainPackError(f"{where}: expected.policy has unknown key(s) {unknown}")
     rules = _strings(block.get("rules"), where, "expected.policy.rules")
@@ -375,13 +375,30 @@ def _policy_block(raw: Any, where: str, case: Case, policy: Policy) -> dict[str,
             f"{where}: expected.policy.rules has unknown rule(s) {unknown_rules}; "
             f"the rules are {sorted(POLICY_RULES)}"
         )
-    return {
+    result: dict[str, Any] = {
         "rules": list(rules),
         "roles": dict(policy.roles),
         "case_argument": policy.case_argument,
         "case_id": case.case_id,
         "ambiguous": case.ambiguous,
     }
+    if ("least_privilege" in rules) != ("allowed_tools" in block):
+        raise DomainPackError(
+            f"{where}: expected.policy.allowed_tools goes with the least_privilege "
+            "rule: declare both or neither"
+        )
+    if "allowed_tools" in block:
+        allowed = _strings(
+            block["allowed_tools"], where, "expected.policy.allowed_tools"
+        )
+        strangers = sorted(set(allowed) - _TOOL_NAMES)
+        if strangers:
+            raise DomainPackError(
+                f"{where}: expected.policy.allowed_tools names {strangers}, "
+                "not seed tools"
+            )
+        result["allowed_tools"] = list(allowed)
+    return result
 
 
 def _scenarios(

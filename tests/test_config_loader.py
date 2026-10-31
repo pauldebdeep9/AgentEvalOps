@@ -473,8 +473,10 @@ def test_unregistered_names_are_rejected_listing_the_registry(
 
     with pytest.raises(ConfigurationError, match=field) as excinfo:
         load_run_config(_write(tmp_path, yaml_text))
-    kind = registry_module.KIND_RUNNER if field == "runner_id" else (
-        registry_module.KIND_BENCHMARK
+    kind = (
+        registry_module.KIND_RUNNER
+        if field == "runner_id"
+        else (registry_module.KIND_BENCHMARK)
     )
     for name in registry_module.names(kind):
         assert name in str(excinfo.value)
@@ -523,4 +525,42 @@ def test_aws_backend_rejected(tmp_path: Path) -> None:
         "run_id: r1\nbenchmark_id: toy\nbackend_id: aws\n",
     )
     with pytest.raises(ConfigurationError, match="ADR-0005"):
+        load_run_config(p)
+
+
+# ---------------------------------------------------------------------------
+# policy.allowed_tool_ids (docs/adr/0006 D15; R25)
+# ---------------------------------------------------------------------------
+
+
+def test_allowed_tool_ids_loaded_from_yaml(tmp_path: Path) -> None:
+    """Fail-first: before R25 the field could not be set from YAML."""
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\npolicy:\n"
+        "  allowed_tool_ids: [calculator, finish]\n",
+    )
+    result = load_run_config(p)
+    assert result.policy_spec.allowed_tool_ids == ("calculator", "finish")
+    assert load_run_config(_SMOKE).policy_spec.allowed_tool_ids == ()
+
+
+def test_allowed_tool_ids_must_be_a_list(tmp_path: Path) -> None:
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\npolicy:\n  allowed_tool_ids: calculator\n",
+    )
+    with pytest.raises(
+        ConfigurationError, match="allowed_tool_ids must be a YAML list"
+    ):
+        load_run_config(p)
+
+
+def test_a_tool_cannot_be_both_allowed_and_denied(tmp_path: Path) -> None:
+    p = _write(
+        tmp_path,
+        "run_id: r1\nbenchmark_id: toy\npolicy:\n  allowed_tool_ids: [a, b]\n"
+        "  deny_tool_ids: [b]\n",
+    )
+    with pytest.raises(ConfigurationError, match="both name \\['b'\\]"):
         load_run_config(p)

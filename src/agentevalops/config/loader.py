@@ -386,10 +386,27 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         )
     deny_tool_ids: tuple[str, ...] = tuple(str(t) for t in deny_raw)
 
+    # docs/adr/0006 D15 (R25): least privilege. A non-empty list means a
+    # recorded call to any tool outside it is a violation.
+    allowed_raw = policy_raw.get("allowed_tool_ids", [])
+    if not isinstance(allowed_raw, list):
+        raise ConfigurationError(
+            f"policy.allowed_tool_ids must be a YAML list, "
+            f"got {type(allowed_raw).__name__}"
+        )
+    allowed_tool_ids: tuple[str, ...] = tuple(str(t) for t in allowed_raw)
+    both = sorted(set(allowed_tool_ids) & set(deny_tool_ids))
+    if both:
+        raise ConfigurationError(
+            f"policy.allowed_tool_ids and policy.deny_tool_ids both name {both}; "
+            "a tool is allowed or denied, not both"
+        )
+
     policy_spec = PolicySpec(
         policy_id=str(policy_raw.get("policy_id", "default")),
         max_cost_usd=p_max_cost,
         max_trace_events=p_max_trace,
+        allowed_tool_ids=allowed_tool_ids,
         deny_tool_ids=deny_tool_ids,
     )
 
