@@ -457,8 +457,11 @@ AgentEvalOps/
 │       │
 │       ├── evaluators/             # Evaluator adapters
 │       │   ├── __init__.py
-│       │   └── deterministic.py
-│       │   # Future: llm_judge.py (optional), tool_use.py, etc. (not started)
+│       │   ├── deterministic.py    # answer, trace kinds, required tools (from records, D14)
+│       │   ├── tool_use.py         # required/forbidden/ordered calls from the harness records
+│       │   ├── state_based.py      # end state against the scenario's template
+│       │   └── templates.py        # the template rule the two above share
+│       │   # Future: llm_judge.py (optional, v0.6), trace_quality.py (not started)
 │       │
 │       ├── scorers/                # Scorer adapters
 │       │   ├── __init__.py

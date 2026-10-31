@@ -162,9 +162,10 @@ agent or model. Exit code is 0 if all checks pass, 1 otherwise.
 
 ## Example scenarios
 
-Five example configs ship in `configs/`. Each demonstrates a distinct
-outcome from the local pipeline.  The active scenario is selected with the
-`benchmark_scenario` key in the YAML config.
+Five toy configs ship in `configs/`, each demonstrating a distinct outcome
+from the local pipeline, plus one that runs the agentic-baseline benchmark
+on the seed domain pack (last below).  A toy config's scenario is selected
+with the `benchmark_scenario` key in the YAML config.
 
 ### Happy path (`toy_smoke.yaml`)
 
@@ -227,6 +228,24 @@ The `mixed` scenario has 3 tasks using different evaluation strategies:
 | `toy-substr-001` | `expected_substring` | Pass — answer contains substring |
 
 Result: 2 / 3 tasks pass (67%). Policy passes ($0.00 cost).
+
+### The agentic baseline on the seed domain (`agentic_baseline_mock.yaml`)
+
+```bash
+agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/agentic-baseline
+agentevalops validate-bundle --bundle runs/agentic-baseline
+```
+
+The `agentic-baseline` benchmark runs the `seed` domain pack -- synthetic
+public-sector case handling with six tools, eight seeded cases and ten
+scenarios (ROADMAP R24, ADR-0006) -- under three evaluators
+(`evaluators: [deterministic, tool_use, state_based]`), each scenario
+declaring which apply. `mock_trajectory: known_good` plays every
+scenario's known-good trajectory back through the mock runner, so all
+ten tasks pass; change it to `known_bad` and every task fails under each
+evaluator that applies. The bundle carries the harness's own
+`tool_calls.jsonl` and `end_states.jsonl` and each scenario's preflight
+result. No model is called.
 
 ## Toy benchmark scenario reference
 

@@ -23,6 +23,38 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R24 slice 5, `366d1ec`, the
+`tool_use` and `state_based` evaluators).**
+- **D13:** a config names the evaluators it runs under `evaluators:`
+  (default `[deterministic]`), validated against the registry. When a
+  scenario declares an evaluator the run does not configure, the
+  known-good preflight cannot judge it either; that is reported as the
+  preflight result's cause, the scenario is *not* marked defective, the
+  agent runs, and every run of the task is not evaluated with cause
+  `configuration` -- never `environment_defect`.
+- **D14:** `DeterministicEvaluator`'s required-tool check reads
+  `context.records`; the agent's `AGENT_TOOL_CALL` events no longer
+  satisfy it. `ToolUseEvaluator` runs the self-report cross-check on
+  every task it judges, so a mismatch fails the run; the policy checker's
+  deny-list still reads the trace until R25 moves it.
+- **`tool_use` semantics:** a required call is one the environment ran
+  without error (a refused or failed call was not made); a forbidden
+  call is any attempt, run or not; `order` constrains the first call of
+  each listed tool and only among tools that were called -- an absent
+  tool is `required`'s finding. `refs` cite the `tool_calls` stream, each
+  record once.
+- **`state_based` semantics:** the expected end state is a template --
+  every key it names must be present and equal, lists in full and in
+  order, keys it does not name unconstrained; booleans never equal
+  numbers. The rule is shared through `evaluators/templates.py`.
+  `EndStateRecord` has no `Ref` stream, so the result cites paths in its
+  notes rather than refs.
+- **D11:** `mock_trajectory: known_good | known_bad` (mock runner only)
+  plays back every task's scripted trajectory from a benchmark that has
+  them (`AgenticBaselineBenchmark.scripted_trajectories`), so
+  `configs/agentic_baseline_mock.yaml` exercises the whole pipeline
+  without a model.
+
 **Implementation notes — 2026-11-01 (R24 slice 4, `5d9b90a`, the seed
 domain pack).**
 - **D23:** domain packs are their own adapter family,

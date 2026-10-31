@@ -9,6 +9,28 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R24 slice 5 — the `tool_use` and `state_based` evaluators, D14, and
+  the pack played back through the CLI** (2026-11-01; ADR-0006 D12, D13,
+  D14; `366d1ec`). `ToolUseEvaluator` judges a task run from the harness
+  records, never from the agent's account: the scenario's required calls
+  (tool and an argument template; a call the environment refused or that
+  failed was not made), forbidden calls (an attempt counts) and the order
+  of first calls, and the agent's self-reports must agree with the records
+  -- a disagreement is a `self_report_mismatch` finding. `refs` address the
+  records in the `tool_calls` stream. `StateBasedEvaluator` compares the
+  snapshotted end state with the scenario's expected one as a template
+  (named keys must match, lists in full, the rest unconstrained) and names
+  every departure by path. Both report not-applicable when the task
+  declares none of their inputs. `DeterministicEvaluator`'s
+  `required_tool_names` check reads the harness records too. The preflight
+  no longer turns a scenario into an environment defect when the run does
+  not configure an evaluator it declares: the agent runs and each task is
+  not evaluated with cause `configuration`. Configs gain `evaluators:`
+  (default `[deterministic]`) and `mock_trajectory: known_good |
+  known_bad`; `configs/agentic_baseline_mock.yaml` runs the seed pack
+  under all three evaluators, and run, validate-bundle and replay pass on
+  its bundle. R24's exit criteria are tests (`tests/test_r24_exit.py`).
+
 - **R24 slice 4 — the seed domain pack** (2026-11-01; ADR-0005 D9,
   ADR-0006 D11, D23, D26; `5d9b90a`). A new adapter family,
   `agentevalops.domain_packs`, and its first pack, `seed`: synthetic
