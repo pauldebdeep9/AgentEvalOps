@@ -23,6 +23,20 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R25 slice 3, `c8e0d5d`, least
+privilege).**
+- **D15:** `allowed_tool_ids` has its YAML path (`policy.allowed_tool_ids`)
+  and its consumer in `BasicPolicyChecker`, over the harness records; a
+  tool named in both lists is a configuration error.
+- **D14, run level:** the checker's deny-list reads `context.records`;
+  the self-report cross-check runs per task run inside the checker and
+  turns a would-be PASS into WARN, reported beside a real FAIL otherwise.
+  The mock runner's self-report-only mode (`emit_fake_tool_call`) is kept
+  as the negative control: a report with no record trips nothing.
+- Per scenario, least privilege is the `least_privilege` policy rule over
+  the scenario's `allowed_tools`, so a pack can say which tools a task
+  may use while the run-level list says which tools the whole run may.
+
 **Implementation notes — 2026-11-01 (R25 slice 2, `d9984cd`, the policy
 evaluator).**
 - **D14, per task:** the pack's policy rules are judged by a sixth

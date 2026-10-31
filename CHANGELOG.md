@@ -9,6 +9,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R25 slice 3 — `allowed_tool_ids` consumed, the deny-list on harness
+  records, `least_privilege`** (2026-11-01; ADR-0006 D14, D15; `c8e0d5d`).
+  `policy.allowed_tool_ids` can be set in YAML (a tool cannot be both
+  allowed and denied) and `BasicPolicyChecker` fails a run that recorded
+  a call outside a non-empty list. Its deny-list reads the same records:
+  an attempt counts whether or not it ran, a self-report the harness never
+  saw does not and is a `self_report_mismatch` WARN instead. Record-based
+  findings carry `refs` into `tool_calls` and leave `citations` empty.
+  The fifth policy rule, `least_privilege`, over the scenario's
+  `allowed_tools`; scenario PC4.
+
 - **R25 slice 2 — the `policy` evaluator and the SOP-ordering rules**
   (2026-11-01; ADR-0006 D14; `d9984cd`). A sixth evaluator kind, `policy`:
   a domain pack's rules judged per task run from the harness records,
