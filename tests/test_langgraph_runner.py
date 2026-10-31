@@ -177,6 +177,15 @@ def test_calculator_reports_arithmetic_error() -> None:
     assert _run_calculator("1 / 0").startswith("error:")
 
 
+def test_calculator_rejects_exponentiation() -> None:
+    """``**`` is refused before ``eval``: ``9**9**9`` never returns
+    (ROADMAP §0, 2026-10-31, finding 5). The cheap case comes first so the
+    test fails fast, rather than hanging, if the guard is ever removed."""
+    assert _run_calculator("2 ** 10").startswith("error:")
+    assert _run_calculator("9**9**9").startswith("error:")
+    assert _run_calculator("2 * 3") == "6"
+
+
 def test_price_table_and_cost() -> None:
     in_per, out_per = _model_price_per_token("claude-haiku-4-5")
     assert in_per == pytest.approx(1.0 / 1_000_000)

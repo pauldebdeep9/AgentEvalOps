@@ -179,13 +179,19 @@ _SAFE_EXPR_CHARS = set("0123456789+-*/(). ")
 def _run_calculator(expression: str) -> str:
     """Evaluate a trivial arithmetic *expression*, safely.
 
-    Only digits, whitespace and the operators ``+ - * / ( ) .`` are allowed.
+    Only digits, whitespace and the operators ``+ - * / ( ) .`` are allowed,
+    and ``**`` is refused.
     Any other character (or an evaluation error) yields an error string that
     is handed back to the model as the tool result — this never raises.
     """
     expr = str(expression)
     if not expr or any(ch not in _SAFE_EXPR_CHARS for ch in expr):
         return "error: expression contains unsupported characters"
+    if "**" in expr:
+        # Exponentiation is the one allowed operator that can run unbounded
+        # ("9**9**9" never returns). ``*`` then ``*`` only tokenises as power
+        # when adjacent, so a substring check is exact.
+        return "error: exponentiation (**) is not supported"
     try:
         # ``eval`` is bounded to arithmetic by the character allow-list above:
         # no names, calls, attribute access, or subscripts can appear.
