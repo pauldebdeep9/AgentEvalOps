@@ -23,6 +23,11 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**R24 built — 2026-11-01** (`36fec5b` … `4b28a96`; ROADMAP R24 met).
+Every R24 item under "By row" is in place with the departures the notes
+below record, except D6's `prepare_environment` seed parameter, which
+waits for R26 (its first user); D14's policy half stays with R25.
+
 **Implementation notes — 2026-11-01 (R24 slice 5, `366d1ec`, the
 `tool_use` and `state_based` evaluators).**
 - **D13:** a config names the evaluators it runs under `evaluators:`

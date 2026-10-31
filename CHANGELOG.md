@@ -9,6 +9,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R24 met — `agentic-baseline` benchmark: seed domain, task-execution
+  and tool-calling categories** (2026-11-01; ADR-0005 D9, ADR-0006). The
+  four entries below are its parts: bundle format 0.5, discovery and
+  options with the generic benchmark and its preflight; the seed domain
+  pack; the `tool_use` and `state_based` evaluators with the pack played
+  back through the CLI; the shared test fakes. Every exit criterion is a
+  test in `tests/test_r24_exit.py`, checked against running code: each
+  scenario's known-good passes and known-bad fails under each applicable
+  evaluator; a defective known-good is `environment_defect`, never an
+  agent failure; every task run has an end-state record; every case
+  carries its codes and R26's attributes; the ambiguous cases are referred
+  by the known-good and decided by the known-bad.
+
 - **R24 slice 6 — fake provider clients shared** (2026-11-01; `4b28a96`).
   The fake OpenAI-style and Anthropic-style clients that
   `tests/test_runner_seam.py` and `tests/test_runner_concurrency.py` had

@@ -24,6 +24,7 @@ point at a different interpreter than the one the project is installed into.
 | Import layer contracts | `$ENV/bin/lint-imports` — **only the console script works.** `python -m importlinter.cli lint-imports` exits 0 with zero output regardless of contract state (`importlinter/cli.py` has no `if __name__ == "__main__":` guard); it silently checks nothing. |
 | Test | `$ENV/bin/python -m pytest -q --cov=agentevalops --cov-report=term-missing` |
 | Smoke | `$ENV/bin/agentevalops run --config configs/toy_smoke.yaml --output runs/tmp` then `validate-bundle` / `replay` on the same dir |
+| Smoke, seed pack | `$ENV/bin/agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/tmp-pack` then `validate-bundle` / `replay` on the same dir (10/10 pass under three evaluators; `mock_trajectory: known_bad` fails all 10) |
 
 The `Makefile` targets invoke bare executables and are therefore only safe with
 the env already activated. Prefer the absolute-path commands above.

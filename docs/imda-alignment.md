@@ -345,7 +345,7 @@ In bold, the over-reach: 3.2.1, 3.5.1, 3.9.1 and 3.11.1 concern the organisation
 ## 11. Open questions
 
 1. **Synthetic identifiers** (`ROADMAP.md` §5, risk 9). Seeded cases need NRIC/FIN and phone numbers realistic enough to exercise the detector, yet not anyone's. Singapore publishes no reserved test ranges that we know of, so ADR-0006 has to argue the choice rather than cite it, and date the argument — for example, a prefix no issuing scheme uses, which the detector accepts only in test configuration. E-mail addresses use reserved domains (RFC 2606).
-2. **Which protected attributes the pairs vary.** The seed domain names them, and the published source it relies on, in R24.
+2. **Which protected attributes the pairs vary.** *Answered in R24 (2026-11-01):* the applicant's gender and age, carried on every seeded case, and ethnic group, varied through gender-matched name pairs in the seed pack's `names.yaml` across the four groups of the Department of Statistics' classification for the resident population (Census of Population 2020: Chinese, Malay, Indian, Others). R26 builds the pairs on them.
 3. **A machine-readable twin of the report.** Organisations transcribe the checklist into their own templates or into the AI Verify toolkit. Before ADR-0007 fixes the report's format, check what the toolkit's process-checklist import accepts.
 4. **Official titles (E1).** With the AI Verify Foundation's written permission, the report can show the framework's own titles beside these labels.
 5. **Agent-specific test guidance** (ADR-0005 Q1). The framework never mentions agents, and the Starter Kit defers them to a later update. When that update appears, or a new edition of the framework, redo this review.
