@@ -22,6 +22,7 @@ from agentevalops.core.schemas import (
     Verdict,
 )
 from agentevalops.core.types import BACKEND_LOCAL, AgentId, RunId, TaskId
+from agentevalops.environments import toy_environment
 from agentevalops.evaluators.deterministic import DeterministicEvaluator
 from agentevalops.orchestration.local import LocalOrchestrator
 from agentevalops.policy.basic_checker import BasicPolicyChecker
@@ -229,7 +230,7 @@ class _OneTaskBenchmark:
         ]
 
     def prepare_environment(self, task):  # type: ignore[no-untyped-def]
-        return EnvHandle(task_id=task.task_id)
+        return EnvHandle(task_id=task.task_id, tools=toy_environment(task.task_id))
 
     def teardown(self, handle: EnvHandle) -> None:
         pass
@@ -411,7 +412,7 @@ class _RecordingBenchmark:
             self._prepare_fails_for is None or self._prepare_fails_for == tid
         ):
             raise self._prepare_error
-        handle = EnvHandle(task_id=task.task_id)
+        handle = EnvHandle(task_id=task.task_id, tools=toy_environment(task.task_id))
         self.handles_returned[tid] = handle
         return handle
 

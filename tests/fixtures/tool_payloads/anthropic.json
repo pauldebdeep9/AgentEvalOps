@@ -1,0 +1,34 @@
+[
+  {
+    "name": "calculator",
+    "description": "Evaluate a simple arithmetic expression using +, -, *, /, parentheses and numbers. Returns the numeric result as a string.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "expression": {
+          "type": "string",
+          "description": "e.g. '2 + 2' or '(3 * 4) - 1'"
+        }
+      },
+      "required": [
+        "expression"
+      ]
+    }
+  },
+  {
+    "name": "finish",
+    "description": "Return the final answer to the user's task. Call this exactly once when you are confident in the answer.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "answer": {
+          "type": "string",
+          "description": "The final answer string."
+        }
+      },
+      "required": [
+        "answer"
+      ]
+    }
+  }
+]

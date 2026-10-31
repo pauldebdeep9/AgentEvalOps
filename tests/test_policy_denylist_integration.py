@@ -33,6 +33,7 @@ from agentevalops.core.schemas import (
     Verdict,
 )
 from agentevalops.core.types import AgentId, BackendId, RunId, TaskId
+from agentevalops.environments import toy_environment
 from agentevalops.evaluators.deterministic import DeterministicEvaluator
 from agentevalops.orchestration.local import LocalOrchestrator
 from agentevalops.policy.basic_checker import BasicPolicyChecker
@@ -77,7 +78,7 @@ class _ToolCallAdapter:
         )
 
     def prepare_environment(self, task: TaskSpec) -> EnvHandle:
-        return EnvHandle(task_id=task.task_id)
+        return EnvHandle(task_id=task.task_id, tools=toy_environment(task.task_id))
 
     def teardown(self, handle: EnvHandle) -> None:
         pass

@@ -40,6 +40,7 @@ from agentevalops.core.schemas import (
     EvaluationResult,
     TaskSpec,
 )
+from agentevalops.environments import toy_environment
 
 
 class ToyBenchmarkAdapter:
@@ -112,8 +113,10 @@ class ToyBenchmarkAdapter:
         )
 
     def prepare_environment(self, task: TaskSpec) -> EnvHandle:
-        """No filesystem workspace: the toy benchmark has nothing to clone."""
-        return EnvHandle(task_id=task.task_id)
+        """No filesystem workspace: the toy benchmark has nothing to clone.
+
+        Its tool environment is the calculator (docs/adr/0006 D1)."""
+        return EnvHandle(task_id=task.task_id, tools=toy_environment(task.task_id))
 
     def teardown(self, handle: EnvHandle) -> None:
         """No-op: nothing was created by ``prepare_environment``."""

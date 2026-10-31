@@ -294,9 +294,28 @@ class LocalOrchestrator:
             )
 
         try:
+            if handle.tools is None:
+                # docs/adr/0006 D1: a benchmark that hands back no tool
+                # environment is a wiring bug. Recorded as not evaluated --
+                # never left to look like an agent failure, and never
+                # silently papered over by a runner's own default.
+                return (
+                    _not_evaluated_result(
+                        task,
+                        ConfigurationError(
+                            f"benchmark '{task.benchmark_id}' returned no tool "
+                            "environment for this task (docs/adr/0006 D1)"
+                        ),
+                        events,
+                        self._evaluator,
+                        stage="prepare_environment",
+                    ),
+                    events,
+                )
             agent_input = AgentInput(
                 task=task,
                 context={"run_id": run_id},
+                environment=handle.tools,
             )
             limits = self._config.resource_limits
 

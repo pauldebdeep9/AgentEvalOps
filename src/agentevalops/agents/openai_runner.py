@@ -43,6 +43,7 @@ the lazy-import and real-client-construction branches carry
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from collections.abc import AsyncGenerator, AsyncIterator
@@ -50,13 +51,18 @@ from typing import Any, Callable
 
 from agentevalops.core.errors import ConfigurationError, InfrastructureError
 from agentevalops.core.schemas import (
+    FINISH_TOOL_SPEC,
     AgentInput,
     ResourceLimits,
     TerminationReason,
+    ToolSpec,
     TraceEvent,
     TraceEventKind,
 )
 from agentevalops.core.types import AgentId, RunId
+from agentevalops.environments.toy import run_calculator, toy_environment
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Model + pricing table
@@ -132,82 +138,27 @@ def _cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Lightweight tools (same tool set as langgraph_runner._TOOLS, re-expressed in
-# OpenAI's {"type": "function", "function": {...}} shape)
+# Tools (docs/adr/0006 D9). Specs come from the task's tool environment
+# and are converted here, inside this runner, to OpenAI's
+# {"type": "function", "function": {...}} shape. ``finish`` is
+# this runner's own control, offered after the environment's tools.
 # ---------------------------------------------------------------------------
 
-_TOOLS: list[dict[str, Any]] = [
-    {
+
+def _to_provider_tool(spec: ToolSpec) -> dict[str, Any]:
+    return {
         "type": "function",
         "function": {
-            "name": "calculator",
-            "description": (
-                "Evaluate a simple arithmetic expression using +, -, *, /, "
-                "parentheses and numbers. Returns the numeric result as a "
-                "string."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "expression": {
-                        "type": "string",
-                        "description": "e.g. '2 + 2' or '(3 * 4) - 1'",
-                    }
-                },
-                "required": ["expression"],
-            },
+            "name": spec.name,
+            "description": spec.description,
+            "parameters": spec.input_schema,
         },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "finish",
-            "description": (
-                "Return the final answer to the user's task. Call this "
-                "exactly once when you are confident in the answer."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "answer": {
-                        "type": "string",
-                        "description": "The final answer string.",
-                    }
-                },
-                "required": ["answer"],
-            },
-        },
-    },
-]
-
-# Characters permitted in a calculator expression.  Anything else is rejected
-# rather than passed to ``eval`` — the tool never executes arbitrary code.
-_SAFE_EXPR_CHARS = set("0123456789+-*/(). ")
+    }
 
 
-def _run_calculator(expression: str) -> str:
-    """Evaluate a trivial arithmetic *expression*, safely.
-
-    Only digits, whitespace and the operators ``+ - * / ( ) .`` are allowed,
-    and ``**`` is refused.
-    Any other character (or an evaluation error) yields an error string that
-    is handed back to the model as the tool result — this never raises.
-    """
-    expr = str(expression)
-    if not expr or any(ch not in _SAFE_EXPR_CHARS for ch in expr):
-        return "error: expression contains unsupported characters"
-    if "**" in expr:
-        # Exponentiation is the one allowed operator that can run unbounded
-        # ("9**9**9" never returns). ``*`` then ``*`` only tokenises as power
-        # when adjacent, so a substring check is exact.
-        return "error: exponentiation (**) is not supported"
-    try:
-        # ``eval`` is bounded to arithmetic by the character allow-list above:
-        # no names, calls, attribute access, or subscripts can appear.
-        result = eval(expr, {"__builtins__": {}}, {})  # noqa: S307
-    except Exception as exc:  # noqa: BLE001 - report any arithmetic failure
-        return f"error: {exc}"
-    return str(result)
+#: The toy calculator now lives in ``environments.toy``; kept under its old
+#: name because the runner tests import it from here.
+_run_calculator = run_calculator
 
 
 # ---------------------------------------------------------------------------
@@ -399,14 +350,17 @@ class OpenAIRunner:
     # ------------------------------------------------------------------
 
     def _call_model(
-        self, client: Any, messages: list[dict[str, Any]]
+        self,
+        client: Any,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
     ) -> _ParsedResponse:
         """Call the model once; wrap API failures as infrastructure errors."""
         try:
             response = client.chat.completions.create(
                 model=self._api_model,
                 messages=messages,
-                tools=_TOOLS,
+                tools=tools,
             )
         except (ConfigurationError, InfrastructureError):
             raise
@@ -484,6 +438,18 @@ class OpenAIRunner:
                 },
             )
 
+        environment = input.environment
+        if environment is None:
+            # Only reached when this runner is called directly, as the runner
+            # tests do: the orchestrator always passes the task's environment
+            # and refuses a handle without one (docs/adr/0006 D1).
+            logger.warning(
+                "OpenAIRunner: no tool environment given; using the toy environment"
+            )
+            environment = toy_environment(input.task.task_id)
+        specs = (*(await environment.list_tools()), FINISH_TOOL_SPEC)
+        tools = [_to_provider_tool(spec) for spec in specs]
+
         task = input.task
         user_content = (
             f"Task: {task.description}\n"
@@ -504,7 +470,7 @@ class OpenAIRunner:
         step += 1
 
         for _iteration in range(self._max_steps):
-            parsed = self._call_model(client, messages)
+            parsed = self._call_model(client, messages, tools)
 
             # --- cost / token accounting for this response ----------------
             step_tokens = parsed.input_tokens + parsed.output_tokens
@@ -626,12 +592,10 @@ class OpenAIRunner:
                 elif tool_name == "finish":
                     finished_answer = str(tool_input.get("answer", ""))
                     tool_output = "ok"
-                elif tool_name == "calculator":
-                    tool_output = _run_calculator(
-                        tool_input.get("expression", "")
-                    )
                 else:
-                    tool_output = f"error: unknown tool '{tool_name}'"
+                    tool_output = (
+                        await environment.call(tool_name, tool_input)
+                    ).content
 
                 yield TraceEvent(
                     run_id=run_id,
