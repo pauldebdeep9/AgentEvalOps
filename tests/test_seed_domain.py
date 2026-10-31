@@ -817,6 +817,12 @@ def _dup(key: str) -> Callable[[dict[str, Any]], None]:
             "notice_fields must name",
         ),
         ("policy.yaml", _set("notice_fields.reason_codes", ""), "non-empty string"),
+        (
+            "policy.yaml",
+            _set("notice_masking", ["address"]),
+            "notice_masking has unknown",
+        ),
+        ("policy.yaml", _set("synthetic_identifiers", "yes"), "must be true or false"),
         ("names.yaml", _set("groups", ["a", 1]), "groups must be a list of strings"),
         ("names.yaml", _set("groups", []), "groups must not be empty"),
         ("names.yaml", _set("groups", ["chinese", "chinese"]), "repeats an entry"),

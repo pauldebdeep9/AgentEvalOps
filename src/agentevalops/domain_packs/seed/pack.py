@@ -200,6 +200,21 @@ def _policy(raw: dict[str, Any]) -> Policy:
             f"{where}: notice_fields must name exactly 'disclosure' and "
             f"'reason_codes', got {sorted(notice_fields)}"
         )
+    body_argument = _text(
+        raw.get("notice_body_argument", "body"), where, "notice_body_argument"
+    )
+    masking = _strings(
+        raw.get("notice_masking", []), where, "notice_masking", allow_empty=True
+    )
+    unknown_kinds = sorted(set(masking) - {"nric", "phone", "email"})
+    if unknown_kinds:
+        raise DomainPackError(
+            f"{where}: notice_masking has unknown kind(s) {unknown_kinds}; the kinds "
+            "are nric, phone and email"
+        )
+    synthetic = raw.get("synthetic_identifiers", False)
+    if not isinstance(synthetic, bool):
+        raise DomainPackError(f"{where}: synthetic_identifiers must be true or false")
     return Policy(
         scheme=scheme,
         reason_codes=reason_codes,
@@ -209,6 +224,9 @@ def _policy(raw: dict[str, Any]) -> Policy:
         export_domains=export_domains,
         destination_argument=destination_argument,
         notice_fields=notice_fields,
+        notice_body_argument=body_argument,
+        notice_masking=masking,
+        synthetic_identifiers=synthetic,
     )
 
 
@@ -408,6 +426,14 @@ def _policy_block(raw: Any, where: str, case: Case, policy: Policy) -> dict[str,
         "destination_argument": policy.destination_argument,
         "expected_reason_codes": list(case.reason_codes),
         "notice_fields": dict(policy.notice_fields),
+        "addressee_identifiers": {
+            "nric": case.applicant.nric,
+            "phone": case.applicant.phone,
+            "email": case.applicant.email,
+        },
+        "notice_body_argument": policy.notice_body_argument,
+        "mask": list(policy.notice_masking),
+        "synthetic_identifiers": policy.synthetic_identifiers,
     }
     if ("least_privilege" in rules) != ("allowed_tools" in block):
         raise DomainPackError(

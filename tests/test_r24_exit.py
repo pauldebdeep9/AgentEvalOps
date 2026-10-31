@@ -215,10 +215,18 @@ def test_a_missing_evaluator_is_a_configuration_gap_not_a_defect() -> None:
     judge the known-good either and reported every task an environment
     defect, with the agent never run."""
     summary, _, _, spy = _seed("known_good", evaluators=[DeterministicEvaluator()])
+    scenarios = {s.scenario_id: s for s in _PACK.scenarios()}
     for check in summary.preflight:
         assert not check.passed
-        assert "not evaluated" in (check.cause or "")
-        assert "tool_use" in (check.cause or "")
+        cause = check.cause or ""
+        assert "not evaluated" in cause
+        # The cause names a kind the scenario declares and the run lacks:
+        # the evaluator's own detail when one applies, the verdict's
+        # summary when several do.
+        unconfigured = set(scenarios[str(check.task_id)].applicable_evaluators) - {
+            "deterministic"
+        }
+        assert any(kind in cause for kind in unconfigured), (check.task_id, cause)
     assert spy.calls == SCENARIO_IDS  # the agent still ran
     assert summary.not_evaluated_by_cause == {"configuration": N}
     assert _counts(summary) == (0, 0, N)

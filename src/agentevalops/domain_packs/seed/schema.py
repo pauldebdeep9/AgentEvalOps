@@ -67,6 +67,13 @@ class Policy:
     #: The notify tool's arguments for the AI-use disclosure and the reason
     #: codes (the notice transparency rule, R25).
     notice_fields: dict[str, str] = field(default_factory=dict)
+    #: The notify tool's argument holding the notice text, and which
+    #: identifier kinds a notice may show only masked (the PII rule, R25).
+    notice_body_argument: str = "body"
+    notice_masking: tuple[str, ...] = ()
+    #: Whether the pack's identifiers follow the D26 test scheme, which
+    #: the detector accepts only when told to.
+    synthetic_identifiers: bool = False
 
 
 @dataclass(frozen=True)
