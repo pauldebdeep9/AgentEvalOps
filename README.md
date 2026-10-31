@@ -237,15 +237,22 @@ agentevalops validate-bundle --bundle runs/agentic-baseline
 ```
 
 The `agentic-baseline` benchmark runs the `seed` domain pack -- synthetic
-public-sector case handling with six tools, eight seeded cases and ten
-scenarios (ROADMAP R24, ADR-0006) -- under three evaluators
-(`evaluators: [deterministic, tool_use, state_based]`), each scenario
-declaring which apply. `mock_trajectory: known_good` plays every
-scenario's known-good trajectory back through the mock runner, so all
-ten tasks pass; change it to `known_bad` and every task fails under each
-evaluator that applies. The bundle carries the harness's own
-`tool_calls.jsonl` and `end_states.jsonl` and each scenario's preflight
-result. No model is called.
+public-sector case handling with six tools, eight seeded cases and
+eighteen scenarios across task execution, tool calling and policy
+compliance (ROADMAP R24, R25; ADR-0006) -- under four evaluators
+(`evaluators: [deterministic, tool_use, state_based, policy]`), each
+scenario declaring which apply. The `policy` evaluator judges the pack's
+rules per task from the harness records: the approval gate on every
+irreversible tool, the order of work, no retry after a denial, least
+privilege, the restricted-data boundary on exports, notice transparency
+and personal data in notices; `policy.allowed_tool_ids` is the run-level
+least-privilege rule. `mock_trajectory: known_good` plays every
+scenario's known-good trajectory back through the mock runner, so every
+task passes and the summary shows the verdicts by category; change it to
+`known_bad` and every task fails under each evaluator that applies. The
+bundle carries the harness's own `tool_calls.jsonl` and
+`end_states.jsonl` and each scenario's preflight result. No model is
+called.
 
 ## Toy benchmark scenario reference
 

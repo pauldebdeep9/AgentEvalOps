@@ -105,9 +105,7 @@ def run(
         raise typer.Exit(code=1)
 
     if output is not None:
-        existing = [
-            f for f in REQUIRED_BUNDLE_FILES if (output / f).exists()
-        ]
+        existing = [f for f in REQUIRED_BUNDLE_FILES if (output / f).exists()]
         if existing:
             typer.echo(
                 f"Output directory '{output}' already contains bundle "
@@ -227,7 +225,7 @@ def run(
         _write_bundle(degraded, "partial", events)
         raise typer.Exit(code=1)
 
-    _print_summary(summary)
+    _print_summary(summary, _task_categories(benchmark))
     _write_bundle(summary, "sealed", store.events(loaded.run_config.run_id))
 
 
@@ -280,9 +278,7 @@ def _bundle_run_id(bundle: Path) -> str | None:
     import json
 
     try:
-        data = json.loads(
-            (bundle / "metadata.json").read_text(encoding="utf-8")
-        )
+        data = json.loads((bundle / "metadata.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     run_id = data.get("run_id") if isinstance(data, dict) else None
@@ -337,9 +333,7 @@ def report(
 
     bundle = _resolve_bundle(runs_dir, run_id)
     if bundle is None:
-        typer.echo(
-            f"No bundle found for run-id '{run_id}' in {runs_dir}", err=True
-        )
+        typer.echo(f"No bundle found for run-id '{run_id}' in {runs_dir}", err=True)
         raise typer.Exit(code=1)
 
     report_path = bundle / "report.md"
@@ -413,7 +407,54 @@ def _run_validate_bundle(bundle: Path) -> None:
         raise typer.Exit(code=1)
 
 
-def _print_summary(summary: object) -> None:
+def _task_categories(benchmark: Any) -> dict[str, str]:
+    """Each task's ``category`` from the benchmark's task metadata, for
+    tasks that carry one (a domain pack's scenarios do; the toy's do not).
+    Computed at run time and shown on the CLI only: the bundle gains a
+    category per task with format 0.6 (R28)."""
+    categories: dict[str, str] = {}
+    try:
+        tasks = list(benchmark.list_tasks())
+    except Exception:  # noqa: BLE001 - a summary line must never fail a run
+        return categories
+    for task in tasks:
+        category = task.metadata.get("category")
+        if isinstance(category, str) and category:
+            categories[str(task.task_id)] = category
+    return categories
+
+
+def category_lines(summary: RunSummary, categories: dict[str, str]) -> list[str]:
+    """One line per category -- passed over evaluated, and the not-evaluated
+    count -- in first-seen order (ROADMAP R25: verdicts in three categories).
+    Empty when no task carries a category."""
+    if not categories:
+        return []
+    order: list[str] = []
+    counts: dict[str, list[int]] = {}
+    for result in summary.task_results:
+        category = categories.get(str(result.task_id))
+        if category is None:
+            continue
+        if category not in counts:
+            order.append(category)
+            counts[category] = [0, 0, 0]  # passed, evaluated, not evaluated
+        if not result.evaluation.evaluated:
+            counts[category][2] += 1
+        else:
+            counts[category][1] += 1
+            if result.evaluation.passed:
+                counts[category][0] += 1
+    width = max(len(c) for c in order) if order else 0
+    return [
+        f"  {category:<{width}}  {passed}/{evaluated} evaluated passed "
+        f"({not_evaluated} not evaluated)"
+        for category in order
+        for passed, evaluated, not_evaluated in [counts[category]]
+    ]
+
+
+def _print_summary(summary: object, categories: dict[str, str] | None = None) -> None:
     """Print a concise one-block run summary to stdout."""
     from agentevalops.core.schemas import RunSummary
 
@@ -434,6 +475,11 @@ def _print_summary(summary: object) -> None:
         verdict = summary.policy_verdict.verdict.value.upper()
         checker = summary.policy_verdict.checker_id
         typer.echo(f"Policy  : {verdict}  ({checker})")
+    lines = category_lines(summary, categories or {})
+    if lines:
+        typer.echo("By category:")
+        for line in lines:
+            typer.echo(line)
 
 
 def _print_validation_result(bundle: Path, result: BundleValidationResult) -> None:
