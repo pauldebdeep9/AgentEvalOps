@@ -97,6 +97,7 @@ def test_ids_and_registration() -> None:
         "notice_transparency",
         "no_pii_leak",
         "call_budget",
+        "counterfactual_consistency",
     }
 
 

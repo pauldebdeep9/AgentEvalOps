@@ -196,18 +196,23 @@ def test_a_defective_known_good_is_an_environment_defect_never_an_agent_failure(
 
     summary, _, _, spy = _seed("known_good", pack=SeedDomainPack(copy), repetitions=2)
     preflight = {str(p.task_id): p for p in summary.preflight}
-    assert not preflight["TE1"].passed
-    assert "did not pass" in (preflight["TE1"].cause or "")
-    assert all(p.passed for sid, p in preflight.items() if sid != "TE1")
-    assert spy.calls.count("TE1") == 0 and len(spy.calls) == 2 * (N - 1)
+    # RB6 is TE1's counterfactual: its consistency rule holds it to TE1's
+    # known-good calls, so a broken TE1 breaks RB6's preflight too (R26).
+    defective = {"TE1", "RB6"}
+    for sid in defective:
+        assert not preflight[sid].passed
+        assert "did not pass" in (preflight[sid].cause or "")
+    assert all(p.passed for sid, p in preflight.items() if sid not in defective)
+    assert not any(sid in defective for sid in spy.calls)
+    assert len(spy.calls) == 2 * (N - len(defective))
     te1_runs = [r for r in summary.task_results if r.task_id == "TE1"]
     assert [r.repetition for r in te1_runs] == [0, 1]
     for r in te1_runs:
         assert not r.evaluation.evaluated
         assert r.evaluation.not_evaluated_cause == "environment_defect"
         assert {e.not_evaluated_cause for e in r.evaluations} == {"environment_defect"}
-    assert summary.not_evaluated_by_cause == {"environment_defect": 2}
-    assert _counts(summary) == (2 * (N - 1), 0, 2)
+    assert summary.not_evaluated_by_cause == {"environment_defect": 2 * len(defective)}
+    assert _counts(summary) == (2 * (N - len(defective)), 0, 2 * len(defective))
 
 
 def test_a_missing_evaluator_is_a_configuration_gap_not_a_defect() -> None:

@@ -9,6 +9,7 @@ identifier -- so a bad pack fails when it is built, never in a run.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Iterator, Mapping, Sequence
 from importlib import resources
 from pathlib import Path
@@ -541,11 +542,106 @@ def _injections(raw: Any, where: str) -> list[dict[str, Any]]:
     return schedule
 
 
+#: What a counterfactual may swap (R26; testing-framework 7.2.1). Only the
+#: name for now: it changes the name's ethnic group within a gender-matched
+#: pair and nothing else about the case.
+COUNTERFACTUAL_SWAPS: frozenset[str] = frozenset({"name"})
+
+
+def _counterfactual(
+    item: dict[str, Any],
+    here: str,
+    done: Mapping[str, Scenario],
+    cases: Mapping[str, Case],
+    names: Sequence[SyntheticName],
+) -> tuple[Scenario, dict[str, Any]]:
+    """A counterfactual scenario derives everything but its own trajectories,
+    evaluators, controls, outcome group and description from its base: the
+    base's case with one protected attribute changed, the base's
+    expectations and environment, and the consistency rule that holds the
+    variant to the base's known-good calls."""
+    block = _mapping(item.get("counterfactual"), here, "counterfactual")
+    unknown = sorted(set(block) - {"base", "swap", "to"})
+    if unknown:
+        raise DomainPackError(f"{here}: counterfactual has unknown key(s) {unknown}")
+    base_id = _text(block.get("base"), here, "counterfactual.base")
+    if base_id not in done:
+        raise DomainPackError(
+            f"{here}: counterfactual.base '{base_id}' is not a scenario declared "
+            "before this one"
+        )
+    base = done[base_id]
+    if base.variant:
+        raise DomainPackError(
+            f"{here}: counterfactual.base '{base_id}' is itself a variant"
+        )
+    swap = _text(block.get("swap"), here, "counterfactual.swap")
+    if swap not in COUNTERFACTUAL_SWAPS:
+        raise DomainPackError(
+            f"{here}: counterfactual.swap must be one of {sorted(COUNTERFACTUAL_SWAPS)}"
+        )
+    to = _text(block.get("to"), here, "counterfactual.to")
+    case = cases[str(base.expected["case_id"])]
+    by_name = {n.name: n for n in names}
+    if to not in by_name:
+        raise DomainPackError(f"{here}: counterfactual.to '{to}' is not in names.yaml")
+    original = by_name.get(case.applicant.name)
+    target = by_name[to]
+    if original is None or target.gender != case.applicant.gender:
+        raise DomainPackError(
+            f"{here}: counterfactual.to '{to}' must have the same gender as "
+            f"'{case.applicant.name}' ({case.applicant.gender})"
+        )
+    if target.group == original.group:
+        raise DomainPackError(
+            f"{here}: counterfactual.to '{to}' is in the same group as "
+            f"'{case.applicant.name}' ({original.group}); the swap changes nothing"
+        )
+    for key in ("case_id", "approvals", "faults", "injections", "expected"):
+        if key in item:
+            raise DomainPackError(
+                f"{here}: a counterfactual takes its {key} from the base; do not "
+                "declare it"
+            )
+    base_calls = [
+        {"call": step["call"], "arguments": dict(step.get("arguments", {}))}
+        for step in base.known_good
+        if "call" in step
+    ]
+    variant = {
+        "kind": "counterfactual",
+        "base": base_id,
+        "attribute": swap,
+        "from": case.applicant.name,
+        "to": to,
+        "unchanged": {"gender": case.applicant.gender, "age": case.applicant.age},
+        "group_from": original.group,
+        "group_to": target.group,
+    }
+    expected = dict(base.expected)
+    policy_block = dict(expected.get("policy") or {})
+    rules = list(policy_block.get("rules") or [])
+    if "counterfactual_consistency" not in rules:
+        rules.append("counterfactual_consistency")
+    policy_block["rules"] = rules
+    policy_block["base_calls"] = [
+        {"tool": c["call"], "arguments": c["arguments"]} for c in base_calls
+    ]
+    expected["policy"] = policy_block
+    return base, {
+        "expected": expected,
+        "variant": variant,
+        "environment": dict(base.environment),
+        "allowed_evaluators": set(base.applicable_evaluators) | {"policy"},
+    }
+
+
 def _scenarios(
     raw: dict[str, Any],
     cases: Mapping[str, Case],
     catalogue: Catalogue,
     policy: Policy,
+    names: Sequence[SyntheticName] = (),
 ) -> tuple[Scenario, ...]:
     where = "scenarios.yaml"
     scenarios: list[Scenario] = []
@@ -566,6 +662,73 @@ def _scenarios(
             raise DomainPackError(
                 f"{here}: outcome_group must be one of {list(NEGATIVE_OUTCOMES)}"
             )
+        if "counterfactual" in item:
+            done = {s.scenario_id: s for s in scenarios}
+            base, derived = _counterfactual(item, here, done, cases, names)
+            evaluators = _strings(
+                item.get("applicable_evaluators"), here, "applicable_evaluators"
+            )
+            strangers = sorted(set(evaluators) - derived["allowed_evaluators"])
+            if strangers:
+                raise DomainPackError(
+                    f"{here}: applicable_evaluators {strangers} are not the base's "
+                    "evaluators or 'policy'"
+                )
+            if "policy" not in evaluators:
+                raise DomainPackError(
+                    f"{here}: a counterfactual applies the policy evaluator (its "
+                    "consistency rule)"
+                )
+            # Keep only the base's expectations for the evaluators the
+            # variant applies, so the two stay consistent.
+            owned = {
+                "deterministic": (
+                    "expected_output",
+                    "expected_substring",
+                    "match_mode",
+                ),
+                "tool_use": ("tool_use",),
+                "state_based": ("expected_end_state",),
+            }
+            derived["expected"] = {
+                key: value
+                for key, value in derived["expected"].items()
+                if all(
+                    key not in keys or kind in evaluators
+                    for kind, keys in owned.items()
+                )
+            }
+            control_ids = _strings(item.get("control_ids"), here, "control_ids")
+            for control_id in control_ids:
+                try:
+                    catalogue.control(control_id)
+                except CatalogueError:
+                    raise DomainPackError(
+                        f"{here}: unknown control id '{control_id}' "
+                        "(not in the catalogue)"
+                    ) from None
+            known_good = _script(item.get("known_good"), here, "known_good")
+            if known_good[-1].kind != "finish":
+                raise DomainPackError(f"{here}: known_good must end with 'finish'")
+            known_bad = _script(item.get("known_bad"), here, "known_bad")
+            scenarios.append(
+                Scenario(
+                    scenario_id=scenario_id,
+                    description=" ".join(
+                        _text(item.get("description"), here, "description").split()
+                    ),
+                    category=category,
+                    known_good=tuple(_as_data(step) for step in known_good),
+                    known_bad=tuple(_as_data(step) for step in known_bad),
+                    applicable_evaluators=evaluators,
+                    control_ids=control_ids,
+                    expected=derived["expected"],
+                    environment=derived["environment"],
+                    outcome_group=outcome_group,
+                    variant=derived["variant"],
+                )
+            )
+            continue
         case_id = _text(item.get("case_id"), here, "case_id")
         if case_id not in cases:
             raise DomainPackError(f"{here}: unknown case '{case_id}'")
@@ -738,6 +901,7 @@ class SeedDomainPack:
             self._cases,
             catalogue or load_catalogue(),
             self._policy,
+            self._names,
         )
 
     # -- the DomainPack protocol ------------------------------------------
@@ -754,12 +918,27 @@ class SeedDomainPack:
             )
         return build_environment(
             task_id,
-            self._cases,
+            self.cases_for(scenario),
             self._policy,
             approvals=scenario.environment.get("approvals"),
             faults=scenario.environment.get("faults"),
             injections=scenario.environment.get("injections"),
         )
+
+    def cases_for(self, scenario: Scenario) -> Mapping[str, Case]:
+        """The cases on file for *scenario*: the pack's, with a counterfactual
+        variant's case carrying the swapped attribute and nothing else
+        changed (R26; testing-framework 7.2.1)."""
+        variant = scenario.variant
+        if variant.get("kind") != "counterfactual":
+            return dict(self._cases)
+        case_id = str(scenario.expected["case_id"])
+        case = self._cases[case_id]
+        swapped = dataclasses.replace(
+            case,
+            applicant=dataclasses.replace(case.applicant, name=str(variant["to"])),
+        )
+        return {**self._cases, case_id: swapped}
 
     # -- the data, for tests and later rows -------------------------------
 
