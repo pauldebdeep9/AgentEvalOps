@@ -683,6 +683,17 @@ both places is a load error, so a bundle's plan and its config cannot
 disagree. An agentic-baseline run without a declaration refuses to start
 (owner's condition, 2026-11-01).
 
+**Implementation note — 2026-11-01 (R27 slice 3, `628c1d2`).** pass^k
+groups by `task_id` as written, in `scorers/pass_k.py`, into
+`RunSummary.pass_k` and `.pass_k_by_category` (content on summary.json
+under D21). A scenario with any not-evaluated repetition is not evaluated
+under D20's three-way split, never failed, and carries the cause -- the
+first such repetition's, or `mixed` -- into summary.json, the CLI line,
+the report and the gate (owner's condition: never "not evaluated"
+without a cause). The orchestrator also hands the runner its repetition
+and the D6 seed in `AgentInput.context`, so a randomising runner is
+reproducible without a new protocol.
+
 **D19. Harness data has its own files; no new `TraceEventKind`.**
 - Two new bundle files, one JSON object per line, keyed by `task_id` and
   `repetition`:
@@ -740,6 +751,7 @@ the `Scorer` protocol (finding 2).**
 | `RunSummary.preflight` (owner's change, 2026-11-01) | `summary.json` | D16 |
 | `evaluations.json` holds one entry per evaluator per task run | `evaluations.json` | D13 |
 | `test_plan.json` (new, **optional**; required from 0.6) and `ResultBundleMetadata.test_plan_sha256` (R27, 2026-11-01) | new; `metadata.json` | ADR-0005 D6 |
+| `RunSummary.pass_k`, `.pass_k_by_category` (R27, 2026-11-01) | `summary.json` | D18, D20 |
 
 All additive except `ScoreResult.failed_tasks`'s meaning, which is why it
 waits for the version bump.

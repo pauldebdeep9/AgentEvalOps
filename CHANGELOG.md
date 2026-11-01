@@ -9,6 +9,25 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R27 slice 3 — repetitions and pass^k** (2026-11-01; ADR-0006 D18,
+  D20; testing-framework 3.6.1; `628c1d2`). `scorers/pass_k.py` groups
+  the run's task runs by task id: a scenario passes only if every one of
+  its k repetitions passed; one not-evaluated repetition makes it not
+  evaluated, never failed, with its cause (the first repetition's, or
+  "mixed"), so "not evaluated" never appears without one; per category,
+  passing scenarios over scenarios, raw counts and k, no intervals (the
+  W25 cut). `RunSummary.pass_k` and `.pass_k_by_category` are content on
+  summary.json under 0.5. The runner is told its repetition and seed in
+  `AgentInput.context`. The CLI's category line ends "; pass^k a/b
+  scenarios"; the report gains "Repeatability (pass^k, k = N)" and, for a
+  run with a plan, "Test plan (pre-registered)", which repeats the
+  intended use, out-of-scope uses and business metrics (recorded, not
+  evaluated) and holds each threshold against the run: a comparative
+  threshold that is below says it does not gate, a hard gate that cannot
+  be judged says it fails closed. A test-only flaky agent decides each run
+  from its own seed, so pass^k at k = 5 is checked against the exact
+  value the seeds imply, and p^5 over 400 tasks.
+
 - **R27 slice 2 — the pre-registered test plan** (2026-11-01; ADR-0005
   D6; testing-framework 3.6.1, 3.7.1; `9be6d18`). A new `plans/` package
   builds `test_plan.json` from the system declaration and the domain
