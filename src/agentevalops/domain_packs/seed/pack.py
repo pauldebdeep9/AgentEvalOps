@@ -90,9 +90,15 @@ _IRREVERSIBLE: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 
 
+#: PyYAML's libyaml-backed parser when the wheel has it, else the pure
+#: Python one: the same safe loading, several times faster on the pack's
+#: thousand-line scenarios.yaml -- which the tests parse dozens of times.
+_SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+
 def _read(path: Path) -> dict[str, Any]:
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_SAFE_LOADER)
     except OSError as exc:
         raise DomainPackError(f"{path.name}: cannot read: {exc}") from exc
     except yaml.YAMLError as exc:
