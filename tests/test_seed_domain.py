@@ -988,7 +988,9 @@ def test_the_pack_loads_on_pyyaml_pure_python_parser(
     """``pack.py`` reads with libyaml's ``CSafeLoader`` when the wheel has it
     and falls back to ``SafeLoader`` otherwise (R26); a wheel without
     libyaml must read the same pack. Checked by forcing the fallback and
-    watching that every read used it."""
+    watching that every read used it. The catalogue the pack loads makes
+    the same choice (R28 (a)), so its fallback is forced too."""
+    from agentevalops.catalogue import loader as catalogue_module
     from agentevalops.domain_packs.seed import pack as pack_module
 
     assert pack_module._SAFE_LOADER is getattr(yaml, "CSafeLoader", yaml.SafeLoader)
@@ -1000,6 +1002,7 @@ def test_the_pack_loads_on_pyyaml_pure_python_parser(
         return original(stream, Loader=Loader)
 
     monkeypatch.setattr(pack_module, "_SAFE_LOADER", yaml.SafeLoader)
+    monkeypatch.setattr(catalogue_module, "_SAFE_LOADER", yaml.SafeLoader)
     monkeypatch.setattr(pack_module.yaml, "load", spy)
     fallback = SeedDomainPack()
     # The pack's four data files, and the catalogue's own safe loads.

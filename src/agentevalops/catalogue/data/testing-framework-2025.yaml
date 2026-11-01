@@ -1,0 +1,1190 @@
+# The AI Verify Testing Framework's 112 process checks as catalogue data
+# (docs/adr/0007 D10; ROADMAP R28). One entry per check: the framework's
+# identifier, its principle and scope, and this project's own label,
+# classification, evidence pointers and ROADMAP rows -- all from
+# docs/imda-alignment.md §4, which stays the rationale. Change an entry here
+# first and that document in the same commit; tests/test_imda_alignment_doc.py
+# fails until both agree.
+#
+# Identifiers and this project's own labels only: never paste the source's
+# text here (CLAUDE.md, "Third-party framework text"). Every label, principle
+# label and other text field is checked with scripts/check_catalogue_ip.py.
+# The source's title and publisher are the publisher's own names, cited to
+# pin the document (docs/adr/0007 D10, the wording guard's one exemption).
+#
+# `scope` is the framework's own scoping: both, generative or traditional.
+# `classification` is what a test run contributes (§2 of the alignment doc):
+# direct, partial, supporting, later (with `available_from`), organisational
+# or traditional-only. `evidence` lists `scenarios` -- the scenarios that
+# cite the check -- and `artefact:<file>#<field>` pointers into a format 0.6
+# bundle. `rows` are ROADMAP §2b rows, or `built` for what the bundle had at
+# format 0.4.
+source:
+  id: testing-framework
+  title: AI Verify Testing Framework for Traditional and Generative AI
+  publisher: AI Verify Foundation, Singapore
+  version: "2025"
+  published: 2025-05-29
+  url: https://file.go.gov.sg/aivtf-pdf.pdf
+  sha256: 363e59d140896b2ab75dffe508b03a8339e164fcfdab192b61862fb86c282379
+  retrieved_on: 2026-11-01
+  ip_posture: identifiers-and-own-labels
+
+# This project's short label for each principle; the evidence report's
+# headings. 11 is shortened: the framework's full name fails the five-word
+# rule (docs/adr/0007, Context).
+principles:
+  1: Transparency
+  2: Explainability
+  3: Repeatability / Reproducibility
+  4: Safety
+  5: Security
+  6: Robustness
+  7: Fairness
+  8: Data Governance
+  9: Accountability
+  10: Human Agency and Oversight
+  11: Inclusive growth and well-being
+
+# What the loader holds the entries below to (docs/adr/0007 D10).
+process_counts:
+  total: 112
+  direct: 2
+  partial: 12
+  supporting: 32
+  later: 9
+  organisational: 49
+  traditional-only: 8
+
+controls:
+
+  # 1. Transparency
+
+  - id: testing-framework:1.1.1
+    kind: process
+    locator: "1.1.1"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Policy for explaining the AI system to consumers
+    classification: organisational
+
+  - id: testing-framework:1.1.2
+    kind: process
+    locator: "1.1.2"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Tell stakeholders the product uses AI
+    classification: organisational
+
+  - id: testing-framework:1.1.3
+    kind: process
+    locator: "1.1.3"
+    principle: 1
+    scope: generative
+    technical_test: false
+    label: Users can tell they face an AI, and where content came from
+    classification: partial
+    evidence: [scenarios]
+    rows: [R25]
+
+  - id: testing-framework:1.1.4
+    kind: process
+    locator: "1.1.4"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Explain an AI-influenced decision and its automation to those affected
+    classification: partial
+    evidence: [scenarios]
+    rows: [R25]
+
+  - id: testing-framework:1.1.5
+    kind: process
+    locator: "1.1.5"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Engage end users early about intended use
+    classification: organisational
+
+  - id: testing-framework:1.1.6
+    kind: process
+    locator: "1.1.6"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Report performance, scope, limits and risk handling to outside stakeholders
+    classification: supporting
+    evidence: [artefact:evidence_report.md]
+    rows: [R28]
+
+  - id: testing-framework:1.2.1
+    kind: process
+    locator: "1.2.1"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Explain the system's purpose and expected behaviour to end users
+    classification: supporting
+    evidence: [artefact:test_plan.json#system.intended_use, artefact:test_plan.json#system.out_of_scope]
+    rows: [R27]
+
+  - id: testing-framework:1.3.1
+    kind: process
+    locator: "1.3.1"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Meet applicable data-protection law
+    classification: organisational
+
+  - id: testing-framework:1.4.1
+    kind: process
+    locator: "1.4.1"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Public privacy notice on the system's personal-data handling
+    classification: organisational
+
+  - id: testing-framework:1.5.1
+    kind: process
+    locator: "1.5.1"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Notify end users when incidents occur
+    classification: organisational
+
+  - id: testing-framework:1.6.1
+    kind: process
+    locator: "1.6.1"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Harm-reporting channel that protects whistleblowers
+    classification: organisational
+
+  - id: testing-framework:1.7.1
+    kind: process
+    locator: "1.7.1"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Public statement of the organisation's AI governance
+    classification: organisational
+
+  - id: testing-framework:1.7.2
+    kind: process
+    locator: "1.7.2"
+    principle: 1
+    scope: both
+    technical_test: false
+    label: Publish an accessible system card where trust calls for it
+    classification: supporting
+    evidence: [artefact:evidence_report.md]
+    rows: [R28]
+
+  # 2. Explainability
+
+  - id: testing-framework:2.1.1
+    kind: process
+    locator: "2.1.1"
+    principle: 2
+    scope: traditional
+    technical_test: true
+    label: Feature-attribution analysis
+    classification: traditional-only
+
+  - id: testing-framework:2.2.1
+    kind: process
+    locator: "2.2.1"
+    principle: 2
+    scope: both
+    technical_test: false
+    label: Justify opaque model choices; apply explanation techniques
+    classification: supporting
+    evidence: [artefact:tool_calls.jsonl, artefact:traces.jsonl]
+    rows: [R24, R26]
+
+  # 3. Repeatability / Reproducibility
+
+  - id: testing-framework:3.1.1
+    kind: process
+    locator: "3.1.1"
+    principle: 3
+    scope: both
+    technical_test: false
+    label: Version code and each model version's inputs
+    classification: supporting
+    evidence: [artefact:metadata.json#git_sha, artefact:metadata.json#package_sha256, artefact:config.json]
+    rows: [built]
+
+  - id: testing-framework:3.2.1
+    kind: process
+    locator: "3.2.1"
+    principle: 3
+    scope: both
+    technical_test: false
+    label: Record the data behind training and inference
+    classification: organisational
+
+  - id: testing-framework:3.3.1
+    kind: process
+    locator: "3.3.1"
+    principle: 3
+    scope: traditional
+    technical_test: false
+    label: Trace predictions back to model and code
+    classification: traditional-only
+
+  - id: testing-framework:3.4.1
+    kind: process
+    locator: "3.4.1"
+    principle: 3
+    scope: both
+    technical_test: false
+    label: Keep reviewable logs of production inputs and outputs
+    classification: later
+    available_from: v0.7
+
+  - id: testing-framework:3.5.1
+    kind: process
+    locator: "3.5.1"
+    principle: 3
+    scope: both
+    technical_test: false
+    label: Tie each model artefact to its build inputs
+    classification: organisational
+
+  - id: testing-framework:3.6.1
+    kind: process
+    locator: "3.6.1"
+    principle: 3
+    scope: both
+    technical_test: false
+    label: Repeat inferences; check outputs stay within owner-set limits
+    classification: direct
+    evidence: [scenarios, artefact:test_plan.json#thresholds, artefact:summary.json#pass_k]
+    rows: [R27]
+
+  - id: testing-framework:3.7.1
+    kind: process
+    locator: "3.7.1"
+    principle: 3
+    scope: both
+    technical_test: false
+    label: Name the technical and business metrics used for assessment
+    classification: partial
+    evidence: [scenarios, artefact:test_plan.json#thresholds, artefact:test_plan.json#system.business_metrics]
+    rows: [R27]
+
+  - id: testing-framework:3.8.1
+    kind: process
+    locator: "3.8.1"
+    principle: 3
+    scope: both
+    technical_test: false
+    label: Record challenger experiments and why the final model won
+    classification: supporting
+    evidence: [artefact:test_plan.json]
+    rows: [R27]
+
+  - id: testing-framework:3.9.1
+    kind: process
+    locator: "3.9.1"
+    principle: 3
+    scope: both
+    technical_test: false
+    label: Make training inputs reproducible (versioning or lineage)
+    classification: organisational
+
+  - id: testing-framework:3.10.1
+    kind: process
+    locator: "3.10.1"
+    principle: 3
+    scope: traditional
+    technical_test: false
+    label: Track feature and output distributions for drift
+    classification: traditional-only
+
+  - id: testing-framework:3.11.1
+    kind: process
+    locator: "3.11.1"
+    principle: 3
+    scope: both
+    technical_test: false
+    label: Audit trail of each model deployment
+    classification: organisational
+
+  - id: testing-framework:3.12.1
+    kind: process
+    locator: "3.12.1"
+    principle: 3
+    scope: both
+    technical_test: false
+    label: Test performance on a curated set, including vendor claims
+    classification: partial
+    evidence: [scenarios]
+    rows: [R24, R30]
+
+  # 4. Safety
+
+  - id: testing-framework:4.1.1
+    kind: process
+    locator: "4.1.1"
+    principle: 4
+    scope: generative
+    technical_test: true
+    label: Benchmark and red-team for harmful outputs
+    classification: partial
+    evidence: [scenarios]
+    rows: [R26]
+
+  - id: testing-framework:4.2.1
+    kind: process
+    locator: "4.2.1"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: Materiality assessment for accountable owners
+    classification: supporting
+    evidence: [artefact:test_plan.json#system.tools]
+    rows: [R27]
+
+  - id: testing-framework:4.3.1
+    kind: process
+    locator: "4.3.1"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: Use-case risk assessment, red-teaming and safeguard checks
+    classification: partial
+    evidence: [scenarios]
+    rows: [R25, R26]
+
+  - id: testing-framework:4.3.2
+    kind: process
+    locator: "4.3.2"
+    principle: 4
+    scope: generative
+    technical_test: false
+    label: Re-assess risks when a model is tuned or repurposed
+    classification: supporting
+    evidence: [artefact:test_plan.json]
+    rows: [R27]
+
+  - id: testing-framework:4.4.1
+    kind: process
+    locator: "4.4.1"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: Post-deployment review by a use-case expert
+    classification: later
+    available_from: v0.7
+
+  - id: testing-framework:4.5.1
+    kind: process
+    locator: "4.5.1"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: Confidence and out-of-range input signals
+    classification: organisational
+
+  - id: testing-framework:4.5.2
+    kind: process
+    locator: "4.5.2"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: Third-party monitoring, contracts and contingencies
+    classification: organisational
+
+  - id: testing-framework:4.6.1
+    kind: process
+    locator: "4.6.1"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: Staged deployment strategies
+    classification: organisational
+
+  - id: testing-framework:4.6.2
+    kind: process
+    locator: "4.6.2"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: Standby model server
+    classification: organisational
+
+  - id: testing-framework:4.6.3
+    kind: process
+    locator: "4.6.3"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: Fail safe to a backup or sensible default
+    classification: supporting
+    evidence: [artefact:tool_calls.jsonl, artefact:evaluations.json]
+    rows: [R26]
+
+  - id: testing-framework:4.6.4
+    kind: process
+    locator: "4.6.4"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: Retrain on ground truth from production
+    classification: organisational
+
+  - id: testing-framework:4.7.1
+    kind: process
+    locator: "4.7.1"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: Residual-risk assessment and tolerance rationale
+    classification: supporting
+    evidence: [artefact:test_plan.json#thresholds, artefact:controls.json]
+    rows: [R27, R28]
+
+  - id: testing-framework:4.8.1
+    kind: process
+    locator: "4.8.1"
+    principle: 4
+    scope: generative
+    technical_test: false
+    label: Find and block unlawful or harmful generated content
+    classification: later
+    available_from: v0.6
+
+  - id: testing-framework:4.9.1
+    kind: process
+    locator: "4.9.1"
+    principle: 4
+    scope: generative
+    technical_test: false
+    label: Content-provenance measures in use
+    classification: organisational
+
+  - id: testing-framework:4.9.2
+    kind: process
+    locator: "4.9.2"
+    principle: 4
+    scope: generative
+    technical_test: false
+    label: Evaluate content-provenance methods
+    classification: organisational
+
+  - id: testing-framework:4.10.1
+    kind: process
+    locator: "4.10.1"
+    principle: 4
+    scope: both
+    technical_test: false
+    label: "Test-and-validation record: ground truth and adversarial tests"
+    classification: partial
+    evidence: [scenarios, artefact:test_plan.json, artefact:summary.json#preflight]
+    rows: [R24, R26, R27]
+
+  - id: testing-framework:4.10.2
+    kind: process
+    locator: "4.10.2"
+    principle: 4
+    scope: generative
+    technical_test: false
+    label: Fact-checking methods and retention of test records
+    classification: later
+    available_from: v0.6
+
+  # 5. Security
+
+  - id: testing-framework:5.1.1
+    kind: process
+    locator: "5.1.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: AI-security training for staff and leaders
+    classification: organisational
+
+  - id: testing-framework:5.2.1
+    kind: process
+    locator: "5.2.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Threat model with security-effectiveness metrics
+    classification: supporting
+    evidence: [artefact:summary.json#pass_k_by_category, artefact:evaluations.json]
+    rows: [R25, R26]
+
+  - id: testing-framework:5.3.1
+    kind: process
+    locator: "5.3.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Supply-chain security assessment
+    classification: organisational
+
+  - id: testing-framework:5.4.1
+    kind: process
+    locator: "5.4.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Security trade-offs in model selection
+    classification: organisational
+
+  - id: testing-framework:5.5.1
+    kind: process
+    locator: "5.5.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Inventory and protect AI assets, including assessments
+    classification: supporting
+    evidence: [artefact:manifest.json, artefact:manifest.json.sig]
+    rows: [R29]
+
+  - id: testing-framework:5.6.1
+    kind: process
+    locator: "5.6.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Harden the development environment
+    classification: organisational
+
+  - id: testing-framework:5.7.1
+    kind: process
+    locator: "5.7.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Harden the deployment environment; least privilege
+    classification: organisational
+
+  - id: testing-framework:5.8.1
+    kind: process
+    locator: "5.8.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Incident response and remediation plan
+    classification: organisational
+
+  - id: testing-framework:5.9.1
+    kind: process
+    locator: "5.9.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Release gated on security testing
+    classification: partial
+    evidence: [scenarios, artefact:test_plan.json#thresholds, artefact:manifest.json]
+    rows: [R25, R26, R27, R29]
+
+  - id: testing-framework:5.10.1
+    kind: process
+    locator: "5.10.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Monitor and log live inputs
+    classification: later
+    available_from: v0.7
+
+  - id: testing-framework:5.11.1
+    kind: process
+    locator: "5.11.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Monitor live behaviour and alert owners
+    classification: later
+    available_from: v0.7
+
+  - id: testing-framework:5.12.1
+    kind: process
+    locator: "5.12.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Manage the risk of model updates
+    classification: supporting
+    evidence: [artefact:test_plan.json, artefact:config.json]
+    rows: [built, R27]
+
+  - id: testing-framework:5.13.1
+    kind: process
+    locator: "5.13.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Vulnerability-disclosure channel
+    classification: organisational
+
+  - id: testing-framework:5.14.1
+    kind: process
+    locator: "5.14.1"
+    principle: 5
+    scope: both
+    technical_test: false
+    label: Destroy retired data and models securely
+    classification: organisational
+
+  # 6. Robustness
+
+  - id: testing-framework:6.1.1
+    kind: process
+    locator: "6.1.1"
+    principle: 6
+    scope: both
+    technical_test: true
+    label: Performance under noise and prompt perturbation
+    classification: direct
+    evidence: [scenarios]
+    rows: [R26]
+
+  - id: testing-framework:6.2.1
+    kind: process
+    locator: "6.2.1"
+    principle: 6
+    scope: both
+    technical_test: false
+    label: Keep data current and representative; watch drift
+    classification: organisational
+
+  - id: testing-framework:6.3.1
+    kind: process
+    locator: "6.3.1"
+    principle: 6
+    scope: both
+    technical_test: false
+    label: Record intended use and limits (low-accuracy factors)
+    classification: supporting
+    evidence: [artefact:summary.json#pass_k, artefact:test_plan.json#system.out_of_scope]
+    rows: [R28]
+
+  - id: testing-framework:6.4.1
+    kind: process
+    locator: "6.4.1"
+    principle: 6
+    scope: both
+    technical_test: false
+    label: Record intended use and limits (feedback and adaptation effects)
+    classification: supporting
+    evidence: [artefact:evaluations.json, artefact:tool_calls.jsonl]
+    rows: [R26]
+
+  - id: testing-framework:6.5.1
+    kind: process
+    locator: "6.5.1"
+    principle: 6
+    scope: both
+    technical_test: false
+    label: Re-review when code, data or outputs change
+    classification: supporting
+    evidence: [artefact:metadata.json#package_sha256, artefact:metadata.json#test_plan_sha256, artefact:config.json]
+    rows: [built, R27]
+
+  - id: testing-framework:6.6.1
+    kind: process
+    locator: "6.6.1"
+    principle: 6
+    scope: both
+    technical_test: false
+    label: Training-time adversarial defences
+    classification: organisational
+
+  - id: testing-framework:6.6.2
+    kind: process
+    locator: "6.6.2"
+    principle: 6
+    scope: both
+    technical_test: false
+    label: Watch live traffic for suspicious use
+    classification: later
+    available_from: v0.7
+
+  - id: testing-framework:6.6.3
+    kind: process
+    locator: "6.6.3"
+    principle: 6
+    scope: both
+    technical_test: false
+    label: Act against suspicious users
+    classification: organisational
+
+  - id: testing-framework:6.7.1
+    kind: process
+    locator: "6.7.1"
+    principle: 6
+    scope: both
+    technical_test: false
+    label: Validate output quality and safeguards before and after launch
+    classification: supporting
+    evidence: [artefact:test_plan.json]
+    rows: [R27]
+
+  - id: testing-framework:6.7.2
+    kind: process
+    locator: "6.7.2"
+    principle: 6
+    scope: generative
+    technical_test: false
+    label: Track knowledge sources, verify citations, watch anthropomorphism
+    classification: supporting
+    evidence: [artefact:tool_calls.jsonl, artefact:traces.jsonl]
+    rows: [built, R23, R24]
+
+  # 7. Fairness
+
+  - id: testing-framework:7.1.1
+    kind: process
+    locator: "7.1.1"
+    principle: 7
+    scope: traditional
+    technical_test: true
+    label: Group error-rate disparity metrics
+    classification: traditional-only
+
+  - id: testing-framework:7.2.1
+    kind: process
+    locator: "7.2.1"
+    principle: 7
+    scope: generative
+    technical_test: true
+    label: Benchmark and red-team for harm to people or groups
+    classification: partial
+    evidence: [scenarios]
+    rows: [R26]
+
+  - id: testing-framework:7.3.1
+    kind: process
+    locator: "7.3.1"
+    principle: 7
+    scope: traditional
+    technical_test: false
+    label: Counterfactual fairness testing
+    classification: traditional-only
+
+  - id: testing-framework:7.4.1
+    kind: process
+    locator: "7.4.1"
+    principle: 7
+    scope: both
+    technical_test: false
+    label: Track fairness results over the lifecycle
+    classification: supporting
+    evidence: [artefact:evaluations.json, artefact:report.md]
+    rows: [R26]
+
+  - id: testing-framework:7.5.1
+    kind: process
+    locator: "7.5.1"
+    principle: 7
+    scope: traditional
+    technical_test: false
+    label: Structured choice of fairness metric
+    classification: traditional-only
+
+  - id: testing-framework:7.6.1
+    kind: process
+    locator: "7.6.1"
+    principle: 7
+    scope: traditional
+    technical_test: false
+    label: Name sensitive features and their groups
+    classification: traditional-only
+
+  - id: testing-framework:7.7.1
+    kind: process
+    locator: "7.7.1"
+    principle: 7
+    scope: traditional
+    technical_test: false
+    label: Consult affected communities on what fairness means
+    classification: traditional-only
+
+  - id: testing-framework:7.8.1
+    kind: process
+    locator: "7.8.1"
+    principle: 7
+    scope: both
+    technical_test: false
+    label: Check group representation in training data
+    classification: organisational
+
+  - id: testing-framework:7.9.1
+    kind: process
+    locator: "7.9.1"
+    principle: 7
+    scope: both
+    technical_test: false
+    label: Post-launch fairness threshold monitoring
+    classification: later
+    available_from: v0.7
+
+  - id: testing-framework:7.10.1
+    kind: process
+    locator: "7.10.1"
+    principle: 7
+    scope: both
+    technical_test: false
+    label: Ongoing metrics on current production data
+    classification: later
+    available_from: v0.7
+
+  - id: testing-framework:7.11.1
+    kind: process
+    locator: "7.11.1"
+    principle: 7
+    scope: both
+    technical_test: false
+    label: Rebalance skewed training data
+    classification: organisational
+
+  # 8. Data Governance
+
+  - id: testing-framework:8.1.1
+    kind: process
+    locator: "8.1.1"
+    principle: 8
+    scope: both
+    technical_test: false
+    label: Data quality, rights and safety checks
+    classification: organisational
+
+  - id: testing-framework:8.2.1
+    kind: process
+    locator: "8.2.1"
+    principle: 8
+    scope: both
+    technical_test: false
+    label: Data lineage and provenance record
+    classification: organisational
+
+  - id: testing-framework:8.3.1
+    kind: process
+    locator: "8.3.1"
+    principle: 8
+    scope: both
+    technical_test: false
+    label: Lawful data collection, use and retention
+    classification: organisational
+
+  - id: testing-framework:8.3.2
+    kind: process
+    locator: "8.3.2"
+    principle: 8
+    scope: generative
+    technical_test: false
+    label: Detect personal or sensitive data in outputs
+    classification: partial
+    evidence: [scenarios]
+    rows: [R25]
+
+  - id: testing-framework:8.4.1
+    kind: process
+    locator: "8.4.1"
+    principle: 8
+    scope: both
+    technical_test: false
+    label: Data-governance roles and training
+    classification: organisational
+
+  - id: testing-framework:8.5.1
+    kind: process
+    locator: "8.5.1"
+    principle: 8
+    scope: both
+    technical_test: false
+    label: Third-party rights and IP in data
+    classification: supporting
+    evidence: [artefact:evaluations.json]
+    rows: [R25]
+
+  # 9. Accountability
+
+  - id: testing-framework:9.1.1
+    kind: process
+    locator: "9.1.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Define permitted, forbidden and refused uses
+    classification: supporting
+    evidence: [artefact:evaluations.json, artefact:policy.json]
+    rows: [R25]
+
+  - id: testing-framework:9.2.1
+    kind: process
+    locator: "9.2.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Document deployment context and expectations
+    classification: supporting
+    evidence: [artefact:test_plan.json#system.involvement, artefact:test_plan.json#system.intended_use]
+    rows: [R27]
+
+  - id: testing-framework:9.3.1
+    kind: process
+    locator: "9.3.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Choose and manage AI suppliers
+    classification: supporting
+    evidence: [artefact:test_plan.json, artefact:config.json]
+    rows: [R27, R30]
+
+  - id: testing-framework:9.4.1
+    kind: process
+    locator: "9.4.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Plan for switching the system off
+    classification: organisational
+
+  - id: testing-framework:9.5.1
+    kind: process
+    locator: "9.5.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Adapt governance structures for AI
+    classification: organisational
+
+  - id: testing-framework:9.5.2
+    kind: process
+    locator: "9.5.2"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Cross-functional AI oversight body
+    classification: organisational
+
+  - id: testing-framework:9.5.3
+    kind: process
+    locator: "9.5.3"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Staff policies and training on AI risk duties
+    classification: organisational
+
+  - id: testing-framework:9.5.4
+    kind: process
+    locator: "9.5.4"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: AI incident management and reporting
+    classification: organisational
+
+  - id: testing-framework:9.6.1
+    kind: process
+    locator: "9.6.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Role-based access to code, data and environments
+    classification: organisational
+
+  - id: testing-framework:9.7.1
+    kind: process
+    locator: "9.7.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Supply-chain duties, contracts and vendor assessment
+    classification: supporting
+    evidence: [artefact:evidence_report.md, artefact:config.json#model]
+    rows: [R30]
+
+  - id: testing-framework:9.8.1
+    kind: process
+    locator: "9.8.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Auditability by design
+    classification: supporting
+    evidence: [artefact:manifest.json, artefact:manifest.json.sig, artefact:replay_command.txt]
+    rows: [built, R29]
+
+  - id: testing-framework:9.9.1
+    kind: process
+    locator: "9.9.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Justify relying on third-party models
+    classification: organisational
+
+  - id: testing-framework:9.9.2
+    kind: process
+    locator: "9.9.2"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Understand a third-party model's data, evaluation and weak spots
+    classification: partial
+    evidence: [scenarios, artefact:config.json#model]
+    rows: [R30]
+
+  - id: testing-framework:9.10.1
+    kind: process
+    locator: "9.10.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: External feedback, before and after launch
+    classification: organisational
+
+  - id: testing-framework:9.11.1
+    kind: process
+    locator: "9.11.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: Compare against non-AI alternatives
+    classification: organisational
+
+  - id: testing-framework:9.12.1
+    kind: process
+    locator: "9.12.1"
+    principle: 9
+    scope: both
+    technical_test: false
+    label: AI system inventory and risk priorities
+    classification: organisational
+
+  # 10. Human Agency and Oversight
+
+  - id: testing-framework:10.1.1
+    kind: process
+    locator: "10.1.1"
+    principle: 10
+    scope: both
+    technical_test: false
+    label: Independent review of development and deployment
+    classification: supporting
+    evidence: [artefact:tool_calls.jsonl, artefact:end_states.jsonl, artefact:evaluations.json]
+    rows: [R29]
+
+  - id: testing-framework:10.2.1
+    kind: process
+    locator: "10.2.1"
+    principle: 10
+    scope: both
+    technical_test: false
+    label: Structured documentation with objective criteria
+    classification: supporting
+    evidence: [artefact:test_plan.json#thresholds, artefact:metadata.json#test_plan_sha256]
+    rows: [R27]
+
+  - id: testing-framework:10.2.2
+    kind: process
+    locator: "10.2.2"
+    principle: 10
+    scope: both
+    technical_test: false
+    label: Role-based information for reviewers and operators
+    classification: supporting
+    evidence: [artefact:evidence_report.md, artefact:controls.json]
+    rows: [R28]
+
+  - id: testing-framework:10.3.1
+    kind: process
+    locator: "10.3.1"
+    principle: 10
+    scope: both
+    technical_test: false
+    label: Define the human's oversight role
+    classification: supporting
+    evidence: [artefact:test_plan.json#system.involvement, artefact:evaluations.json]
+    rows: [R25, R27]
+
+  - id: testing-framework:10.3.2
+    kind: process
+    locator: "10.3.2"
+    principle: 10
+    scope: both
+    technical_test: false
+    label: Escalate uncertain decisions; track overrides
+    classification: partial
+    evidence: [scenarios]
+    rows: [R24, R25]
+
+  - id: testing-framework:10.3.3
+    kind: process
+    locator: "10.3.3"
+    principle: 10
+    scope: both
+    technical_test: false
+    label: Flag inputs unlike the training data
+    classification: organisational
+
+  - id: testing-framework:10.4.1
+    kind: process
+    locator: "10.4.1"
+    principle: 10
+    scope: both
+    technical_test: false
+    label: Review metrics with technical and non-technical teams
+    classification: supporting
+    evidence: [artefact:evidence_report.md, artefact:report.md]
+    rows: [R26, R28]
+
+  - id: testing-framework:10.5.1
+    kind: process
+    locator: "10.5.1"
+    principle: 10
+    scope: both
+    technical_test: false
+    label: Periodic and event-driven performance review
+    classification: supporting
+    evidence: [artefact:test_plan.json]
+    rows: [R27]
+
+  - id: testing-framework:10.6.1
+    kind: process
+    locator: "10.6.1"
+    principle: 10
+    scope: both
+    technical_test: false
+    label: Declare where AI assists or replaces people
+    classification: supporting
+    evidence: [artefact:test_plan.json#system.involvement, artefact:test_plan.json#system.tools]
+    rows: [R27]
+
+  # 11. Inclusive growth and well-being
+
+  - id: testing-framework:11.1.1
+    kind: process
+    locator: "11.1.1"
+    principle: 11
+    scope: both
+    technical_test: false
+    label: Environmental impact assessment
+    classification: organisational
+
+  - id: testing-framework:11.2.1
+    kind: process
+    locator: "11.2.1"
+    principle: 11
+    scope: both
+    technical_test: false
+    label: Impact on people and society
+    classification: organisational

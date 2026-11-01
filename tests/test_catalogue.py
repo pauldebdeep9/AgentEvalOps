@@ -10,6 +10,11 @@ import pytest
 import yaml
 
 from agentevalops.catalogue import CatalogueError, load_catalogue
+from agentevalops.catalogue.loader import (
+    BUNDLE_0_6_FILES,
+    CLASSIFICATIONS,
+    SCENARIO_CLASSES,
+)
 from agentevalops.core.errors import ConfigurationError
 
 # ---------------------------------------------------------------------------
@@ -198,7 +203,6 @@ def test_empty_label_is_rejected(tmp_path: Path, label: str | None) -> None:
     [
         ({}, {"id": "doc:ai-verify-1"}),
         ({"id": "aiverify", "title": "AI Verify Something"}, {"id": "aiverify:1"}),
-        ({"title": "The AI Verify Framework"}, {}),
         ({}, {"label": "Mapped to AI Verify"}),
     ],
 )
@@ -226,6 +230,30 @@ def test_ai_verify_in_an_id_or_name_is_rejected(
 def test_compliance_claims_are_rejected(tmp_path: Path, label: str) -> None:
     """ADR-0005 D10: no certification or compliance claim, anywhere."""
     path = _write(tmp_path, _source(), [_control(label=label)])
+    with pytest.raises(CatalogueError, match="claim"):
+        load_catalogue([path])
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"title": "The AI Verify Framework"},
+        {"publisher": "AI Verify Foundation, Singapore"},
+    ],
+)
+def test_ai_verify_in_a_source_title_or_publisher_loads(
+    tmp_path: Path, overrides: dict[str, Any]
+) -> None:
+    """docs/adr/0007 D10, the guard's one exemption: a title and a
+    publisher cite the publisher's own names (finding 7)."""
+    path = _write(tmp_path, _source(**overrides), [_control()])
+    assert load_catalogue([path]).sources["doc"]
+
+
+def test_compliance_claim_in_a_source_title_is_still_rejected(
+    tmp_path: Path,
+) -> None:
+    path = _write(tmp_path, _source(title="AI Verify Certified List"), [_control()])
     with pytest.raises(CatalogueError, match="claim"):
         load_catalogue([path])
 
@@ -326,3 +354,221 @@ def test_yaml_dates_and_datetimes_are_accepted(tmp_path: Path) -> None:
     )
     source = load_catalogue([path]).sources["doc"]
     assert source.retrieved_on == dt.date(2026, 10, 31)
+
+
+# ---------------------------------------------------------------------------
+# The testing framework's 112 process entries (docs/adr/0007 D10; R28 (a))
+# ---------------------------------------------------------------------------
+
+_TF_FILE = (
+    Path(__file__).resolve().parents[1]
+    / "src/agentevalops/catalogue/data/testing-framework-2025.yaml"
+)
+
+#: docs/imda-alignment.md §2's counts.
+_TF_COUNTS = {
+    "direct": 2,
+    "partial": 12,
+    "supporting": 32,
+    "later": 9,
+    "organisational": 49,
+    "traditional-only": 8,
+}
+
+
+def _tf_raw() -> dict[str, Any]:
+    raw: dict[str, Any] = yaml.safe_load(_TF_FILE.read_text(encoding="utf-8"))
+    return raw
+
+
+def _tf_write(tmp_path: Path, raw: dict[str, Any]) -> Path:
+    path = tmp_path / "testing-framework.yaml"
+    path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    return path
+
+
+def _tf_entry(raw: dict[str, Any], locator: str) -> dict[str, Any]:
+    entry: dict[str, Any] = next(
+        c for c in raw["controls"] if c["locator"] == locator
+    )
+    return entry
+
+
+def test_shipped_testing_framework_has_112_entries_in_the_review_classes() -> None:
+    catalogue = load_catalogue()
+    process = [
+        c for c in catalogue.controls.values() if c.source == "testing-framework"
+    ]
+    assert len(process) == 112
+    assert all(c.kind == "process" for c in process)
+    found = {name: 0 for name in CLASSIFICATIONS}
+    for control in process:
+        found[control.classification] += 1
+    assert found == _TF_COUNTS
+    # The framework's own scoping and technical-test tags (§12 of the doc).
+    assert sum(c.scope == "generative" for c in process) == 10
+    assert sum(c.scope == "traditional" for c in process) == 8
+    assert {c.locator for c in process if c.technical_test} == {
+        "2.1.1",
+        "4.1.1",
+        "6.1.1",
+        "7.1.1",
+        "7.2.1",
+    }
+    assert {c.locator for c in process if c.classification in SCENARIO_CLASSES} == {
+        "1.1.3", "1.1.4", "3.6.1", "3.7.1", "3.12.1", "4.1.1", "4.3.1",
+        "4.10.1", "5.9.1", "6.1.1", "7.2.1", "8.3.2", "9.9.2", "10.3.2",
+    }  # fmt: skip
+
+
+def test_shipped_principles_are_this_projects_short_labels() -> None:
+    principles = load_catalogue().principles["testing-framework"]
+    assert sorted(principles) == list(range(1, 12))
+    assert principles[11] == "Inclusive growth and well-being"
+    assert principles[3] == "Repeatability / Reproducibility"
+
+
+def test_testing_framework_is_pinned_to_the_retrieved_file() -> None:
+    source = load_catalogue().sources["testing-framework"]
+    assert source.sha256 == (
+        "363e59d140896b2ab75dffe508b03a8339e164fcfdab192b61862fb86c282379"
+    )
+    assert (source.version, source.published, source.retrieved_on) == (
+        "2025",
+        dt.date(2025, 5, 29),
+        dt.date(2026, 11, 1),
+    )
+    assert source.url == "https://file.go.gov.sg/aivtf-pdf.pdf"
+
+
+def test_later_entries_name_their_version_and_evidenced_ones_their_pointers() -> None:
+    for control in load_catalogue().controls.values():
+        if control.kind != "process":
+            continue
+        assert bool(control.available_from) == (control.classification == "later")
+        if control.classification in SCENARIO_CLASSES:
+            assert "scenarios" in control.evidence
+        elif control.classification == "supporting":
+            assert control.evidence
+            assert all(e.startswith("artefact:") for e in control.evidence)
+        else:
+            assert control.evidence == ()
+
+
+def test_bundle_0_6_files_are_the_0_5_set_and_adr_0007s_additions() -> None:
+    """The list the loader checks pointers against cannot drift from the
+    bundle's own. Until R28 (b) adds them to ``bundles.constants``, the 0.6
+    additions are named here as ADR-0007 D1 names them."""
+    from agentevalops.bundles.constants import (
+        MANIFEST_FILENAME,
+        TEST_PLAN_FILENAME,
+        required_files_for_version,
+    )
+
+    assert BUNDLE_0_6_FILES == {
+        *required_files_for_version("0.5"),
+        TEST_PLAN_FILENAME,
+        "controls.json",
+        "evidence_report.md",
+        MANIFEST_FILENAME,
+        "manifest.json.sig",
+    }
+
+
+def test_the_shipped_file_loads_alone(tmp_path: Path) -> None:
+    catalogue = load_catalogue([_tf_write(tmp_path, _tf_raw())])
+    assert len(catalogue.controls) == 112
+
+
+# Fail-first: each guard below was seen failing against the loader before
+# the process checks existed.
+
+
+def test_a_missing_entry_is_rejected(tmp_path: Path) -> None:
+    """111 entries against a declared 112."""
+    raw = _tf_raw()
+    raw["controls"] = [c for c in raw["controls"] if c["locator"] != "11.2.1"]
+    with pytest.raises(CatalogueError, match="111 process entries, 112 declared"):
+        load_catalogue([_tf_write(tmp_path, raw)])
+
+
+def test_a_wrong_class_count_is_rejected(tmp_path: Path) -> None:
+    raw = _tf_raw()
+    _tf_entry(raw, "3.7.1")["classification"] = "direct"
+    with pytest.raises(CatalogueError, match="3 'direct' entries, 2 declared"):
+        load_catalogue([_tf_write(tmp_path, raw)])
+
+
+def test_counts_must_name_every_class(tmp_path: Path) -> None:
+    raw = _tf_raw()
+    del raw["process_counts"]["later"]
+    with pytest.raises(CatalogueError, match="must name exactly"):
+        load_catalogue([_tf_write(tmp_path, raw)])
+
+
+def test_process_entries_need_declared_counts(tmp_path: Path) -> None:
+    raw = _tf_raw()
+    del raw["process_counts"]
+    with pytest.raises(CatalogueError, match="process_counts"):
+        load_catalogue([_tf_write(tmp_path, raw)])
+
+
+def test_process_entries_need_a_principles_map(tmp_path: Path) -> None:
+    raw = _tf_raw()
+    del raw["principles"]
+    with pytest.raises(CatalogueError, match="principles"):
+        load_catalogue([_tf_write(tmp_path, raw)])
+
+
+@pytest.mark.parametrize(
+    ("locator", "change", "message"),
+    [
+        ("3.4.1", {"available_from": None}, "available_from is set exactly"),
+        ("1.1.1", {"available_from": "v0.7"}, "available_from is set exactly"),
+        ("3.4.1", {"available_from": "v0.9"}, "available_from must be"),
+        ("1.1.6", {"evidence": ["artefact:notes.txt"]}, "format 0.6 bundle file"),
+        ("1.1.6", {"evidence": ["evidence_report.md"]}, "format 0.6 bundle file"),
+        ("1.1.6", {"evidence": ["scenarios"]}, "'scenarios' is evidence exactly"),
+        ("8.3.2", {"evidence": ["artefact:evaluations.json"]}, "'scenarios' is"),
+        ("1.1.1", {"evidence": ["artefact:report.md"]}, "evidence is listed exactly"),
+        ("1.1.6", {"evidence": []}, "evidence is listed exactly"),
+        ("1.1.1", {"scope": "agentic"}, "scope must be"),
+        ("1.1.1", {"classification": "maybe"}, "classification must be"),
+        ("1.1.1", {"principle": 12}, "not in the source's principles map"),
+        ("1.1.1", {"principle": 2}, "is not under principle 2"),
+        ("1.1.3", {"rows": ["W12"]}, "is not 'R<n>' or 'built'"),
+    ],
+)
+def test_a_malformed_process_entry_is_rejected(
+    tmp_path: Path, locator: str, change: dict[str, Any], message: str
+) -> None:
+    raw = _tf_raw()
+    entry = _tf_entry(raw, locator)
+    for key, value in change.items():
+        if value is None:
+            entry.pop(key, None)
+        else:
+            entry[key] = value
+    with pytest.raises(CatalogueError, match=message):
+        load_catalogue([_tf_write(tmp_path, raw)])
+
+
+def test_ai_verify_in_a_principle_label_is_rejected(tmp_path: Path) -> None:
+    raw = _tf_raw()
+    raw["principles"][1] = "AI Verify transparency"
+    with pytest.raises(CatalogueError, match="AI Verify"):
+        load_catalogue([_tf_write(tmp_path, raw)])
+
+
+def test_ai_verify_in_a_process_label_is_rejected(tmp_path: Path) -> None:
+    raw = _tf_raw()
+    _tf_entry(raw, "1.1.1")["label"] = "AI Verify explanation policy"
+    with pytest.raises(CatalogueError, match="AI Verify"):
+        load_catalogue([_tf_write(tmp_path, raw)])
+
+
+def test_the_shipped_source_title_carries_the_publishers_own_name() -> None:
+    """The exemption is exercised by real data, not only a fixture."""
+    source = load_catalogue().sources["testing-framework"]
+    assert "AI Verify" in source.title
+    assert "AI Verify" in source.publisher
