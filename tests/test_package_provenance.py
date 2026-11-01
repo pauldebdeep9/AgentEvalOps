@@ -268,3 +268,26 @@ def test_the_invocation_probe_reads_the_callers_directory(
     outside = tmp_path / "outside"
     outside.mkdir()
     assert invocation_git_provenance(outside) == (UNAVAILABLE, None)
+
+
+def test_a_failing_status_leaves_dirty_undetermined(repo: Path) -> None:
+    def run(cmd: list[str], **kwargs: Any) -> Any:
+        if cmd[:2] == ["git", "status"]:
+            return subprocess.CompletedProcess(cmd, 128, "", "fatal")
+        return subprocess.run(cmd, **kwargs)
+
+    sha, dirty = git_state(repo, run=run)
+    assert (sha, dirty) == (_git(repo, "rev-parse", "HEAD"), None)
+
+
+def test_an_uninstalled_distribution_has_no_editable_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agentevalops.bundles import provenance
+
+    def missing(name: str) -> Any:
+        raise provenance.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(provenance.metadata, "distribution", missing)
+    assert editable_source() is None
+    assert package_git_provenance() == (UNAVAILABLE, None)

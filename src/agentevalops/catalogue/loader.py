@@ -134,6 +134,10 @@ class Control:
     available_from: str = ""
     evidence: tuple[str, ...] = ()
     rows: tuple[str, ...] = ()
+    #: A check every executed scenario evidences -- a property of the run,
+    #: not of one scenario (docs/adr/0007 D11). The evidence report writes
+    #: "every scenario in the plan" for it (decision 3 of 2026-11-02).
+    run_level: bool = False
 
 
 @dataclass(frozen=True)
@@ -270,6 +274,7 @@ def _parse_file(path: Path) -> _File:
                 available_from=_text(c.get("available_from")),
                 evidence=_texts(c.get("evidence")),
                 rows=_texts(c.get("rows")),
+                run_level=c.get("run_level", False) is True,
             )
         )
     return _File(
@@ -367,6 +372,11 @@ def _check_process(control: Control, principles: dict[int, str]) -> None:
         raise CatalogueError(
             f"{where}: evidence is listed exactly when the class is one of "
             f"{sorted(_EVIDENCED_CLASSES)}"
+        )
+    if control.run_level and control.classification not in SCENARIO_CLASSES:
+        raise CatalogueError(
+            f"{where}: only a {' or '.join(sorted(SCENARIO_CLASSES))} check can "
+            "be run_level"
         )
     cites = SCENARIOS_EVIDENCE in control.evidence
     if cites != (control.classification in SCENARIO_CLASSES):

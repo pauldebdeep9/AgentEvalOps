@@ -114,6 +114,16 @@ def test_an_organisational_citation_breaks_the_equality(tmp_path: Path) -> None:
     assert _cited(pack.scenarios()) - _direct_and_partial() == {f"{TF}1.1.1"}
 
 
+def test_the_pack_level_list_is_the_catalogues_run_level_checks() -> None:
+    """The evidence report reads "every scenario in the plan" for the
+    catalogue's run-level checks (decision 3 of 2026-11-02); the pack
+    appends the same five to every scenario."""
+    raw = fast_yaml.safe_load((DATA_DIR / "scenarios.yaml").read_text("utf-8"))
+    run_level = {c.id for c in CATALOGUE.controls.values() if c.run_level}
+    assert set(raw["every_scenario_cites"]) == run_level
+    assert run_level == {f"{TF}{c}" for c in _WHOLE_RUN}
+
+
 def test_each_scenario_cites_its_own_checks_as_adr_0007_lists_them() -> None:
     for scenario in PACK.scenarios():
         own = {

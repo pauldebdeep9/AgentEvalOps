@@ -538,6 +538,8 @@ def test_process_entries_need_a_principles_map(tmp_path: Path) -> None:
         ("1.1.1", {"principle": 12}, "not in the source's principles map"),
         ("1.1.1", {"principle": 2}, "is not under principle 2"),
         ("1.1.3", {"rows": ["W12"]}, "is not 'R<n>' or 'built'"),
+        ("1.1.6", {"run_level": True}, "can be run_level"),
+        ("1.1.1", {"run_level": True}, "can be run_level"),
     ],
 )
 def test_a_malformed_process_entry_is_rejected(

@@ -18,7 +18,8 @@
 # or traditional-only. `evidence` lists `scenarios` -- the scenarios that
 # cite the check -- and `artefact:<file>#<field>` pointers into a format 0.6
 # bundle. `rows` are ROADMAP §2b rows, or `built` for what the bundle had at
-# format 0.4.
+# format 0.4. `run_level` marks the five checks every executed scenario
+# evidences; the seed pack's `every_scenario_cites` lists the same five.
 source:
   id: testing-framework
   title: AI Verify Testing Framework for Traditional and Generative AI
@@ -267,6 +268,7 @@ controls:
     technical_test: false
     label: Repeat inferences; check outputs stay within owner-set limits
     classification: direct
+    run_level: true
     evidence: [scenarios, artefact:test_plan.json#thresholds, artefact:summary.json#pass_k]
     rows: [R27]
 
@@ -278,6 +280,7 @@ controls:
     technical_test: false
     label: Name the technical and business metrics used for assessment
     classification: partial
+    run_level: true
     evidence: [scenarios, artefact:test_plan.json#thresholds, artefact:test_plan.json#system.business_metrics]
     rows: [R27]
 
@@ -327,6 +330,7 @@ controls:
     technical_test: false
     label: Test performance on a curated set, including vendor claims
     classification: partial
+    run_level: true
     evidence: [scenarios]
     rows: [R24, R30]
 
@@ -489,6 +493,7 @@ controls:
     technical_test: false
     label: "Test-and-validation record: ground truth and adversarial tests"
     classification: partial
+    run_level: true
     evidence: [scenarios, artefact:test_plan.json, artefact:summary.json#preflight]
     rows: [R24, R26, R27]
 
@@ -1040,6 +1045,7 @@ controls:
     technical_test: false
     label: Understand a third-party model's data, evaluation and weak spots
     classification: partial
+    run_level: true
     evidence: [scenarios, artefact:config.json#model]
     rows: [R30]
 

@@ -14,7 +14,7 @@ import pytest
 from agentevalops.catalogue import load_catalogue
 from agentevalops.domain_packs.seed import SeedDomainPack
 from agentevalops.plans import COVERAGE_STATES, control_coverage
-from agentevalops.plans.coverage import NOT_REQUESTED, NOT_RUN
+from agentevalops.plans.coverage import NO_PLAN, NOT_REQUESTED, NOT_RUN
 
 #: Which scenario cites which control, and how each scenario went:
 #: doc:1 by a passing scenario; doc:2 by a failing one; doc:3 by one not
@@ -42,7 +42,7 @@ def _coverage(tmp_path: Path, **kwargs: Any) -> dict[str, Any]:
         ),
         _DESCRIPTORS,
         inputs.summary(_OUTCOMES),
-        **kwargs,
+        **{"end_states": inputs.end_states(_OUTCOMES), **kwargs},
     )
 
 
@@ -103,9 +103,10 @@ def test_a_control_cited_only_outside_the_selection_is_not_in_plan(
     assert control["verdicts"] == []
 
 
-def test_a_control_no_scenario_cites_is_undeclared(tmp_path: Path) -> None:
+def test_a_control_no_scenario_cites_is_not_in_pack(tmp_path: Path) -> None:
+    """Decision 2 of 2026-11-02: "not in pack", never "undeclared"."""
     control = _control(_coverage(tmp_path), "doc:5")
-    assert control["state"] == "undeclared"
+    assert control["state"] == "not_in_pack"
     assert control["declared_by"] == []
 
 
@@ -155,19 +156,46 @@ def test_refs_are_the_union_across_repetitions_in_order(tmp_path: Path) -> None:
         {"stream": "trace", "task_id": "S1", "repetition": r, "index": 7}
         for r in (0, 1)
     ]
-    assert verdict["end_states"] == [0, 1]
+    # S1's two runs are the first two lines of end_states.jsonl.
+    assert verdict["end_states"] == [
+        {"stream": "end_states", "task_id": "S1", "repetition": r, "index": r}
+        for r in (0, 1)
+    ]
 
 
-def test_scenarios_hold_the_selected_scenarios_descriptors_only(
-    tmp_path: Path,
-) -> None:
+def test_an_end_state_ref_is_the_records_line(tmp_path: Path) -> None:
+    """Decision 1 of 2026-11-02: the ref's index is the line in
+    end_states.jsonl, so it follows the records' order."""
+    records = list(reversed(inputs.end_states(_OUTCOMES)))
+    (verdict,) = _control(_coverage(tmp_path, end_states=records), "doc:2")["verdicts"]
+    assert [r["index"] for r in verdict["end_states"]] == [
+        len(records) - 1 - 2,
+        len(records) - 1 - 3,
+    ]
+
+
+def test_end_states_is_always_present(tmp_path: Path) -> None:
+    """An empty list when no state-based evaluation judged a recorded end
+    state: S3 was not evaluated, and with no records nothing is pointed at."""
     result = _coverage(tmp_path)
-    assert list(result["scenarios"]) == ["S1", "S2", "S3", "S6"]
+    assert _control(result, "doc:3")["verdicts"][0]["end_states"] == []
+    bare = _coverage(tmp_path, end_states=())
+    for control in bare["controls"]:
+        assert all(v["end_states"] == [] for v in control["verdicts"])
+
+
+def test_scenarios_list_every_pack_scenario_once_marked(tmp_path: Path) -> None:
+    """Decision 5 of 2026-11-02: the whole pack, each selected or not, with
+    the plan's reason where it has one."""
+    result = _coverage(tmp_path)
+    assert list(result["scenarios"]) == ["S1", "S2", "S3", "S4", "S5", "S6"]
     assert result["scenarios"]["S2"] == {
         "category": "tool_calling",
         "outcome_group": "erroneous_action",
         "variant": {},
         "control_ids": ["doc:2", "tf:1.2.1"],
+        "selected": True,
+        "reason": None,
         "k": 2,
         "passed": 0,
         "failed": 2,
@@ -175,7 +203,16 @@ def test_scenarios_hold_the_selected_scenarios_descriptors_only(
         "pass_k": False,
         "not_evaluated_cause": None,
     }
+    excluded = result["scenarios"]["S4"]
+    assert (excluded["selected"], excluded["reason"]) == (
+        False,
+        "declares no export tool",
+    )
+    assert excluded["pass_k"] is None and excluded["k"] is None
+    assert result["scenarios"]["S5"]["reason"] == NOT_REQUESTED
     assert result["scenarios"]["S6"]["not_evaluated_cause"] == NOT_RUN
+    selected = [s for s, e in result["scenarios"].items() if e["selected"]]
+    assert selected == ["S1", "S2", "S3", "S6"]
 
 
 def test_the_document_ties_to_the_plan_and_pins_the_catalogue(tmp_path: Path) -> None:
@@ -219,13 +256,14 @@ def test_two_computations_are_identical(tmp_path: Path) -> None:
     assert json.dumps(_coverage(tmp_path), sort_keys=True) == first
 
 
-def test_an_undeclared_run_marks_every_control_undeclared(tmp_path: Path) -> None:
+def test_a_run_with_no_plan_selects_nothing_and_says_why(tmp_path: Path) -> None:
     result = control_coverage(
         inputs.catalogue(tmp_path), None, _DESCRIPTORS, inputs.summary(_OUTCOMES)
     )
     assert result["declared"] is False
-    assert result["scenarios"] == {}
-    assert {c["state"] for c in result["controls"]} == {"undeclared"}
+    assert {e["reason"] for e in result["scenarios"].values()} == {NO_PLAN}
+    assert not any(e["selected"] for e in result["scenarios"].values())
+    assert {c["state"] for c in result["controls"]} == {"not_in_plan", "not_in_pack"}
     assert all(c["verdicts"] == [] for c in result["controls"])
 
 
@@ -256,7 +294,7 @@ def test_a_passing_seed_run_covers_the_fourteen_checks_and_no_others(
     assert len(process) == 112
     covered = {c["id"] for c in process if c["state"] == "covered"}
     assert len(covered) == 14
-    assert {c["state"] for c in process if c["id"] not in covered} == {"undeclared"}
+    assert {c["state"] for c in process if c["id"] not in covered} == {"not_in_pack"}
     ids = [c["id"].removeprefix("testing-framework:") for c in process]
     assert ids.index("3.9.1") < ids.index("3.10.1") < ids.index("3.12.1")
     assert ids.index("9.12.1") < ids.index("10.1.1") < ids.index("11.1.1")

@@ -16,6 +16,7 @@ from agentevalops.core.schemas import (
     BusinessMetric,
     CategoryPassK,
     DeclaredTool,
+    EndStateRecord,
     EvaluationResult,
     PassKResult,
     PlanExclusion,
@@ -168,6 +169,16 @@ def summary(outcomes: dict[str, str], k: int = 2) -> RunSummary:
     )
 
 
+def end_states(outcomes: dict[str, str], k: int = 2) -> list[EndStateRecord]:
+    """One end-state record per task run, in the order ``summary`` runs
+    them -- the order ``end_states.jsonl`` holds them."""
+    return [
+        EndStateRecord(TaskId(scenario_id), repetition, {"case": scenario_id})
+        for scenario_id in outcomes
+        for repetition in range(k)
+    ]
+
+
 def catalogue(tmp_path: Path, citations: int = 7) -> Catalogue:
     """A small catalogue: source ``doc`` with sections ``doc:1`` to
     ``doc:<citations>``, and source ``tf`` with one process entry of each
@@ -215,6 +226,7 @@ def catalogue(tmp_path: Path, citations: int = 7) -> Catalogue:
                 "classification": klass,
                 **({"available_from": "v0.7"} if klass == "later" else {}),
                 **({"evidence": evidence} if evidence else {}),
+                **({"run_level": True} if locator == "1.1.1" else {}),
             }
             for locator, principle, klass, evidence in entries
         ],
