@@ -9,6 +9,27 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R28 (a): the testing framework's 112 checks as catalogue data, with
+  coverage and the evidence report as library code** (2026-11-01;
+  ADR-0007, accepted the same day with R28's sessions reordered so that
+  the 0.6 bump lands in one slice). `catalogue/data/testing-framework-2025.yaml`
+  pins the framework (sha256 `363e59d1…`) and holds all 112 process
+  entries: principle, scope, technical-test tag, this project's label,
+  classification, evidence pointers into a 0.6 bundle, and ROADMAP rows.
+  The loader checks the declared counts (2/12/32/9/49/8), every field and
+  every pointer. The seed scenarios cite the 14 direct and partial checks,
+  five of them through a pack-level `every_scenario_cites`, and the
+  agentic-baseline benchmark rejects a scenario that cites any other class.
+  `tests/test_imda_alignment_doc.py` holds `docs/imda-alignment.md` §2–§4
+  to the catalogue. `scripts/check_catalogue_ip.py` checks every field
+  against all three PDFs; it found one overlap, 1.7.1's label against
+  MGF-Agentic, which was reworded. `plans/coverage.py` (five coverage
+  states, each citing scenario's pass^k, no aggregate) and
+  `reports/evidence.py` (a deterministic evidence report, answers left
+  blank, the scripted-run sentence for the mock runner) are tested on
+  synthetic inputs; the writer calls them in R28 (b). Bundles are unchanged
+  at format 0.5.
+
 - **ADR-0007 Proposed — the evidence pack, bundle format 0.6** (2026-11-01;
   `docs/adr/0007-evidence-pack.md`). Fifteen decisions, the owner's choices
   on seven: every 0.6 bundle carries `test_plan.json`, `controls.json` and

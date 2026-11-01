@@ -2,6 +2,28 @@
 
 ## Status
 
+**R28 (a) built — 2026-11-01** (`9efca72`, `54a68fb`, `1eadf87`,
+`4b591f8`; ROADMAP R28 (a) met). Where the build departs from or adds to
+the text below:
+- **D10:** the class counts are declared in the data file
+  (`process_counts`) and the loader holds the entries to them, so a new
+  edition is a data change. The shipped numbers are pinned by a test. The
+  0.6 file list an `artefact:` pointer must name lives in the catalogue
+  (`BUNDLE_0_6_FILES`, since the catalogue imports only `core`), and a test
+  holds it to `bundles.constants`. `Catalogue.files` records each data
+  file's sha256 for D5's `catalogue.files`.
+- **D10, IP:** against all three PDFs, 1.7.1's label shared a five-word run
+  with MGF-Agentic (spike 2 had checked the framework alone). It is now
+  "Public statement of how the organisation governs AI", in the catalogue
+  and `docs/imda-alignment.md` §4.
+- **D11:** the benchmark's guard also rejects a control id the catalogue
+  does not know.
+- **D5:** each verdict also lists `end_states`, the repetitions whose end
+  state a state-based evaluation judged, so the evidence cell's
+  `end_states PC7/0` renders from `controls.json` alone. A selected
+  scenario with no pass^k is "not run"; a citing scenario neither selected
+  nor excluded is "not requested by the run config".
+
 **Accepted — 2026-11-01 (owner), with the amendment below.** ADR-0005's
 and ADR-0006's Status lines carry their pointers; `DESIGN.md` §7 and
 `ARCHITECTURE.md` §1, §3 and §7 carry the edits listed under "Required
