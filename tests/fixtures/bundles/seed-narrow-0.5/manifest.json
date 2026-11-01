@@ -1,0 +1,72 @@
+{
+  "bundle_format_version": "0.5",
+  "files": {
+    "config.json": {
+      "sha256": "39b995540800015b676945183f58dfd68461886aab9a5f53a33c0e019b75c79e",
+      "size_bytes": 865
+    },
+    "end_states.jsonl": {
+      "sha256": "3f02b34acb0d33e852c85c1d20a96cf18d953bda65ff3fe0255c6d35dd512d3f",
+      "size_bytes": 1418
+    },
+    "evaluations.json": {
+      "sha256": "395f07a651c0eaf0eeedd733e2b375a84b1144496c4638b9f1ecd58f618ed209",
+      "size_bytes": 4902
+    },
+    "metadata.json": {
+      "sha256": "ed2e0250913f5aaa024ca2b1700ad011cdabaa41a9fb88dc3ca70432df4b55d5",
+      "size_bytes": 367
+    },
+    "policy.json": {
+      "sha256": "0c172f8b57e50d8c79012e4d3732674052b560db07418fdc0d7389549c19ef06",
+      "size_bytes": 150
+    },
+    "replay_command.txt": {
+      "sha256": "83a430825e1d331269fe1a38eef201fe21ed2d5ac819975d870c7e5f57c5b5bc",
+      "size_bytes": 1184
+    },
+    "report.md": {
+      "sha256": "bb5c8c549de0a0aab5b18b48ccccf479bfbacbc49aa60a630423dfa54e4765e4",
+      "size_bytes": 4397
+    },
+    "summary.json": {
+      "sha256": "6ac49fb3bd6edea9ce609c8a90efa6a149c58ae07bb2e86df481003bcb89def2",
+      "size_bytes": 15102
+    },
+    "test_plan.json": {
+      "sha256": "0304883a5d50d29fc86c79b115ef8ccd3452fbcdb19ff260da9a8588704cabf5",
+      "size_bytes": 3477
+    },
+    "tool_calls.jsonl": {
+      "sha256": "d64390f4f70ad2885ed8edc86c41577d3c9a2f653748466f281b9911c205791c",
+      "size_bytes": 5987
+    },
+    "traces.jsonl": {
+      "sha256": "dcf40315f4daef97a8a6d15bf7c05296a396fab854567fc5bcb61fca3b4ace76",
+      "size_bytes": 11513
+    }
+  },
+  "generated_at": "2026-11-01T18:13:13.299561+00:00",
+  "manifest_filename": "manifest.json",
+  "required_files": [
+    "config.json",
+    "end_states.jsonl",
+    "evaluations.json",
+    "metadata.json",
+    "policy.json",
+    "replay_command.txt",
+    "report.md",
+    "summary.json",
+    "tool_calls.jsonl",
+    "traces.jsonl"
+  ],
+  "run": {
+    "benchmark": "agentic-baseline",
+    "config_name": "seed_narrow.yaml",
+    "run_id": "seed-narrow-0.5"
+  },
+  "writer": {
+    "name": "agentevalops",
+    "version": "0.3.0"
+  }
+}

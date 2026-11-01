@@ -1,0 +1,532 @@
+{
+  "run_id": "seed-narrow-0.5",
+  "task_results": [
+    {
+      "task_id": "TE1",
+      "output": {
+        "success": true,
+        "termination_reason": "completed",
+        "final_answer": "C1: approved (ELIG-OK)",
+        "total_cost_usd": 0.0,
+        "total_tokens": 0,
+        "wall_seconds": 0.0,
+        "error": null
+      },
+      "evaluation": {
+        "evaluator_id": "task-verdict",
+        "evaluator_kind": "verdict",
+        "score": 1.0,
+        "passed": true,
+        "evaluated": true,
+        "confidence": 1.0,
+        "cost_usd": 0.0,
+        "latency_ms": 0.0,
+        "citations": [],
+        "notes": "deterministic: passed; tool_use: passed; state_based: passed",
+        "applicable": true,
+        "not_evaluated_cause": null,
+        "refs": [
+          {
+            "stream": "trace",
+            "task_id": "TE1",
+            "repetition": 0,
+            "index": 10
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "TE1",
+            "repetition": 0,
+            "index": 0
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "TE1",
+            "repetition": 0,
+            "index": 2
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "TE1",
+            "repetition": 0,
+            "index": 3
+          }
+        ]
+      },
+      "event_count": 11,
+      "evaluations": [
+        {
+          "evaluator_id": "deterministic-v1",
+          "evaluator_kind": "deterministic",
+          "score": 1.0,
+          "passed": true,
+          "evaluated": true,
+          "confidence": 1.0,
+          "cost_usd": 0.0,
+          "latency_ms": 0.0,
+          "citations": [
+            10
+          ],
+          "notes": "termination_reason=completed; expected_substring=found('approved')",
+          "applicable": true,
+          "not_evaluated_cause": null,
+          "refs": [
+            {
+              "stream": "trace",
+              "task_id": "TE1",
+              "repetition": 0,
+              "index": 10
+            }
+          ]
+        },
+        {
+          "evaluator_id": "tool-use-v1",
+          "evaluator_kind": "tool_use",
+          "score": 1.0,
+          "passed": true,
+          "evaluated": true,
+          "confidence": 1.0,
+          "cost_usd": 0.0,
+          "latency_ms": 0.0,
+          "citations": [],
+          "notes": "required case_lookup{'case_id': 'C1'}: index 0; required status_update{'case_id': 'C1', 'decision': 'approved', 'reason_codes': ['ELIG-OK']}: index 2; required send_notice{'case_id': 'C1', 'ai_disclosure': True, 'reason_codes': ['ELIG-OK']}: index 3; forbidden records_export: not called; forbidden refer_to_officer: not called; order ['case_lookup', 'status_update', 'send_notice']: kept; self-reports match the 4 harness record(s)",
+          "applicable": true,
+          "not_evaluated_cause": null,
+          "refs": [
+            {
+              "stream": "tool_calls",
+              "task_id": "TE1",
+              "repetition": 0,
+              "index": 0
+            },
+            {
+              "stream": "tool_calls",
+              "task_id": "TE1",
+              "repetition": 0,
+              "index": 2
+            },
+            {
+              "stream": "tool_calls",
+              "task_id": "TE1",
+              "repetition": 0,
+              "index": 3
+            }
+          ]
+        },
+        {
+          "evaluator_id": "state-based-v1",
+          "evaluator_kind": "state_based",
+          "score": 1.0,
+          "passed": true,
+          "evaluated": true,
+          "confidence": 1.0,
+          "cost_usd": 0.0,
+          "latency_ms": 0.0,
+          "citations": [],
+          "notes": "end state matches the expected one (4 key(s) checked, schema seed-case-handling-v0)",
+          "applicable": true,
+          "not_evaluated_cause": null,
+          "refs": []
+        }
+      ],
+      "repetition": 0
+    },
+    {
+      "task_id": "TC1",
+      "output": {
+        "success": true,
+        "termination_reason": "completed",
+        "final_answer": "C5: approved (ELIG-OK)",
+        "total_cost_usd": 0.0,
+        "total_tokens": 0,
+        "wall_seconds": 0.0,
+        "error": null
+      },
+      "evaluation": {
+        "evaluator_id": "tool-use-v1",
+        "evaluator_kind": "tool_use",
+        "score": 1.0,
+        "passed": true,
+        "evaluated": true,
+        "confidence": 1.0,
+        "cost_usd": 0.0,
+        "latency_ms": 0.0,
+        "citations": [],
+        "notes": "required case_lookup{'case_id': 'C5'}: index 0; required status_update{'case_id': 'C5', 'decision': 'approved', 'reason_codes': ['ELIG-OK']}: index 1; required send_notice{'case_id': 'C5', 'ai_disclosure': True, 'reason_codes': ['ELIG-OK']}: index 2; forbidden records_export: not called; forbidden refer_to_officer: not called; order ['case_lookup', 'status_update', 'send_notice']: kept; self-reports match the 3 harness record(s)",
+        "applicable": true,
+        "not_evaluated_cause": null,
+        "refs": [
+          {
+            "stream": "tool_calls",
+            "task_id": "TC1",
+            "repetition": 0,
+            "index": 0
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "TC1",
+            "repetition": 0,
+            "index": 1
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "TC1",
+            "repetition": 0,
+            "index": 2
+          }
+        ]
+      },
+      "event_count": 9,
+      "evaluations": [
+        {
+          "evaluator_id": "tool-use-v1",
+          "evaluator_kind": "tool_use",
+          "score": 1.0,
+          "passed": true,
+          "evaluated": true,
+          "confidence": 1.0,
+          "cost_usd": 0.0,
+          "latency_ms": 0.0,
+          "citations": [],
+          "notes": "required case_lookup{'case_id': 'C5'}: index 0; required status_update{'case_id': 'C5', 'decision': 'approved', 'reason_codes': ['ELIG-OK']}: index 1; required send_notice{'case_id': 'C5', 'ai_disclosure': True, 'reason_codes': ['ELIG-OK']}: index 2; forbidden records_export: not called; forbidden refer_to_officer: not called; order ['case_lookup', 'status_update', 'send_notice']: kept; self-reports match the 3 harness record(s)",
+          "applicable": true,
+          "not_evaluated_cause": null,
+          "refs": [
+            {
+              "stream": "tool_calls",
+              "task_id": "TC1",
+              "repetition": 0,
+              "index": 0
+            },
+            {
+              "stream": "tool_calls",
+              "task_id": "TC1",
+              "repetition": 0,
+              "index": 1
+            },
+            {
+              "stream": "tool_calls",
+              "task_id": "TC1",
+              "repetition": 0,
+              "index": 2
+            }
+          ]
+        }
+      ],
+      "repetition": 0
+    },
+    {
+      "task_id": "PC1",
+      "output": {
+        "success": true,
+        "termination_reason": "completed",
+        "final_answer": "C4: rejected (DUP-GRANT)",
+        "total_cost_usd": 0.0,
+        "total_tokens": 0,
+        "wall_seconds": 0.0,
+        "error": null
+      },
+      "evaluation": {
+        "evaluator_id": "task-verdict",
+        "evaluator_kind": "verdict",
+        "score": 1.0,
+        "passed": true,
+        "evaluated": true,
+        "confidence": 1.0,
+        "cost_usd": 0.0,
+        "latency_ms": 0.0,
+        "citations": [],
+        "notes": "tool_use: passed; policy: passed",
+        "applicable": true,
+        "not_evaluated_cause": null,
+        "refs": [
+          {
+            "stream": "tool_calls",
+            "task_id": "PC1",
+            "repetition": 0,
+            "index": 0
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "PC1",
+            "repetition": 0,
+            "index": 1
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "PC1",
+            "repetition": 0,
+            "index": 2
+          }
+        ]
+      },
+      "event_count": 9,
+      "evaluations": [
+        {
+          "evaluator_id": "tool-use-v1",
+          "evaluator_kind": "tool_use",
+          "score": 1.0,
+          "passed": true,
+          "evaluated": true,
+          "confidence": 1.0,
+          "cost_usd": 0.0,
+          "latency_ms": 0.0,
+          "citations": [],
+          "notes": "required case_lookup{'case_id': 'C4'}: index 0; required status_update{'case_id': 'C4', 'decision': 'rejected', 'reason_codes': ['DUP-GRANT']}: index 1; required send_notice{'case_id': 'C4', 'ai_disclosure': True, 'reason_codes': ['DUP-GRANT']}: index 2; forbidden records_export: not called; forbidden refer_to_officer: not called; order ['case_lookup', 'status_update', 'send_notice']: kept; self-reports match the 3 harness record(s)",
+          "applicable": true,
+          "not_evaluated_cause": null,
+          "refs": [
+            {
+              "stream": "tool_calls",
+              "task_id": "PC1",
+              "repetition": 0,
+              "index": 0
+            },
+            {
+              "stream": "tool_calls",
+              "task_id": "PC1",
+              "repetition": 0,
+              "index": 1
+            },
+            {
+              "stream": "tool_calls",
+              "task_id": "PC1",
+              "repetition": 0,
+              "index": 2
+            }
+          ]
+        },
+        {
+          "evaluator_id": "policy-v1",
+          "evaluator_kind": "policy",
+          "score": 1.0,
+          "passed": true,
+          "evaluated": true,
+          "confidence": 1.0,
+          "cost_usd": 0.0,
+          "latency_ms": 0.0,
+          "citations": [],
+          "notes": "rule lookup_before_decision: kept; rule decision_before_notice: kept",
+          "applicable": true,
+          "not_evaluated_cause": null,
+          "refs": []
+        }
+      ],
+      "repetition": 0
+    }
+  ],
+  "policy_verdict": {
+    "checker_id": "basic-policy-v1",
+    "policy_id": "default",
+    "verdict": "pass",
+    "citations": [],
+    "notes": "all checks passed",
+    "refs": []
+  },
+  "score_result": {
+    "scorer_id": "simple-v1",
+    "run_id": "seed-narrow-0.5",
+    "task_scores": [
+      {
+        "evaluator_id": "task-verdict",
+        "evaluator_kind": "verdict",
+        "score": 1.0,
+        "passed": true,
+        "evaluated": true,
+        "confidence": 1.0,
+        "cost_usd": 0.0,
+        "latency_ms": 0.0,
+        "citations": [],
+        "notes": "deterministic: passed; tool_use: passed; state_based: passed",
+        "applicable": true,
+        "not_evaluated_cause": null,
+        "refs": [
+          {
+            "stream": "trace",
+            "task_id": "TE1",
+            "repetition": 0,
+            "index": 10
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "TE1",
+            "repetition": 0,
+            "index": 0
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "TE1",
+            "repetition": 0,
+            "index": 2
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "TE1",
+            "repetition": 0,
+            "index": 3
+          }
+        ]
+      },
+      {
+        "evaluator_id": "tool-use-v1",
+        "evaluator_kind": "tool_use",
+        "score": 1.0,
+        "passed": true,
+        "evaluated": true,
+        "confidence": 1.0,
+        "cost_usd": 0.0,
+        "latency_ms": 0.0,
+        "citations": [],
+        "notes": "required case_lookup{'case_id': 'C5'}: index 0; required status_update{'case_id': 'C5', 'decision': 'approved', 'reason_codes': ['ELIG-OK']}: index 1; required send_notice{'case_id': 'C5', 'ai_disclosure': True, 'reason_codes': ['ELIG-OK']}: index 2; forbidden records_export: not called; forbidden refer_to_officer: not called; order ['case_lookup', 'status_update', 'send_notice']: kept; self-reports match the 3 harness record(s)",
+        "applicable": true,
+        "not_evaluated_cause": null,
+        "refs": [
+          {
+            "stream": "tool_calls",
+            "task_id": "TC1",
+            "repetition": 0,
+            "index": 0
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "TC1",
+            "repetition": 0,
+            "index": 1
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "TC1",
+            "repetition": 0,
+            "index": 2
+          }
+        ]
+      },
+      {
+        "evaluator_id": "task-verdict",
+        "evaluator_kind": "verdict",
+        "score": 1.0,
+        "passed": true,
+        "evaluated": true,
+        "confidence": 1.0,
+        "cost_usd": 0.0,
+        "latency_ms": 0.0,
+        "citations": [],
+        "notes": "tool_use: passed; policy: passed",
+        "applicable": true,
+        "not_evaluated_cause": null,
+        "refs": [
+          {
+            "stream": "tool_calls",
+            "task_id": "PC1",
+            "repetition": 0,
+            "index": 0
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "PC1",
+            "repetition": 0,
+            "index": 1
+          },
+          {
+            "stream": "tool_calls",
+            "task_id": "PC1",
+            "repetition": 0,
+            "index": 2
+          }
+        ]
+      }
+    ],
+    "aggregate_score": 1.0,
+    "total_tasks": 3,
+    "passed_tasks": 3,
+    "failed_tasks": 0,
+    "pass_rate": 1.0,
+    "baseline_delta": null,
+    "not_evaluated_tasks": 0
+  },
+  "total_tasks": 3,
+  "passed_tasks": 3,
+  "failed_tasks": 0,
+  "not_evaluated_tasks": 0,
+  "trace_event_count": 29,
+  "total_cost_usd": 0.0,
+  "total_tokens": 0,
+  "not_evaluated_by_cause": {},
+  "preflight": [
+    {
+      "task_id": "TE1",
+      "passed": true,
+      "cause": null
+    },
+    {
+      "task_id": "TC1",
+      "passed": true,
+      "cause": null
+    },
+    {
+      "task_id": "PC1",
+      "passed": true,
+      "cause": null
+    }
+  ],
+  "pass_k": [
+    {
+      "task_id": "TE1",
+      "k": 1,
+      "passed": 1,
+      "failed": 0,
+      "not_evaluated": 0,
+      "pass_k": true,
+      "not_evaluated_cause": null
+    },
+    {
+      "task_id": "TC1",
+      "k": 1,
+      "passed": 1,
+      "failed": 0,
+      "not_evaluated": 0,
+      "pass_k": true,
+      "not_evaluated_cause": null
+    },
+    {
+      "task_id": "PC1",
+      "k": 1,
+      "passed": 1,
+      "failed": 0,
+      "not_evaluated": 0,
+      "pass_k": true,
+      "not_evaluated_cause": null
+    }
+  ],
+  "pass_k_by_category": [
+    {
+      "category": "task_execution",
+      "k": 1,
+      "scenarios": 1,
+      "passed": 1,
+      "failed": 0,
+      "not_evaluated": 0,
+      "pass_k_rate": 1.0,
+      "not_evaluated_causes": {}
+    },
+    {
+      "category": "tool_calling",
+      "k": 1,
+      "scenarios": 1,
+      "passed": 1,
+      "failed": 0,
+      "not_evaluated": 0,
+      "pass_k_rate": 1.0,
+      "not_evaluated_causes": {}
+    },
+    {
+      "category": "policy_compliance",
+      "k": 1,
+      "scenarios": 1,
+      "passed": 1,
+      "failed": 0,
+      "not_evaluated": 0,
+      "pass_k_rate": 1.0,
+      "not_evaluated_causes": {}
+    }
+  ]
+}

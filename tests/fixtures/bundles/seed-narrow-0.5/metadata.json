@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.5",
+  "run_id": "seed-narrow-0.5",
+  "created_at": "2026-11-01T18:13:13.290790+00:00",
+  "platform_version": "0.3.0",
+  "backend_id": "local",
+  "task_count": 3,
+  "sealed": true,
+  "status": "sealed",
+  "git_sha": "unavailable",
+  "git_dirty": null,
+  "test_plan_sha256": "0304883a5d50d29fc86c79b115ef8ccd3452fbcdb19ff260da9a8588704cabf5"
+}

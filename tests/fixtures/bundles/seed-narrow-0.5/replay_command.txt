@@ -1,0 +1,28 @@
+# replay_command.txt -- structural provenance for this bundle.
+#
+# This does NOT re-execute the run (no agents, models, tools,
+# or benchmarks). It is what `agentevalops validate-bundle`
+# reads to check whether this bundle's own files are still
+# internally consistent, plus enough provenance for a human to
+# judge whether the code that produced it has since changed.
+# Behavioral replay is not yet implemented -- see
+# docs/adr/0003-replay-semantics.md.
+#
+# Reconstructable invocation (point --output at a NEW,
+# empty directory -- do not overwrite this bundle):
+#
+#   agentevalops run --config seed_narrow.yaml --output <new-directory>
+#
+# The resolved configuration that actually produced this run
+# is recorded in this bundle's own config.json, not duplicated
+# here -- a YAML file on disk can be edited after the fact;
+# config.json cannot.
+
+run_id: seed-narrow-0.5
+platform_version: 0.3.0
+# platform_version alone is too coarse to answer "did the code
+# change": every bundle this repo has produced to date records
+# the same value across dozens of intervening commits. git_sha
+# below is the field that actually answers that question.
+git_sha: unavailable
+git_dirty: unknown

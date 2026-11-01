@@ -1,0 +1,3 @@
+# Real bundles kept as legacy fixtures: their bytes are what their
+# manifests checksum, so no conversion of any kind.
+tests/fixtures/** -text
