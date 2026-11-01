@@ -7,7 +7,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **README rewritten for v0.3.0, with a drift guard** (2026-11-01; ROADMAP
+  R31's README item, done early; `163572b`, `28b0ada`). Every statement
+  checked against the tree: what the toolkit is and is not (ADR-0005 D10),
+  the status at v0.3.0 and the planned rows, the structure as four import
+  tiers and one run as two Mermaid diagrams, the baseline quickstart with
+  real output, the 0.5 bundle file by file, the config reference with every
+  key the loader accepts, the gate, the contracts and the CI jobs.
+  `tests/test_readme_drift.py` fails when the structure diagram's packages
+  and `src/agentevalops/` drift apart. Removed as no longer true: the v0.1
+  framing, "eight files", replay as the verifier, the "no real runner" and
+  "no runtime tool execution" non-goals, the old smoke output, the config
+  reference's required fields and `runs/` as a default.
 
 ---
 
