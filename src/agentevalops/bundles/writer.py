@@ -26,6 +26,7 @@ import asyncio
 import json
 import os
 import subprocess
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -167,6 +168,7 @@ class BundleWriter:
         benchmark_options: dict[str, Any] | None = None,
         tool_calls: list[ToolCallRecord] | None = None,
         end_states: list[EndStateRecord] | None = None,
+        scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> Path:
         """Write all bundle files including manifest; return output dir.
 
@@ -189,8 +191,12 @@ class BundleWriter:
         git_sha, git_dirty = _capture_git_provenance()
         self._write_metadata(run_config, summary, status, git_sha, git_dirty)
         self._write_config(
-            run_config, policy_spec, config_name,
-            benchmark_id, benchmark_scenario, benchmark_options or {},
+            run_config,
+            policy_spec,
+            config_name,
+            benchmark_id,
+            benchmark_scenario,
+            benchmark_options or {},
         )
         self._write_traces(all_events)
         # Format 0.5's harness streams (docs/adr/0006 D19): always written,
@@ -200,7 +206,7 @@ class BundleWriter:
         self._write_evaluations(summary)
         self._write_policy(summary)
         self._write_summary(summary)
-        self._write_report(run_config, summary, all_events, config_name)
+        self._write_report(run_config, summary, all_events, config_name, scenario_info)
         self._write_replay_command(run_config, config_name, git_sha, git_dirty)
         # Manifest is written last so checksums cover all content files.
         write_manifest(self._dir)
@@ -212,9 +218,7 @@ class BundleWriter:
 
     def _prepare_dir(self) -> None:
         if self._dir.exists() and not self._overwrite:
-            existing = [
-                f for f in BUNDLE_FILES if (self._dir / f).exists()
-            ]
+            existing = [f for f in BUNDLE_FILES if (self._dir / f).exists()]
             if existing:
                 raise BundleError(
                     f"Bundle directory '{self._dir}' already contains "
@@ -278,9 +282,7 @@ class BundleWriter:
         path = self._dir / "traces.jsonl"
         with open(path, "w", encoding="utf-8") as fh:
             for event in events:
-                fh.write(
-                    json.dumps(to_jsonable(event), ensure_ascii=False)
-                )
+                fh.write(json.dumps(to_jsonable(event), ensure_ascii=False))
                 fh.write("\n")
 
     def _write_jsonl(self, filename: str, items: list[Any]) -> None:
@@ -315,10 +317,16 @@ class BundleWriter:
         summary: RunSummary,
         all_events: list[TraceEvent],
         config_name: str,
+        scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> None:
+        """report.md. *scenario_info* (R26) is the tasks' outcome groups and
+        variants from the benchmark, for the outcomes section -- content in
+        the report, never a change to the bundle's shape."""
         generator = MarkdownReportGenerator()
         report = asyncio.run(
-            generator.render(run_config, summary, all_events, config_name)
+            generator.render(
+                run_config, summary, all_events, config_name, scenario_info
+            )
         )
         path = self._dir / "report.md"
         with open(path, "w", encoding="utf-8") as fh:
@@ -367,8 +375,8 @@ class BundleWriter:
             "",
             f"run_id: {run_config.run_id}",
             f"platform_version: {__version__}",
-            "# platform_version alone is too coarse to answer \"did the code",
-            "# change\": every bundle this repo has produced to date records",
+            '# platform_version alone is too coarse to answer "did the code',
+            '# change": every bundle this repo has produced to date records',
             "# the same value across dozens of intervening commits. git_sha",
             "# below is the field that actually answers that question.",
             f"git_sha: {git_sha}",
@@ -379,9 +387,7 @@ class BundleWriter:
         if run_config.deployment is not None:
             endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
             resource = (
-                _azure_resource_name_from_endpoint(endpoint)
-                if endpoint
-                else None
+                _azure_resource_name_from_endpoint(endpoint) if endpoint else None
             )
             lines.append(f"azure_resource: {resource or _GIT_SHA_UNAVAILABLE}")
 

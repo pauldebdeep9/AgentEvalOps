@@ -3,14 +3,32 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from datetime import datetime, timezone
+from typing import Any
 
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
     MANIFEST_FILENAME,
     required_files_for_version,
 )
-from agentevalops.core.schemas import RunConfig, RunSummary, TraceEvent
+from agentevalops.core.schemas import (
+    NEGATIVE_OUTCOMES,
+    RunConfig,
+    RunSummary,
+    TaskRunResult,
+    TraceEvent,
+)
+
+#: This project's labels for MGF-Agentic §1.2.2's five kinds of harm
+#: (docs/imda-alignment.md §6), in the section's order.
+OUTCOME_LABELS: dict[str, str] = {
+    "erroneous_action": "Erroneous actions",
+    "unauthorised_action": "Unauthorised actions",
+    "biased_action": "Biased actions",
+    "data_breach": "Data breaches",
+    "disruption": "Disruption to connected systems",
+}
 
 
 def format_pass_rate(summary: RunSummary) -> str:
@@ -49,10 +67,17 @@ def render_report(
     summary: RunSummary,
     all_events: list[TraceEvent],
     config_name: str = "",
+    scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> str:
     """Return a plain Markdown report string for a completed run.
 
-    Sections: header, run summary, task results, policy checks, trace summary.
+    Sections: header, run summary, task results, outcomes by kind of harm
+    (when *scenario_info* gives the tasks' outcome groups -- a domain pack's
+    scenarios do, the toy's do not), policy checks, trace summary, bundle
+    audit. *scenario_info* maps a task id to its ``outcome_group``,
+    ``category`` and ``variant`` from the benchmark's task metadata; it is
+    computed at run time and never written to ``summary.json`` (ROADMAP
+    R26; the bundle gains it with format 0.6).
     """
     lines: list[str] = []
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -108,10 +133,13 @@ def render_report(
         reason = tr.output.termination_reason.value
         notes = tr.evaluation.notes.replace("|", "\\|")
         lines.append(
-            f"| {tr.task_id} | {passed_str} | {score_str}"
-            f" | {reason} | {notes} |"
+            f"| {tr.task_id} | {passed_str} | {score_str} | {reason} | {notes} |"
         )
     lines.append("")
+
+    # ---- outcomes by kind of harm (MGF-Agentic §1.2.2; ROADMAP R26) ------
+    if scenario_info:
+        lines.extend(outcome_section(run_config, summary, scenario_info))
 
     # ---- policy checks ---------------------------------------------------
     lines.append("## Policy Checks")
@@ -129,9 +157,7 @@ def render_report(
     lines.append("## Trace Summary")
     lines.append("")
     if all_events:
-        kind_counts: Counter[str] = Counter(
-            e.kind.value for e in all_events
-        )
+        kind_counts: Counter[str] = Counter(e.kind.value for e in all_events)
         lines.append("| Event Kind | Count |")
         lines.append("|------------|-------|")
         for kind_val, count in sorted(kind_counts.items()):
@@ -155,12 +181,113 @@ def render_report(
     lines.append("  (" + ", ".join(bundle_files) + ")")
     lines.append(f"- Trace event count: {len(all_events)}")
     lines.append(
-        "- Checksums: SHA-256 per file "
-        "(see manifest.json; not cryptographic signing)"
+        "- Checksums: SHA-256 per file (see manifest.json; not cryptographic signing)"
     )
     lines.append("")
 
     return "\n".join(lines)
+
+
+def _verdict_word(result: TaskRunResult) -> str:
+    if not result.evaluation.evaluated:
+        return "not evaluated"
+    return "passed" if result.evaluation.passed else "failed"
+
+
+def _failed_kinds(result: TaskRunResult) -> str:
+    kinds = [
+        e.evaluator_kind
+        for e in result.evaluations
+        if e.applicable and e.evaluated and not e.passed
+    ]
+    return ", ".join(kinds) if kinds else "—"
+
+
+def _variant_note(
+    result: TaskRunResult,
+    variant: Mapping[str, Any],
+    by_run: Mapping[tuple[str, int], TaskRunResult],
+    scripted: bool,
+) -> str:
+    """What a derived scenario's row says: the counterfactual pair and
+    whether it differs, or the perturbation and the honest limit of a
+    scripted run (owner's condition, 2026-11-01)."""
+    kind = variant.get("kind")
+    base_id = str(variant.get("base", ""))
+    base = by_run.get((base_id, result.repetition))
+    if kind == "counterfactual":
+        unchanged = variant.get("unchanged") or {}
+        kept = ", ".join(f"{k} {v}" for k, v in unchanged.items())
+        base_word = _verdict_word(base) if base is not None else "not run"
+        same = (
+            base is not None
+            and base.evaluation.evaluated
+            and result.evaluation.evaluated
+            and base.evaluation.passed == result.evaluation.passed
+        )
+        difference = (
+            "no difference"
+            if same and result.evaluation.passed
+            else "differs"
+            if result.evaluation.evaluated
+            else "not evaluated"
+        )
+        return (
+            f"pair with {base_id}: {variant.get('attribute')} "
+            f"{variant.get('from')} → {variant.get('to')} ({kept} unchanged); "
+            f"base {base_word}, variant {_verdict_word(result)}: {difference}"
+        )
+    if kind == "perturbation":
+        note = f"{base_id}'s text under {variant.get('family')}"
+        if scripted:
+            note += (
+                "; run on a scripted trajectory, so this is not evidence that an "
+                "agent withstood the noise (R30)"
+            )
+        return note
+    return ""
+
+
+def outcome_section(
+    run_config: RunConfig,
+    summary: RunSummary,
+    scenario_info: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    """The five groups in §1.2.2's order, each with its scenarios' rows and
+    no total across groups -- ADR-0005 forbids a composite. A group with no
+    executed scenario says so rather than disappearing."""
+    scripted = "mock" in str(run_config.agent_id)
+    by_run = {(str(r.task_id), r.repetition): r for r in summary.task_results}
+    lines = ["## Outcomes by kind of harm (MGF-Agentic §1.2.2)", ""]
+    lines.append(
+        "Each scenario declares the kind of harm its failure would be; a "
+        "group lists its scenarios' verdicts and nothing is added up across "
+        "groups."
+    )
+    lines.append("")
+    for group in NEGATIVE_OUTCOMES:
+        lines.append(f"### {OUTCOME_LABELS[group]}")
+        lines.append("")
+        rows = [
+            r
+            for r in summary.task_results
+            if scenario_info.get(str(r.task_id), {}).get("outcome_group") == group
+        ]
+        if not rows:
+            lines.append("No scenario executed in this group.")
+            lines.append("")
+            continue
+        lines.append("| Scenario | Repetition | Verdict | Failed evaluators | Note |")
+        lines.append("|----------|------------|---------|-------------------|------|")
+        for r in rows:
+            info = scenario_info.get(str(r.task_id), {})
+            note = _variant_note(r, info.get("variant") or {}, by_run, scripted)
+            lines.append(
+                f"| {r.task_id} | {r.repetition} | {_verdict_word(r)} | "
+                f"{_failed_kinds(r)} | {note.replace('|', chr(92) + '|')} |"
+            )
+        lines.append("")
+    return lines
 
 
 class MarkdownReportGenerator:
@@ -174,6 +301,7 @@ class MarkdownReportGenerator:
         summary: RunSummary,
         trace: list[TraceEvent],
         config_name: str = "",
+        scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> str:
         """Produce a report.  Returns the report content as a string."""
-        return render_report(run_config, summary, trace, config_name)
+        return render_report(run_config, summary, trace, config_name, scenario_info)

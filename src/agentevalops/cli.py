@@ -120,6 +120,11 @@ def run(
     else:
         store = InMemoryTraceStore()
 
+    # ROADMAP R25, R26: the tasks' categories, outcome groups and variants,
+    # from the benchmark's task metadata, for the CLI's summary and the
+    # report's outcomes section; nothing new in summary.json.
+    scenario_info = _task_info(benchmark)
+
     orchestrator = LocalOrchestrator(
         run_config=loaded.run_config,
         benchmark=benchmark,
@@ -166,6 +171,7 @@ def run(
             benchmark_options=loaded.benchmark_options,
             tool_calls=orchestrator.tool_call_records,
             end_states=orchestrator.end_states,
+            scenario_info=scenario_info,
         )
         suffix = "" if status == "sealed" else f" (status: {status})"
         typer.echo(f"Bundle written to: {output.resolve()}{suffix}")
@@ -225,7 +231,7 @@ def run(
         _write_bundle(degraded, "partial", events)
         raise typer.Exit(code=1)
 
-    _print_summary(summary, _task_categories(benchmark))
+    _print_summary(summary, _categories(scenario_info))
     _write_bundle(summary, "sealed", store.events(loaded.run_config.run_id))
 
 
@@ -407,21 +413,37 @@ def _run_validate_bundle(bundle: Path) -> None:
         raise typer.Exit(code=1)
 
 
-def _task_categories(benchmark: Any) -> dict[str, str]:
-    """Each task's ``category`` from the benchmark's task metadata, for
-    tasks that carry one (a domain pack's scenarios do; the toy's do not).
-    Computed at run time and shown on the CLI only: the bundle gains a
-    category per task with format 0.6 (R28)."""
-    categories: dict[str, str] = {}
+def _task_info(benchmark: Any) -> dict[str, dict[str, Any]]:
+    """Each task's ``category``, ``outcome_group`` and ``variant`` from the
+    benchmark's task metadata, for tasks that carry any of them (a domain
+    pack's scenarios do; the toy's do not). Computed at run time for the
+    CLI's summary and the report's outcomes section only: the bundle gains
+    them with format 0.6 (R28)."""
+    info: dict[str, dict[str, Any]] = {}
     try:
         tasks = list(benchmark.list_tasks())
     except Exception:  # noqa: BLE001 - a summary line must never fail a run
-        return categories
+        return info
     for task in tasks:
-        category = task.metadata.get("category")
-        if isinstance(category, str) and category:
-            categories[str(task.task_id)] = category
-    return categories
+        entry: dict[str, Any] = {}
+        for key in ("category", "outcome_group"):
+            value = task.metadata.get(key)
+            if isinstance(value, str) and value:
+                entry[key] = value
+        variant = task.metadata.get("variant")
+        if isinstance(variant, dict) and variant:
+            entry["variant"] = dict(variant)
+        if entry:
+            info[str(task.task_id)] = entry
+    return info
+
+
+def _categories(scenario_info: dict[str, dict[str, Any]]) -> dict[str, str]:
+    return {
+        task_id: str(entry["category"])
+        for task_id, entry in scenario_info.items()
+        if "category" in entry
+    }
 
 
 def category_lines(summary: RunSummary, categories: dict[str, str]) -> list[str]:
