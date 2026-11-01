@@ -107,10 +107,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-02, Sai2608, clean checkout at `4b5ab32`)
+## Baseline (verified 2026-11-02, Sai2608, clean checkout at `334f1c0`)
 
 - ruff: clean
-- mypy: clean (76 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (77 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -126,10 +126,12 @@ in this repo.
   proven against an injected violation first; R28 (a)'s `plans` →
   `catalogue` import is the middle tier reaching the low tier, so no
   contract changed)
-- pytest: 1453 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1506 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  98.06% branch coverage on a clean checkout (`4b5ab32`, R28 (a)). The suite
-  takes four to seven minutes with coverage on this machine; the exit tests replay the whole
+  98.15% branch coverage on a clean checkout (`334f1c0`, R28 (b1)). The suite
+  takes about 80 seconds without coverage and under three minutes with it on
+  this machine, 35-65 seconds per CI job: tests read and write YAML through
+  `tests/fast_yaml.py` (libyaml), which halved it on 2026-11-02. The exit tests replay the whole
   seed pack through the orchestrator several times, and the pack loader uses
   PyYAML's C parser when the wheel has it. Any untracked *or uncommitted*
   change raises it: tests reach the code-drift "inconclusive" warning

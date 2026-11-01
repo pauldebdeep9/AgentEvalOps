@@ -9,6 +9,22 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R28 (b1): everything the 0.6 bump needs, as library code** (2026-11-02;
+  ADR-0007, amended with eight owner decisions the same day). Bundles are
+  unchanged at format 0.5. `bundles/provenance.py`: `package_sha256` (every
+  `.py` and `.yaml` file under the package, CRLF read as LF), the
+  package-tree git probe (editable installs only, from `direct_url.json`)
+  and the invocation probe, both injectable; the Package workflow checks
+  that the installed wheel hashes the same as the source tree. `DataHashed`
+  and the seed pack's `data_sha256` over the canonical JSON of its five
+  files. `plans.scenario_descriptors` over the whole pack. `BundleReader`
+  loads `test_plan.json`, `controls.json` and the two streams when present.
+  Coverage: `not_in_pack` replaces `undeclared`; every verdict carries
+  end-state refs; the scenarios block lists the whole pack. The evidence
+  report: a legend, compact cells for the five run-level checks (now
+  flagged `run_level` in the catalogue), a Scenarios table, no counts in
+  cells, the scripted sentence once with a "(scripted)" tag per cell.
+
 - **R28 (a): the testing framework's 112 checks as catalogue data, with
   coverage and the evidence report as library code** (2026-11-01;
   ADR-0007, accepted the same day with R28's sessions reordered so that
@@ -70,6 +86,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   reference's required fields and `runs/` as a default.
 
 ---
+
+### Changed
+
+- **The test suite runs in about half the time** (2026-11-02). Tests load
+  and dump YAML through `tests/fast_yaml.py`, on libyaml when the wheel has
+  it; pure-Python YAML calls from test helpers were about half the
+  profiled time. CI's test step went from 58-129 s to 33-66 s per job.
 
 ## [0.3.0] — 2026-11-01
 

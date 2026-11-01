@@ -2,6 +2,27 @@
 
 ## Status
 
+**R28 (b1) built — 2026-11-02** (`fb7f657`, `77df2ef`, `8e57cde`,
+`334f1c0`; ROADMAP R28 (b1) met). Library code only; no bundle changed.
+Where the build adds to the text and the decisions below:
+- **D8:** `bundles/provenance.py` holds `package_sha256`, `git_state` (the
+  old writer probe, moved; the writer delegates to it unchanged), the
+  editable-install probe and the invocation probe, each with an
+  injectable runner. A test holds every tracked file under
+  `src/agentevalops` to `.py` or `.yaml`. The Package workflow installs
+  the built wheel and checks that it hashes the same as the source tree.
+- **D11, decision 3:** the catalogue marks the five run-level checks with
+  `run_level: true` (direct or partial only, checked by the loader); a test
+  holds the seed pack's `every_scenario_cites` to the same set.
+- **D15:** `BundleReader` loads the optional files by default;
+  `validate_bundle` reads with `optional_files=False` until (b2), so a
+  malformed optional file cannot stop its cross-file checks.
+- **D5, decision 1:** `control_coverage` takes the run's end-state records
+  (`end_states=`) in write order, so a ref's index is its line.
+- **Decision 6, open:** a test that no cell of an undeclared run's report
+  is empty conflicts with D7's blank Implemented and Elaboration cells. The
+  renderer's test exempts those two columns; the owner should confirm.
+
 **Amended — 2026-11-02 (owner decisions before R28 (b)).** Eight
 decisions. They change D5, D6, D7, D13 and the build order; nothing else.
 1. **`end_states` on each verdict (D5): accepted.** Every `controls.json`

@@ -426,6 +426,7 @@ AgentEvalOps/
 │       ├── bundles/                # result-bundle read/write/validate (not under core/)
 │       │   ├── constants.py
 │       │   ├── manifest.py         # SHA-256 checksums, format version
+│       │   ├── provenance.py       # package_sha256, package-tree and invocation git probes (ADR-0007 D8; recorded from R28 (b2))
 │       │   ├── reader.py           # BundleReader (strict + recovery modes)
 │       │   ├── serializers.py
 │       │   ├── validator.py        # BundleValidator, 12 integrity checks
