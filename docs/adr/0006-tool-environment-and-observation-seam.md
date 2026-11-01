@@ -23,6 +23,25 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R26 slice 1, `ae2b0ec`, faults and
+the call budget).**
+- **D6, faults:** `environments.ScriptedFaults` holds the declarative
+  schedule (tool, 1-based call, kind); the slot sits after the approval
+  gate, so a refused call gets no fault, and counts attempts per tool
+  whatever their outcome. `malformed_result` runs the handler -- the state
+  change stands -- and garbles only what the agent sees; the other two
+  kinds never reach the handler. The record's `fault` field (D4) carries
+  the kind.
+- **The call budget** is the `call_budget` policy rule, judged after the
+  run from the records, not a limit the environment enforces: the storm
+  must be recorded whole. It is a per-scenario budget; the run-level spend
+  cap stays in Open questions for R27.
+- **Outcome groups:** `Scenario.outcome_group` (unserialised) names the
+  §1.2.2 kind of harm from `core.schemas.NEGATIVE_OUTCOMES`; the pack
+  requires it on every scenario and the benchmark puts it in task
+  metadata, for the report (slice 5) -- content in `report.md`, no change
+  to `summary.json` (D21).
+
 **R25 built — 2026-11-01** (`1fe8f2e` … `0c47592`; ROADMAP R25 checked,
 the v0.2 tag pending the owner). Every R25 item under "By row" is in
 place: D5's gate (approve / deny / timeout, instant, fail closed), D15's

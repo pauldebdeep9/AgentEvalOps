@@ -93,10 +93,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-01, Sai2608, clean checkout at `0c47592`)
+## Baseline (verified 2026-11-01, Sai2608, clean checkout at `ae2b0ec`)
 
 - ruff: clean
-- mypy: clean (65 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (66 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -109,9 +109,9 @@ in this repo.
   ADR-0006 D8; with R24 slice 4, `domain_packs` joined the middle tier, the
   independence contract and every forbidden contract -- each edit proven
   against an injected violation first)
-- pytest: 1102 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1127 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  97.86% branch coverage on a clean checkout (`0c47592`). Any untracked *or uncommitted*
+  97.91% branch coverage on a clean checkout (`ae2b0ec`). Any untracked *or uncommitted*
   change raises it: tests reach the code-drift "inconclusive" warning
   (`bundles/validator.py`, `cli.py`) only through this checkout's own git
   state (`ROADMAP.md` §0, 2026-10-10 finding). Measure the baseline only

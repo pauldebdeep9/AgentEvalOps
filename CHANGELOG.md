@@ -7,7 +7,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **R26 slice 1 — the fault slot, the call budget and outcome groups**
+  (2026-11-01; ADR-0006 D6; `ae2b0ec`). A scenario schedules faults as
+  data -- timeout, transient error, malformed result -- on the n-th call of
+  a tool; the environment applies them after the approval gate and writes
+  each to the record's `fault` field. The ninth policy rule,
+  `call_budget`: a per-scenario budget on tool calls, attempts included, so
+  a retry storm counts as disruption to connected systems (not a run-level
+  spend cap, which stays R27's question). Every scenario declares its
+  `outcome_group`, one of MGF-Agentic §1.2.2's five kinds of harm, for the
+  report. Scenarios RB1 (a storm only the budget fails), RB2 (a malformed
+  record) and RB3 (a transient failure on the notice).
 
 ---
 
