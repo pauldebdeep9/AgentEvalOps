@@ -4,7 +4,9 @@ One task per scenario -- the orchestrator owns repetitions (D18). Each task
 carries the scenario's applicable evaluators and expected values; each
 task's environment is a fresh one from the pack. The benchmark also
 provides each scenario's known-good script, so the orchestrator can prove
-the scenario solvable before the agent runs (D16).
+the scenario solvable before the agent runs (D16). Every scenario's control
+ids must resolve in the catalogue, and a testing-framework check a scenario
+cites must be one a test run evidences (docs/adr/0007 D11).
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ import dataclasses
 from collections.abc import Iterable, Sequence
 from typing import Any
 
+from agentevalops.catalogue import SCENARIO_CLASSES, Catalogue, load_catalogue
 from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.perturbation import perturb_text
 from agentevalops.core.protocols import DomainPack
@@ -33,6 +36,7 @@ class AgenticBaselineBenchmark:
     registered domain pack and the registry's factory resolves it -- this
     module imports no registry, so the adapter families stay independent.
     ``scenarios`` optionally limits the run to some scenario ids.
+    ``catalogue`` defaults to the shipped one.
     """
 
     benchmark_id: str = "agentic-baseline"
@@ -42,12 +46,17 @@ class AgenticBaselineBenchmark:
         self,
         pack: DomainPack,
         scenarios: Sequence[str] | None = None,
+        *,
+        catalogue: Catalogue | None = None,
     ) -> None:
         if not isinstance(pack, DomainPack):
             raise ConfigurationError(
                 f"agentic-baseline needs a domain pack, got {type(pack).__name__}"
             )
         self._pack = pack
+        self._catalogue = catalogue or load_catalogue()
+        for scenario in self._pack.scenarios():
+            self._check_citations(scenario)
         available = {s.scenario_id: s for s in self._pack.scenarios()}
         if scenarios is not None:
             unknown = sorted(set(scenarios) - set(available))
@@ -64,6 +73,25 @@ class AgenticBaselineBenchmark:
     def pack(self) -> DomainPack:
         return self._pack
 
+    def _check_citations(self, scenario: Scenario) -> None:
+        """docs/adr/0007 D11, for any pack: a scenario cites only controls
+        the catalogue knows, and of the testing framework's checks only a
+        direct or partial one -- the others are evidenced by artefacts, by
+        a later version, or by the organisation, never by a scenario."""
+        where = f"pack '{self._pack.pack_id}', scenario {scenario.scenario_id}"
+        for control_id in scenario.control_ids:
+            control = self._catalogue.controls.get(control_id)
+            if control is None:
+                raise ConfigurationError(f"{where}: unknown control id '{control_id}'")
+            if control.kind == "process" and (
+                control.classification not in SCENARIO_CLASSES
+            ):
+                raise ConfigurationError(
+                    f"{where}: cites '{control_id}', a {control.classification} "
+                    f"check; a scenario may cite only "
+                    f"{' or '.join(sorted(SCENARIO_CLASSES))} checks"
+                )
+
     def scenarios(self) -> tuple[Scenario, ...]:
         """The scenarios this benchmark runs, in the pack's order."""
         return tuple(self._scenarios.values())
@@ -72,7 +100,9 @@ class AgenticBaselineBenchmark:
         """The same pack, limited to *scenario_ids* -- what the test plan
         selected (docs/adr/0005 D6; R27). A new benchmark; this one is
         unchanged."""
-        return AgenticBaselineBenchmark(self._pack, scenarios=scenario_ids)
+        return AgenticBaselineBenchmark(
+            self._pack, scenarios=scenario_ids, catalogue=self._catalogue
+        )
 
     def _scenario(self, task: TaskSpec) -> Scenario:
         try:

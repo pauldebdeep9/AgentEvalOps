@@ -753,6 +753,20 @@ def _perturbation(
     }
 
 
+def _known_controls(
+    value: Any, where: str, name: str, catalogue: Catalogue
+) -> tuple[str, ...]:
+    control_ids = _strings(value, where, name)
+    for control_id in control_ids:
+        try:
+            catalogue.control(control_id)
+        except CatalogueError:
+            raise DomainPackError(
+                f"{where}: unknown control id '{control_id}' (not in the catalogue)"
+            ) from None
+    return control_ids
+
+
 def _scenarios(
     raw: dict[str, Any],
     cases: Mapping[str, Case],
@@ -761,6 +775,18 @@ def _scenarios(
     names: Sequence[SyntheticName] = (),
 ) -> tuple[Scenario, ...]:
     where = "scenarios.yaml"
+    # docs/adr/0007 D11: checks every executed scenario evidences, appended
+    # after each scenario's own citations.
+    every: tuple[str, ...] = ()
+    if "every_scenario_cites" in raw:
+        every = _known_controls(
+            raw["every_scenario_cites"], where, "every_scenario_cites", catalogue
+        )
+
+    def control_ids_of(item: dict[str, Any], here: str) -> tuple[str, ...]:
+        own = _known_controls(item.get("control_ids"), here, "control_ids", catalogue)
+        return own + tuple(c for c in every if c not in own)
+
     scenarios: list[Scenario] = []
     seen: set[str] = set()
     for item in _items(raw.get("scenarios"), where, "scenarios"):
@@ -820,15 +846,7 @@ def _scenarios(
                     for kind, keys in owned.items()
                 )
             }
-            control_ids = _strings(item.get("control_ids"), here, "control_ids")
-            for control_id in control_ids:
-                try:
-                    catalogue.control(control_id)
-                except CatalogueError:
-                    raise DomainPackError(
-                        f"{here}: unknown control id '{control_id}' "
-                        "(not in the catalogue)"
-                    ) from None
+            control_ids = control_ids_of(item, here)
             known_good = _script(item.get("known_good"), here, "known_good")
             if known_good[-1].kind != "finish":
                 raise DomainPackError(f"{here}: known_good must end with 'finish'")
@@ -863,14 +881,7 @@ def _scenarios(
             raise DomainPackError(
                 f"{here}: applicable_evaluators has unknown kind(s) {unknown_kinds}"
             )
-        control_ids = _strings(item.get("control_ids"), here, "control_ids")
-        for control_id in control_ids:
-            try:
-                catalogue.control(control_id)
-            except CatalogueError:
-                raise DomainPackError(
-                    f"{here}: unknown control id '{control_id}' (not in the catalogue)"
-                ) from None
+        control_ids = control_ids_of(item, here)
         known_good = _script(item.get("known_good"), here, "known_good")
         if known_good[-1].kind != "finish":
             raise DomainPackError(f"{here}: known_good must end with 'finish'")
