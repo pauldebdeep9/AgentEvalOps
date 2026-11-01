@@ -23,6 +23,15 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R26 slice 2, `216912e`, injections).**
+- **D6, injections:** `environments.ScriptedInjections` holds the
+  declarative payloads (id, tool, optional call, text); a payload is
+  appended to a result that executed without error, after any garbling,
+  so it reaches the agent intact; a refused, faulted or failed call
+  carries nothing to inject into. The record's `injections` field (D4)
+  names the payloads and `result` holds their text. Payloads pass the
+  D26 scan like every other string in a pack.
+
 **Implementation notes — 2026-11-01 (R26 slice 1, `ae2b0ec`, faults and
 the call budget).**
 - **D6, faults:** `environments.ScriptedFaults` holds the declarative
