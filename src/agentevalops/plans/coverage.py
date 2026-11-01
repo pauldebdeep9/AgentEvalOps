@@ -28,6 +28,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from agentevalops.catalogue import Catalogue, Control
+from agentevalops.core.protocols import DomainPack
 from agentevalops.core.schemas import (
     EvaluationResult,
     PassKResult,
@@ -56,6 +57,23 @@ NOT_REQUESTED = "not requested by the run config"
 
 #: The descriptor fields copied for each selected scenario.
 _DESCRIPTOR_FIELDS = ("category", "outcome_group", "variant")
+
+
+def scenario_descriptors(pack: DomainPack) -> dict[str, dict[str, Any]]:
+    """Every scenario of *pack*, selected or not, as coverage reads it:
+    ``category``, ``outcome_group``, ``variant`` and ``control_ids``, keyed
+    by scenario id in the pack's order (docs/adr/0007 D5, decision 5 of
+    2026-11-02). Built from the pack itself, so a benchmark narrowed to the
+    plan's selection still yields the whole pack."""
+    return {
+        s.scenario_id: {
+            "category": s.category,
+            "outcome_group": s.outcome_group,
+            "variant": dict(s.variant),
+            "control_ids": list(s.control_ids),
+        }
+        for s in pack.scenarios()
+    }
 
 
 def _locator_key(locator: str) -> tuple[tuple[int, int | str], ...]:

@@ -21,8 +21,12 @@ from pathlib import Path
 from typing import Any, cast
 
 from agentevalops.bundles.constants import (
+    CONTROLS_FILENAME,
+    END_STATES_FILENAME,
     MANIFEST_FILENAME,
     REQUIRED_BUNDLE_FILES,
+    TEST_PLAN_FILENAME,
+    TOOL_CALLS_FILENAME,
     peek_declared_format_version,
     required_files_for_version,
 )
@@ -59,6 +63,12 @@ class LoadedBundle:
     manifest:
         Parsed contents of ``manifest.json``, or ``None`` when the bundle was
         written before WBS 8 and strict mode is disabled.
+    test_plan, controls:
+        Parsed ``test_plan.json`` and ``controls.json``, or ``None`` when the
+        bundle has no such file (docs/adr/0007 D15).
+    tool_calls, end_states:
+        Parsed lines of the 0.5 harness streams, or empty lists when the
+        bundle predates them.
     """
 
     bundle_path: Path
@@ -69,6 +79,10 @@ class LoadedBundle:
     policy: dict[str, Any] | None
     summary: dict[str, Any]
     manifest: dict[str, Any] | None = None
+    test_plan: dict[str, Any] | None = None
+    controls: dict[str, Any] | None = None
+    tool_calls: list[dict[str, Any]] = dataclasses.field(default_factory=list)
+    end_states: list[dict[str, Any]] = dataclasses.field(default_factory=list)
 
 
 class BundleReader:
@@ -82,6 +96,12 @@ class BundleReader:
         When ``True`` (default), ``manifest.json`` is required and a
         ``BundleError`` is raised if it is absent.  Set to ``False`` to
         tolerate pre-WBS-8 bundles that have no manifest.
+    optional_files:
+        When ``True`` (default), also load the files a bundle may or may not
+        have -- the plan, the controls and the harness streams -- and raise
+        on one that is malformed. ``validate_bundle`` passes ``False``: it
+        checks those files itself, and a malformed one must not stop its
+        cross-file checks (until R28 (b2) moves them onto this reader).
 
     Raises
     ------
@@ -90,9 +110,12 @@ class BundleReader:
         if any file contains malformed content.
     """
 
-    def __init__(self, bundle_path: Path, *, strict: bool = True) -> None:
+    def __init__(
+        self, bundle_path: Path, *, strict: bool = True, optional_files: bool = True
+    ) -> None:
         self._path = bundle_path
         self._strict = strict
+        self._optional_files = optional_files
 
     def read(self) -> LoadedBundle:
         """Parse and return the full bundle.  Raises ``BundleError`` on any
@@ -112,6 +135,15 @@ class BundleReader:
 
         manifest = self._read_manifest()
 
+        optional: dict[str, Any] = {}
+        if self._optional_files:
+            optional = {
+                "test_plan": self._read_optional_dict(TEST_PLAN_FILENAME),
+                "controls": self._read_optional_dict(CONTROLS_FILENAME),
+                "tool_calls": self._read_optional_jsonl(TOOL_CALLS_FILENAME),
+                "end_states": self._read_optional_jsonl(END_STATES_FILENAME),
+            }
+
         return LoadedBundle(
             bundle_path=self._path,
             metadata=metadata,
@@ -121,6 +153,7 @@ class BundleReader:
             policy=policy,
             summary=summary,
             manifest=manifest,
+            **optional,
         )
 
     # ------------------------------------------------------------------
@@ -167,6 +200,16 @@ class BundleReader:
     # ------------------------------------------------------------------
     # Low-level parse helpers
     # ------------------------------------------------------------------
+
+    def _read_optional_dict(self, filename: str) -> dict[str, Any] | None:
+        if not (self._path / filename).exists():
+            return None
+        return self._read_json_dict(filename)
+
+    def _read_optional_jsonl(self, filename: str) -> list[dict[str, Any]]:
+        if not (self._path / filename).exists():
+            return []
+        return self._read_jsonl(filename)
 
     def _read_raw_json(self, filename: str) -> Any:
         """Return the parsed JSON value from *filename* (any type)."""

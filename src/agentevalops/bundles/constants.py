@@ -91,6 +91,10 @@ END_STATES_FILENAME: str = "end_states.jsonl"
 #: registered before the run -- and required from 0.6 (R28, ADR-0007).
 TEST_PLAN_FILENAME: str = "test_plan.json"
 
+#: Control coverage (docs/adr/0007 D5): written and required from format
+#: 0.6 (R28 (b2)). Named now so the reader can load it when present.
+CONTROLS_FILENAME: str = "controls.json"
+
 #: Files required by format "0.5" -- the 0.4 set plus the harness streams.
 REQUIRED_BUNDLE_FILES_0_5: tuple[str, ...] = (
     *REQUIRED_BUNDLE_FILES_0_4,

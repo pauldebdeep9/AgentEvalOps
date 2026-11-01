@@ -16,7 +16,11 @@ docs/adr/0007 D13).
 """
 
 from agentevalops.plans.builder import build_plan
-from agentevalops.plans.coverage import COVERAGE_STATES, control_coverage
+from agentevalops.plans.coverage import (
+    COVERAGE_STATES,
+    control_coverage,
+    scenario_descriptors,
+)
 from agentevalops.plans.gate import GateError, GateResult, judge
 from agentevalops.plans.io import plan_sha256, read_plan, write_plan
 
@@ -29,5 +33,6 @@ __all__ = [
     "judge",
     "plan_sha256",
     "read_plan",
+    "scenario_descriptors",
     "write_plan",
 ]

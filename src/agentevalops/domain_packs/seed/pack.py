@@ -10,6 +10,8 @@ identifier -- so a bad pack fails when it is built, never in a run.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
+import json
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from importlib import resources
 from pathlib import Path
@@ -1040,6 +1042,18 @@ class SeedDomainPack:
         self._thresholds = _thresholds(
             self._raw["thresholds.yaml"], {s.category for s in self._scenarios}
         )
+
+    # -- DataHashed (docs/adr/0007 D9) --------------------------------------
+
+    @property
+    def data_sha256(self) -> str:
+        """sha256 of the canonical JSON of the five files the pack loaded --
+        keys sorted, no whitespace -- so YAML key order, comments and
+        layout do not move it and any value does."""
+        canonical = json.dumps(
+            self._raw, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     # -- the DomainPack protocol ------------------------------------------
 

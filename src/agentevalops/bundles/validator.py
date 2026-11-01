@@ -464,7 +464,7 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
     # 12. Cross-file consistency (LocalReplayVerifier, folded in per D2)
     # ------------------------------------------------------------------ #
     try:
-        loaded = BundleReader(bundle_path, strict=False).read()
+        loaded = BundleReader(bundle_path, strict=False, optional_files=False).read()
     except BundleError:
         # Bundle too broken to load at all (e.g. several required files
         # missing) -- checks 1-11 above already reported the real reasons;

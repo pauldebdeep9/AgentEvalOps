@@ -191,6 +191,18 @@ class Thresholded(Protocol):
 
 
 @runtime_checkable
+class DataHashed(Protocol):
+    """A domain pack that names the hash of the data it loaded (docs/adr/0007
+    D9). Optional, like ``Thresholded``: the plan records ``data_sha256``
+    when a pack has it and ``null`` when it does not, so an edit to the
+    data behind the scenarios -- a policy rule, a case -- shows even when
+    the scenarios themselves do not change.
+    """
+
+    data_sha256: str
+
+
+@runtime_checkable
 class DomainPack(Protocol):
     """A domain's scenarios and the tool environment they run against
     (docs/adr/0006 D23). Discovered through the ``agentevalops.domain_packs``
