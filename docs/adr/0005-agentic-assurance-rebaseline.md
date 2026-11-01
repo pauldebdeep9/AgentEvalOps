@@ -35,6 +35,9 @@ is narrowed as above, D6's list is replaced, and D9's seed domain gains a
 refer-to-officer tool. The same review amended rows R22, R24–R28, R30, R31
 and R34 (`ROADMAP.md` §0).
 
+**Formats fixed — 2026-11-01 by [0007](0007-evidence-pack.md)** (accepted
+that day). D6's `manifest.json.sig` is named at 0.6 and signed in R29.
+
 **D6 built in part — 2026-11-01 (R27 slices 1–2, `9d3795c`, `9be6d18`).**
 `test_plan.json` is built from a system declaration (`system.yaml`) and
 written and hashed before the first task runs; `validate-bundle` holds

@@ -2,6 +2,46 @@
 
 ## Status
 
+**Accepted — 2026-11-01 (owner), with the amendment below.** ADR-0005's
+and ADR-0006's Status lines carry their pointers; `DESIGN.md` §7 and
+`ARCHITECTURE.md` §1, §3 and §7 carry the edits listed under "Required
+`DESIGN.md` and `ARCHITECTURE.md` edits"; `ROADMAP.md` R28 is rewritten to
+the amended split. One docs commit.
+
+**Amended before acceptance — 2026-11-01 (owner): R28's two sessions are
+reordered so the format bump lands in one slice, as 0.5 did (ADR-0006
+D21).** The text as proposed put the version string, the required plan,
+provenance, `EVALUATOR_SCORE` and `config.json`'s new fields in session
+(a), and `controls.json` and `evidence_report.md` in (b). That splits one
+bump across two sessions: a bundle written between them would say "0.6"
+and still lack two files every 0.6 bundle requires. Landing those pieces
+under 0.5 instead does not work either. Re-pointing `git_sha` at the
+package's tree changes what an existing field means, and retiring
+`POLICY_VERDICT` removes a value the enum's own rule ties to a version
+bump (`core/schemas.py:7-8`). Both need the bump. So:
+- **(a) Data and library only, with no bundle change:** the catalogue's
+  112 process entries and their loader checks; the seed scenarios citing
+  testing-framework ids, with the 14-check equality test and the
+  benchmark's guard; the alignment-doc sync test (D12, moved from (b));
+  the IP script over every field, against all three PDFs; and the coverage
+  computation and the evidence-report renderer as library code, tested on
+  synthetic inputs and not yet called by the writer.
+- **(b) The 0.6 bump as one slice:** the version and the required set;
+  plan version 2; `package_sha256`, the re-pointed `git_sha` and the
+  invocation fields; `runner_id` and `mock_trajectory` in `config.json`;
+  `EVALUATOR_SCORE` events, with `POLICY_VERDICT` retired;
+  `manifest.json.sig` recognised; the reader's 0.6 fields;
+  `replay_command.txt`'s new lines; the drift tests made deterministic; and
+  the writer producing `controls.json` and `evidence_report.md`. Then the
+  close-out.
+
+No decision changes. The Summary's "Built in" column, D1's build-sequence
+bullet, D8's drift-test bullet and Consequences "By row" are rewritten to
+match. A bundle written during (a) is a format 0.5 bundle with the same
+file list as before. The only differences a reader can see are new values
+in existing fields: the plan's `scenarios_sha256`, the `control_ids` in
+task metadata, and report text.
+
 Proposed — 2026-11-01. Documentation only: no code changes accompany this
 ADR. The owner decided seven questions put to them on 2026-11-01 (D2, D3,
 D8, D11, D6, D7, D12) and accepted the engineering calls with two notes
@@ -23,19 +63,19 @@ from 0.5 to 0.6 and built format 0.5 in R24. This ADR fixes 0.6.
 
 | D | Decision | Code it changes (today) | Built in |
 |---|---|---|---|
-| D1 | Format 0.6 lands once; "0.5" legacy; three more required files; `manifest.json.sig` optional and recognised | `bundles/constants.py:32`, `:44-46`, `:102-105`; `bundles/manifest.py:103-112`; `bundles/validator.py:170-175`, `:231-283`; `bundles/reader.py:146-153` | R28 (a) the version and `test_plan.json`; R28 (b) the two new files |
-| D2 | Every bundle has a plan; an undeclared run writes a minimal one; plan version "2" | `core/schemas.py:483-517`; `plans/builder.py:216-264`; `plans/io.py:17-29`; `bundles/writer.py:159-175` | R28 (a) |
-| D3 | `EVALUATOR_SCORE` wired per evaluation result; `POLICY_VERDICT` retired; the allowlist holds `AGENT_OBSERVATION` only | `core/schemas.py:38-54`; `orchestration/local.py:542-565`; `policy/basic_checker.py:88`; `replay/local.py:75-106`; `tests/test_enum_construction_coverage.py:77-95` | R28 (a) |
-| D4 | `config.json` records `runner_id`, `mock_trajectory`, `evaluators` | `bundles/writer.py:273-294`; `cli.py:240-254`; `reports/markdown.py:269` | R28 (a) |
-| D5 | `controls.json`: sources, catalogue hashes, scenario descriptors, every control with its coverage | new `plans/coverage.py`; `cli.py:611-630` | R28 (b) |
-| D6 | Coverage: five states over the plan's selected scenarios; each evidencing scenario's pass^k listed; no per-control aggregate | new `plans/coverage.py`; `core/schemas.py:783-816` | R28 (b) |
-| D7 | `evidence_report.md`: all 112 checks by principle, pointers only when a citing scenario ran, answers blank, deterministic, the scripted-run sentence | new `reports/evidence.py`; `reports/markdown.py:68-85`, `:385-449` | R28 (b) |
-| D8 | `git_sha` means the package's tree from 0.6; `package_sha256`; invocation fields; drift compares the hash first, by format version | `bundles/writer.py:91-139`, `:200`, `:352-413`; `bundles/validator.py:483-507`; `core/schemas.py:859-911` | R28 (a) |
-| D9 | One home per pin: package hash in `metadata.json`, pack hash in `test_plan.json`, catalogue sources and file hashes in `controls.json`; `DataHashed` | `plans/builder.py:205-213`, `:244-264`; `core/protocols.py:194-210`; `domain_packs/seed/pack.py:1000-1006` | R28 (a) |
+| D1 | Format 0.6 lands once; "0.5" legacy; three more required files; `manifest.json.sig` optional and recognised | `bundles/constants.py:32`, `:44-46`, `:102-105`; `bundles/manifest.py:103-112`; `bundles/validator.py:170-175`, `:231-283`; `bundles/reader.py:146-153` | R28 (b) |
+| D2 | Every bundle has a plan; an undeclared run writes a minimal one; plan version "2" | `core/schemas.py:483-517`; `plans/builder.py:216-264`; `plans/io.py:17-29`; `bundles/writer.py:159-175` | R28 (b) |
+| D3 | `EVALUATOR_SCORE` wired per evaluation result; `POLICY_VERDICT` retired; the allowlist holds `AGENT_OBSERVATION` only | `core/schemas.py:38-54`; `orchestration/local.py:542-565`; `policy/basic_checker.py:88`; `replay/local.py:75-106`; `tests/test_enum_construction_coverage.py:77-95` | R28 (b) |
+| D4 | `config.json` records `runner_id`, `mock_trajectory`, `evaluators` | `bundles/writer.py:273-294`; `cli.py:240-254`; `reports/markdown.py:269` | R28 (b) |
+| D5 | `controls.json`: sources, catalogue hashes, scenario descriptors, every control with its coverage | new `plans/coverage.py`; `cli.py:611-630` | R28 (a) the computation, as library code; R28 (b) the file |
+| D6 | Coverage: five states over the plan's selected scenarios; each evidencing scenario's pass^k listed; no per-control aggregate | new `plans/coverage.py`; `core/schemas.py:783-816` | R28 (a), as library code; R28 (b) wired |
+| D7 | `evidence_report.md`: all 112 checks by principle, pointers only when a citing scenario ran, answers blank, deterministic, the scripted-run sentence | new `reports/evidence.py`; `reports/markdown.py:68-85`, `:385-449` | R28 (a) the renderer, as library code; R28 (b) the file |
+| D8 | `git_sha` means the package's tree from 0.6; `package_sha256`; invocation fields; drift compares the hash first, by format version | `bundles/writer.py:91-139`, `:200`, `:352-413`; `bundles/validator.py:483-507`; `core/schemas.py:859-911` | R28 (b) |
+| D9 | One home per pin: package hash in `metadata.json`, pack hash in `test_plan.json`, catalogue sources and file hashes in `controls.json`; `DataHashed` | `plans/builder.py:205-213`, `:244-264`; `core/protocols.py:194-210`; `domain_packs/seed/pack.py:1000-1006` | R28 (a) the testing-framework pin; R28 (b) the rest |
 | D10 | The 112 process entries as catalogue data: schema, validation, source id `testing-framework`, principle labels, evidence pointers; the IP script over every field and three PDFs | `catalogue/loader.py:31`, `:47-75`, `:114-151`, `:188-245`; new `catalogue/data/testing-framework-2025.yaml`; `scripts/check_catalogue_ip.py:7-9`, `:64` | R28 (a) |
 | D11 | Scenarios cite testing-framework ids directly; five whole-run checks cited by every scenario through a pack-level list; the cited set equals the direct and partial set | `domain_packs/seed/data/scenarios.yaml`; `domain_packs/seed/pack.py:823-830`; `benchmarks/agentic_baseline/adapter.py:93-100` | R28 (a) |
-| D12 | `docs/imda-alignment.md` §4 is checked against the catalogue by a test | new `tests/test_imda_alignment_doc.py` | R28 (b) |
-| D13 | No new package: `plans/coverage.py` and `reports/evidence.py`; the writer calls both; contracts unchanged | `pyproject.toml:213-222`; `plans/__init__.py:11`; `ARCHITECTURE.md` §1 | R28 (b) |
+| D12 | `docs/imda-alignment.md` §4 is checked against the catalogue by a test | new `tests/test_imda_alignment_doc.py` | R28 (a) |
+| D13 | No new package: `plans/coverage.py` and `reports/evidence.py`; the writer calls both; contracts unchanged | `pyproject.toml:213-222`; `plans/__init__.py:11`; `ARCHITECTURE.md` §1 | R28 (a) the two modules; R28 (b) the writer's calls |
 | D14 | The gate does not read `controls.json` | `plans/gate.py:83-110`; `cli.py:476-563` | — |
 | D15 | Re-scoring groundwork: what 0.6 records, what `rescore` recomputes, no new vocabulary; the reader loads the 0.6 files | `bundles/reader.py:35-124`; `bundles/validator.py:466-476` | R28 (b) records; R29 builds |
 
@@ -146,12 +186,11 @@ recognised.**
   `evidence_report.md` is present; every scenario `controls.json` lists is
   in the plan's `selected` set; the number of `evaluator.score` events
   equals the number of entries in `evaluations.json` (D3).
-- **Build sequence.** The version string and `test_plan.json`'s place in
-  the required set land in session (a); `controls.json` and
-  `evidence_report.md` join the 0.6 required set in session (b). No tag and
-  no committed bundle lie between the two sessions; bundles written into
-  `runs/` between them are development output, not evidence packs. The
-  bump itself happens once (ADR-0006 D21).
+- **Build sequence** (amended at acceptance, see Status). The bump lands
+  in one slice of session (b): the version string, `"0.5"` in the legacy
+  set and all three new required files together, as 0.5 did (ADR-0006
+  D21). Session (a) changes no bundle's shape and no field's meaning, so a
+  bundle written between the sessions is a complete 0.5 bundle.
 
 **D2. Every 0.6 bundle has a plan. A run without a declaration writes a
 minimal plan that says so. The plan's format is version "2".**
@@ -379,7 +418,7 @@ format version.**
   comparison follows as a second line when both sides are determinate.
   The comparison is determinate on every install, so the drift tests stop
   depending on this checkout's git state — the 2026-10-10 finding in
-  ROADMAP §0 closes in session (a), with the 0.5 branch tested against an
+  ROADMAP §0 closes in session (b), with the 0.5 branch tested against an
   injected provenance function or a temporary repository.
 - `replay_command.txt` (`bundles/writer.py:352-413`) gains lines for
   `package_sha256`, `invocation_git_sha`, `invocation_git_dirty` and
@@ -689,14 +728,62 @@ moves.
 
 ### By row
 
-**R28, session (a) — the 0.6 bump, provenance, and the catalogue's 112
-entries.** Builds: D1 (version, legacy set, `test_plan.json` required,
-`manifest.json.sig` named), D2, D3, D4, D8, D9, D10, D11.
+**R28, session (a) — data and library only; no bundle change** (amended
+at acceptance, see Status). Builds: D10, D11, D12; D9's testing-framework
+pin; D6 and D7 as library code (`plans/coverage.py`,
+`reports/evidence.py`) that the writer does not call yet; D13's two
+modules. `BUNDLE_FORMAT_VERSION` stays `"0.5"`.
+
+Tests (fail-first where there is a guard):
+- The catalogue loads 112 process entries with the counts 2, 12, 32, 9,
+  49, 8; a file with 111, a wrong class count, a `later` without
+  `available_from`, or an `artefact:` pointer to a file that is not a 0.6
+  bundle file is rejected (fail-first each); "AI Verify" in a source title
+  loads, in a label is rejected.
+- The set of testing-framework ids cited across the seed pack equals the
+  catalogue's direct and partial set (14); every scenario carries the five
+  whole-run ids; an organisational check added to a scenario fails the
+  equality test and is rejected by the benchmark (fail-first).
+- `tests/test_imda_alignment_doc.py`: §4 agrees with the catalogue row by
+  row, §3's 14 ids are the direct and partial set, the counts table
+  recomputes; a one-letter change to a label in either place fails
+  (fail-first).
+- `scripts/check_catalogue_ip.py` over the three PDFs: every field of every
+  control and every principle label clean (run locally, recorded in the
+  commit message; not CI).
+- Coverage, on synthetic plans, summaries and catalogues: a control cited
+  only by a scenario that was not evaluated reports `uncovered` with the
+  cause; one cited only by an excluded scenario reports `not_in_plan` with
+  the reason; one no scenario cites reports `undeclared`; one whose citing
+  scenarios all failed reports `covered` with `pass_k: false` beside each;
+  mixed verdicts report `partly_covered`; no control carries an aggregate.
+- The renderer, on the same inputs: all 112 checks with the Implemented
+  and Elaboration cells empty in every row (asserted on the rendered
+  table); the plan's intended use, out-of-scope uses and business metrics
+  repeated verbatim; no pointer for a check whose scenarios did not run;
+  the scripted-run sentence in the header and on every pointer when the
+  runner is `mock`, and nowhere otherwise; the header's `created_at` is the
+  one passed in, never the clock; two renders byte-identical; no
+  "compliant" or "certified" anywhere and "AI Verify" only within the
+  Sources section.
+- After every slice, a toy run and a seed run validate as format 0.5 with
+  the same file list as before the session.
+
+Import-linter: no contract changes; `plans` importing `catalogue` is the
+layers contract's middle tier reaching the low tier. `lint-imports` stays
+9 kept, 0 broken.
+
+**R28, session (b) — the 0.6 bump as one slice, then the close-out.**
+Builds: D1, D2, D3, D4, D8; D9's package and pack hashes and
+`controls.json`'s pins; D5 and D7's files, written by the writer (D13);
+D15's reader fields.
 
 Tests (fail-first where there is a guard):
 - A fresh toy bundle is 0.6, carries `test_plan.json` with
-  `declared: false`, and validates; `gate` on it exits 2; a 0.6 bundle
-  without `test_plan.json` fails `validate-bundle` (fail-first).
+  `declared: false`, `controls.json` and `evidence_report.md`, and
+  validates; `gate` on it exits 2; a 0.6 bundle without `test_plan.json`,
+  `controls.json` or `evidence_report.md` fails `validate-bundle`
+  (fail-first each; R28's standing exit criterion).
 - A 0.5 bundle without a plan still validates; 0.1–0.4 fixtures still
   validate (`tests/test_bundle_legacy_compat.py`).
 - Every task run's stream ends with one `evaluator.score` event per
@@ -707,7 +794,8 @@ Tests (fail-first where there is a guard):
 - `TraceEventKind` has no `POLICY_VERDICT`; the allowlist holds exactly
   `AGENT_OBSERVATION`; `test_allowlist_has_no_stale_entries` passes.
 - `config.json` of the shipped seed run records `runner_id: mock`,
-  `mock_trajectory: known_good` and the four evaluators.
+  `mock_trajectory: known_good` and the four evaluators; the evidence
+  report's scripted-run sentence follows `runner_id`, not `agent_id`.
 - `package_sha256` is identical for an LF and a CRLF copy of the same file
   tree, and differs when one byte of a `.yaml` changes (fail-first).
 - An editable install records the checkout's `git_sha`; a non-editable
@@ -721,54 +809,14 @@ Tests (fail-first where there is a guard):
   (ROADMAP §0, 2026-10-10).
 - The plan's `pack.data_sha256` changes when `policy.yaml` changes and the
   scenarios do not (fail-first).
-- The catalogue loads 112 process entries with the counts 2, 12, 32, 9,
-  49, 8; a file with 111, a wrong class, a `later` without
-  `available_from`, or an `artefact:` pointer to an unknown file is
-  rejected (fail-first each); "AI Verify" in a source title loads, in a
-  label is rejected.
-- The set of testing-framework ids cited across the seed pack equals the
-  catalogue's direct and partial set (14); every scenario carries the five
-  whole-run ids; a scenario citing an organisational check is rejected by
-  the benchmark (fail-first).
-- `scripts/check_catalogue_ip.py` over the three PDFs: every field of every
-  control and every principle label clean (run locally, recorded in the
-  commit message; not CI).
-
-Import-linter: no contract changes. `lint-imports` stays 9 kept, 0 broken.
-
-**R28, session (b) — coverage, the evidence report, and the close-out.**
-Builds: D1 (`controls.json` and `evidence_report.md` join the required
-set), D5, D6, D7, D12, D13, D15.
-
-Tests (fail-first where there is a guard):
-- A 0.6 bundle missing `controls.json` fails `validate-bundle`
-  (fail-first; R28's standing exit criterion); likewise
-  `evidence_report.md`.
-- A control cited only by a scenario that was not evaluated reports
-  `uncovered` with the cause; one cited only by an excluded scenario
-  reports `not_in_plan` with the reason; one no scenario cites reports
-  `undeclared`; one whose citing scenarios all failed reports `covered`
-  with `pass_k: false` beside each.
 - `controls.json`'s `plan_sha256` equals the registered hash; editing it
   fails validation (fail-first); a scenario in `controls.json` that the
   plan did not select fails validation.
-- The evidence report lists all 112 checks with the Implemented and
-  Elaboration cells empty in every row (asserted on the rendered table),
-  repeats the plan's intended use, out-of-scope uses and business metrics
-  verbatim, shows no pointer for a check whose scenarios did not run, and
-  shows the scripted-run sentence in the header and on every pointer of
-  the shipped mock run.
-- Rendering the report twice from one bundle gives byte-identical output;
-  the header carries `metadata.json`'s `created_at`.
-- No "compliant" or "certified" in any rendered artefact; "AI Verify" only
-  within the Sources section; no artefact file name contains any of the
-  three.
+- The written `evidence_report.md` carries `metadata.json`'s `created_at`;
+  rendering it again from the bundle gives the same bytes; no artefact
+  file name contains "AI Verify", "compliant" or "certified".
 - An undeclared run's report says nothing was declared and every row is
   `undeclared`.
-- `tests/test_imda_alignment_doc.py`: §4 agrees with the catalogue row by
-  row, §3's 14 ids are the direct and partial set, the counts table
-  recomputes; a one-letter change to a label in either place fails
-  (fail-first).
 - `LoadedBundle` of a 0.6 bundle carries the plan, the controls and both
   streams; of a 0.4 bundle, `None` and empty lists.
 - `agentevalops run --config configs/agentic_baseline_mock.yaml` then
@@ -776,9 +824,9 @@ Tests (fail-first where there is a guard):
   the known-bad bundle `GATE: FAIL` with the three hard gates named.
 
 Close-out: `README.md` (the bundle table and the diagram's file count),
-`CLAUDE.md`'s smoke lines, `DESIGN.md` §7 (final names, now fixed),
-`ARCHITECTURE.md` §1 and §3, `plans/__init__.py`'s docstring, ROADMAP
-R28 and §0, `CHANGELOG.md`, this ADR's Status.
+`CLAUDE.md`'s smoke lines, `DESIGN.md` §7 (the tree's 0.6 entries marked
+built), `ARCHITECTURE.md` §3 and §7, ROADMAP R28 and §0, `CHANGELOG.md`,
+this ADR's Status.
 
 Import-linter: no contract changes. `lint-imports` stays 9 kept, 0 broken.
 
@@ -804,10 +852,11 @@ run's bundle shows a partner's `invocation_git_sha` beside this package's
   one docs commit, as ADR-0005 did for 0003.
 - ROADMAP §0's 2026-10-31 review: finding 2 is marked fixed (`36fec5b`,
   ADR-0006 D20); finding 11 points here (D8); the 2026-10-10 drift-test
-  finding is assigned to R28 (a) (D8).
+  finding is assigned to R28 (b) (D8; (a) when proposed, moved with the
+  bump at acceptance).
 - `docs/imda-alignment.md` §12's "from R28 the classifications live in the
-  control catalogue" becomes true in session (a) and enforced in session
-  (b) (D12).
+  control catalogue" becomes true, and enforced by the sync test, in
+  session (a) (D12).
 - `tests/test_enum_construction_coverage.py`'s docstring and allowlist
   comments change with D3.
 

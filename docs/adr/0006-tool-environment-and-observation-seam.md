@@ -2,6 +2,9 @@
 
 ## Status
 
+**Plan format lifted — 2026-11-01.** The R27 notes' plan format is lifted
+by [0007](0007-evidence-pack.md) D2 (plan version 2), accepted that day.
+
 **Implementation notes — 2026-11-01 (R24 part 1, slices `36fec5b`,
 `3e098eb`, `3997468`, `59a690f`).** Where the build departs from the text
 below:

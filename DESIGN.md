@@ -114,14 +114,14 @@ result_bundle/
 ├── tool_calls.jsonl       # every tool call, as the harness recorded it
 ├── end_states.jsonl       # each task run's tool-environment end state
 │
-│   # added at format 0.6 — ADR-0005 D6; final names fixed by ADR-0007 (R28)
-├── test_plan.json         # system declaration, scenarios, k, thresholds; hashed before the run
-├── controls.json          # control coverage, computed from executed scenarios
+│   # added at format 0.6 — ADR-0005 D6, ADR-0007 (accepted 2026-11-01; built in R28 (b))
+├── test_plan.json         # every bundle (plan version 2; an undeclared run writes a minimal one); hashed before the run
+├── controls.json          # control coverage, computed from executed, evaluated scenarios
 ├── evidence_report.md     # every testing-framework check: evidence pointers; answers left to the organisation
-└── manifest.json.sig      # detached signature over manifest.json
+└── manifest.json.sig      # optional until R29 signs it: detached signature over manifest.json
 ```
 
-(Before ADR-0005 this tree listed `config.yaml`, `trace.jsonl`, `scores.json`, `artifacts/`, `logs/`, `cost_report.json` and `failure_analysis.md` — a target that was never built. The list above is the bundle as built, plus format 0.5's and 0.6's planned additions; ADR-0006 replaced the planned `env_state/` folder with `end_states.jsonl`.)
+(Before ADR-0005 this tree listed `config.yaml`, `trace.jsonl`, `scores.json`, `artifacts/`, `logs/`, `cost_report.json` and `failure_analysis.md` — a target that was never built. The list above is the bundle as built, plus format 0.6's additions, whose names and formats ADR-0007 fixes; ADR-0006 replaced the planned `env_state/` folder with `end_states.jsonl`. From format 0.6, `metadata.json`'s `git_sha` is the package's own source tree, not the caller's working directory, and `package_sha256` identifies the code on any install (ADR-0007 D8).)
 
 The bundle is the unit of portability. A user can hand the bundle to a colleague, attach it to a GitHub issue, store it in S3 for compliance, or feed it back into the platform for comparison against a later run. The bundle format is versioned and backwards-compatible within a major version.
 
