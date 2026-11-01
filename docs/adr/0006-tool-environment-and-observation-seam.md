@@ -23,6 +23,16 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R26 slice 5, `589577b`, the report
+by kind of harm).**
+- **D21 held:** the outcomes section is content in `report.md`. The
+  tasks' outcome groups and variants travel from the benchmark's task
+  metadata through the CLI and `BundleWriter.write(scenario_info=...)` to
+  the report at run time; `summary.json` gains nothing (the owner's
+  decision, 2026-11-01). Format 0.6 (R28) records them in the bundle.
+- `ReportGenerator.render` is unchanged; the concrete generator takes an
+  optional `scenario_info` mapping. Toy reports have no section.
+
 **Implementation notes — 2026-11-01 (R26 slice 4, `78d4166`, the
 perturbation seed and hook).**
 - **D6, the seed:** derived exactly as written,

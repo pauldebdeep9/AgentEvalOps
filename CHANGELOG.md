@@ -9,6 +9,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R26 slice 5 — the report by kind of harm** (2026-11-01; `589577b`).
+  report.md gains "Outcomes by kind of harm (MGF-Agentic §1.2.2)": the five
+  groups in the section's order, each with per-scenario rows and the
+  evaluators that failed, nothing added up across groups, and "No scenario
+  executed in this group." where nothing ran. A counterfactual row reports
+  its pair and whether it differs; a perturbation row on a scripted run
+  says it is not evidence that an agent withstood the noise. The CLI
+  passes the tasks' groups and variants from the benchmark's metadata
+  through the writer; summary.json is untouched and the bundle stays 0.5.
+
 - **R26 slice 4 — task-text perturbation with the derived seed**
   (2026-11-01; ADR-0006 D6; testing-framework 6.1.1; `78d4166`). The seed
   is derived as D6 writes it; the one family the W25 cut keeps,
