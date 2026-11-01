@@ -11,11 +11,13 @@ from collections.abc import Sequence
 from typing import Any
 
 from agentevalops.core.errors import ConfigurationError, InfrastructureError
+from agentevalops.core.perturbation import derive_seed
 from agentevalops.core.protocols import (
     AgentRunner,
     BenchmarkAdapter,
     Evaluator,
     KnownGoodSource,
+    Perturbing,
     PolicyChecker,
     Scorer,
     ToolEnvironment,
@@ -193,8 +195,7 @@ def _not_evaluated_result(
     )
     chosen, missing = _applicable(task, evaluators)
     evaluations = [
-        _not_evaluated(e.evaluator_id, e.evaluator_kind, cause, detail)
-        for e in chosen
+        _not_evaluated(e.evaluator_id, e.evaluator_kind, cause, detail) for e in chosen
     ] + [_not_evaluated(kind, kind, cause, detail) for kind in missing]
     return TaskRunResult(
         task_id=task.task_id,
@@ -368,9 +369,7 @@ class LocalOrchestrator:
         # evaluated merit-based failure -- it no longer silently absorbs
         # tasks that were never evaluated at all (not_evaluated_tasks does).
         summary.failed_tasks = (
-            summary.total_tasks
-            - summary.passed_tasks
-            - summary.not_evaluated_tasks
+            summary.total_tasks - summary.passed_tasks - summary.not_evaluated_tasks
         )
         summary.trace_event_count = len(all_events)
 
@@ -472,8 +471,15 @@ class LocalOrchestrator:
                     events,
                 )
             environment = handle.tools
+            # docs/adr/0006 D6: the agent may see a varied task text under a
+            # seed derived from the run's seed, the task and the repetition;
+            # the evaluators judge against the task as declared.
+            seen = task
+            if isinstance(self._benchmark, Perturbing):
+                seed = derive_seed(self._config.seed, str(task.task_id), repetition)
+                seen = self._benchmark.perturb(task, seed)
             agent_input = AgentInput(
-                task=task,
+                task=seen,
                 context={"run_id": run_id},
                 environment=handle.tools,
             )

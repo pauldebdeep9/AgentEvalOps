@@ -893,8 +893,10 @@ def test_edits_that_keep_the_rules_still_load(tmp_path: Path) -> None:
         te1 = _scenario(doc, "TE1")
         te1["applicable_evaluators"] = ["deterministic"]
         te1["expected"] = {"expected_substring": "approved"}
-        # RB6 follows TE1 (its counterfactual, R26); narrow it with its base.
+        # RB6 and RB8 follow TE1 (its counterfactual and its perturbation,
+        # R26); narrow them with their base.
         _scenario(doc, "RB6")["applicable_evaluators"] = ["deterministic", "policy"]
+        _scenario(doc, "RB8")["applicable_evaluators"] = ["deterministic"]
 
     pack = SeedDomainPack(_edited(tmp_path, "scenarios.yaml", only_deterministic))
     te1 = pack.scenarios()[0]

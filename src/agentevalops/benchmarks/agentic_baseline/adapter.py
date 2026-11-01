@@ -9,10 +9,12 @@ the scenario solvable before the agent runs (D16).
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Iterable, Sequence
 from typing import Any
 
 from agentevalops.core.errors import ConfigurationError
+from agentevalops.core.perturbation import perturb_text
 from agentevalops.core.protocols import DomainPack
 from agentevalops.core.schemas import (
     AgentOutput,
@@ -43,8 +45,7 @@ class AgenticBaselineBenchmark:
     ) -> None:
         if not isinstance(pack, DomainPack):
             raise ConfigurationError(
-                "agentic-baseline needs a domain pack, got "
-                f"{type(pack).__name__}"
+                f"agentic-baseline needs a domain pack, got {type(pack).__name__}"
             )
         self._pack = pack
         available = {s.scenario_id: s for s in self._pack.scenarios()}
@@ -110,6 +111,23 @@ class AgenticBaselineBenchmark:
 
     def known_good_script(self, task: TaskSpec) -> Sequence[dict[str, Any]] | None:
         return self._scenario(task).known_good
+
+    def perturb(self, task: TaskSpec, seed: int) -> TaskSpec:
+        """The ``Perturbing`` hook (docs/adr/0006 D6): a scenario whose
+        variant is a perturbation gets its description varied under *seed*
+        by the declared family; any other task comes back as it is."""
+        variant = self._scenario(task).variant
+        if variant.get("kind") != "perturbation":
+            return task
+        return dataclasses.replace(
+            task,
+            description=perturb_text(
+                task.description,
+                str(variant["family"]),
+                seed,
+                float(variant.get("intensity", 0.15)),
+            ),
+        )
 
     def scripted_trajectories(self, which: str) -> dict[str, Sequence[dict[str, Any]]]:
         """Every task's ``known_good`` or ``known_bad`` trajectory, keyed by

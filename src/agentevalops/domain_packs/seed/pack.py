@@ -25,6 +25,7 @@ from agentevalops.core.identifiers import (
     is_synthetic_phone,
     unsafe_identifiers,
 )
+from agentevalops.core.perturbation import PERTURBATION_FAMILIES
 from agentevalops.core.schemas import (
     FAULT_KINDS,
     NEGATIVE_OUTCOMES,
@@ -636,6 +637,71 @@ def _counterfactual(
     }
 
 
+def _perturbation(
+    item: dict[str, Any], here: str, done: Mapping[str, Scenario]
+) -> tuple[Scenario, dict[str, Any]]:
+    """A perturbation scenario is its base with the task text varied at run
+    time (docs/adr/0006 D6; testing-framework 6.1.1): it takes the base's
+    case, expectations, environment and description, and declares the
+    family and intensity. Its own trajectories are the base's, since a
+    scripted agent does not read the text."""
+    block = _mapping(item.get("perturbation"), here, "perturbation")
+    unknown = sorted(set(block) - {"base", "family", "intensity"})
+    if unknown:
+        raise DomainPackError(f"{here}: perturbation has unknown key(s) {unknown}")
+    base_id = _text(block.get("base"), here, "perturbation.base")
+    if base_id not in done:
+        raise DomainPackError(
+            f"{here}: perturbation.base '{base_id}' is not a scenario declared "
+            "before this one"
+        )
+    base = done[base_id]
+    if base.variant:
+        raise DomainPackError(
+            f"{here}: perturbation.base '{base_id}' is itself a variant"
+        )
+    family = _text(block.get("family"), here, "perturbation.family")
+    if family not in PERTURBATION_FAMILIES:
+        raise DomainPackError(
+            f"{here}: perturbation.family must be one of {list(PERTURBATION_FAMILIES)}"
+        )
+    intensity = block.get("intensity", 0.15)
+    if (
+        isinstance(intensity, bool)
+        or not isinstance(intensity, (int, float))
+        or not 0 < intensity <= 1
+    ):
+        raise DomainPackError(
+            f"{here}: perturbation.intensity must be a number in (0, 1]"
+        )
+    for key in (
+        "case_id",
+        "approvals",
+        "faults",
+        "injections",
+        "expected",
+        "description",
+    ):
+        if key in item:
+            raise DomainPackError(
+                f"{here}: a perturbation takes its {key} from the base; do not "
+                "declare it"
+            )
+    variant = {
+        "kind": "perturbation",
+        "base": base_id,
+        "family": family,
+        "intensity": float(intensity),
+    }
+    return base, {
+        "expected": dict(base.expected),
+        "variant": variant,
+        "environment": dict(base.environment),
+        "allowed_evaluators": set(base.applicable_evaluators) | {"policy"},
+        "description": base.description,
+    }
+
+
 def _scenarios(
     raw: dict[str, Any],
     cases: Mapping[str, Case],
@@ -662,9 +728,14 @@ def _scenarios(
             raise DomainPackError(
                 f"{here}: outcome_group must be one of {list(NEGATIVE_OUTCOMES)}"
             )
-        if "counterfactual" in item:
+        if "counterfactual" in item and "perturbation" in item:
+            raise DomainPackError(f"{here}: a scenario is one variant, not two")
+        if "counterfactual" in item or "perturbation" in item:
             done = {s.scenario_id: s for s in scenarios}
-            base, derived = _counterfactual(item, here, done, cases, names)
+            if "counterfactual" in item:
+                base, derived = _counterfactual(item, here, done, cases, names)
+            else:
+                base, derived = _perturbation(item, here, done)
             evaluators = _strings(
                 item.get("applicable_evaluators"), here, "applicable_evaluators"
             )
@@ -674,7 +745,7 @@ def _scenarios(
                     f"{here}: applicable_evaluators {strangers} are not the base's "
                     "evaluators or 'policy'"
                 )
-            if "policy" not in evaluators:
+            if "counterfactual" in item and "policy" not in evaluators:
                 raise DomainPackError(
                     f"{here}: a counterfactual applies the policy evaluator (its "
                     "consistency rule)"
@@ -711,12 +782,13 @@ def _scenarios(
             if known_good[-1].kind != "finish":
                 raise DomainPackError(f"{here}: known_good must end with 'finish'")
             known_bad = _script(item.get("known_bad"), here, "known_bad")
+            description = derived.get("description") or " ".join(
+                _text(item.get("description"), here, "description").split()
+            )
             scenarios.append(
                 Scenario(
                     scenario_id=scenario_id,
-                    description=" ".join(
-                        _text(item.get("description"), here, "description").split()
-                    ),
+                    description=description,
                     category=category,
                     known_good=tuple(_as_data(step) for step in known_good),
                     known_bad=tuple(_as_data(step) for step in known_bad),

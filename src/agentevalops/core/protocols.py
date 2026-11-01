@@ -162,6 +162,21 @@ class KnownGoodSource(Protocol):
 
 
 @runtime_checkable
+class Perturbing(Protocol):
+    """A benchmark that can vary a task's text under a derived seed
+    (docs/adr/0006 D6; ROADMAP R26). Optional, like ``KnownGoodSource``:
+    the orchestrator checks for it with ``isinstance`` and, for each task
+    run, hands the runner ``perturb(task, seed)`` with the seed D6 derives
+    from ``RunConfig.seed``, the task id and the repetition. A task the
+    benchmark does not vary comes back unchanged.
+    """
+
+    def perturb(self, task: TaskSpec, seed: int) -> TaskSpec:
+        """*task* as the agent should see it for this seed."""
+        ...
+
+
+@runtime_checkable
 class DomainPack(Protocol):
     """A domain's scenarios and the tool environment they run against
     (docs/adr/0006 D23). Discovered through the ``agentevalops.domain_packs``
@@ -176,9 +191,7 @@ class DomainPack(Protocol):
         """Every scenario the pack offers, in a fixed order."""
         ...
 
-    def build_environment(
-        self, scenario: Scenario, task_id: TaskId
-    ) -> ToolEnvironment:
+    def build_environment(self, scenario: Scenario, task_id: TaskId) -> ToolEnvironment:
         """A fresh environment for one run of *scenario*."""
         ...
 
