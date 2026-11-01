@@ -29,6 +29,23 @@ point at a different interpreter than the one the project is installed into.
 The `Makefile` targets invoke bare executables and are therefore only safe with
 the env already activated. Prefer the absolute-path commands above.
 
+**Every gate or CI command chain starts with `set -o pipefail`.** Without it a
+pipeline's exit status is its last command's, so `pytest ... | tail -1` or
+`ruff check ... | grep ...` reports success whatever the gate found, and a
+`&&` chain behind it carries on. Twice on 2026-11-01 a pipeline masked a
+failing exit status this way: once ruff findings were committed and had to be
+amended before the push, once a failing test was. With `set -o pipefail` the
+pipeline fails when any stage fails. If the output must be trimmed, write it to
+a file, keep the status, and tail the file afterwards:
+
+```bash
+set -o pipefail
+$ENV/bin/python -m pytest -q > /tmp/pytest.txt 2>&1; rc=$?; tail -1 /tmp/pytest.txt
+test "$rc" -eq 0 || exit "$rc"
+```
+
+(`status` is read-only in zsh; use another name.)
+
 ## Local env vs CI — a known divergence
 
 CI installs **only** `.[dev]` (see `.github/workflows/ci.yml`). Sai2511 is a
