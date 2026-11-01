@@ -9,6 +9,26 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **ADR-0007 Proposed — the evidence pack, bundle format 0.6** (2026-11-01;
+  `docs/adr/0007-evidence-pack.md`). Fifteen decisions, the owner's choices
+  on seven: every 0.6 bundle carries `test_plan.json`, `controls.json` and
+  `evidence_report.md`, an undeclared run writing a minimal plan (plan
+  version 2); `POLICY_VERDICT` retired and `EVALUATOR_SCORE` emitted per
+  evaluation result; `git_sha` means the package's tree from 0.6, with
+  `package_sha256` (line endings normalised) and the caller's directory kept
+  as `invocation_git_sha`/`invocation_git_dirty`; the 112 process entries as
+  catalogue data under source `testing-framework`, seed scenarios citing the
+  14 direct and partial checks directly; coverage in five states from
+  evaluated scenarios with each evidencing scenario's pass^k and no
+  per-control aggregate; a deterministic Markdown report with `controls.json`
+  as the machine-readable side; `manifest.json.sig` named now so R29 adds no
+  bump. The framework PDF was re-downloaded from the Foundation's link; its
+  sha256 equals the alignment review's copy, and all 112 labels pass the
+  five-word check against it. R28 is split into two build sessions and its
+  ROADMAP row rewritten; review finding 2 recorded closed (ADR-0006 D20,
+  `36fec5b`); finding 11 decided; the 2026-10-10 drift-test finding assigned
+  to R28 (a). Documentation only.
+
 - **README rewritten for v0.3.0, with a drift guard** (2026-11-01; ROADMAP
   R31's README item, done early; `163572b`, `28b0ada`). Every statement
   checked against the tree: what the toolkit is and is not (ADR-0005 D10),
