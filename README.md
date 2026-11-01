@@ -15,6 +15,7 @@ AgentEvalOps v0.1 provides a local-first evaluation skeleton for tool-using agen
 - Deterministic evaluator, scorer, and policy checker
 - Replayable result bundles with `manifest.json` and SHA-256 checksums
 - `validate-bundle` and `replay` CLI commands
+- A system declaration that scopes a run into a pre-registered `test_plan.json`, hashed before the first task runs; repetitions with pass^k; `agentevalops gate --bundle`, which fails closed (ROADMAP R27; ADR-0005 D6)
 - CI-backed quality gates (ruff, mypy, pytest, multi-Python matrix)
 
 ## Not implemented in v0.1
@@ -234,12 +235,13 @@ Result: 2 / 3 tasks pass (67%). Policy passes ($0.00 cost).
 ```bash
 agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/agentic-baseline
 agentevalops validate-bundle --bundle runs/agentic-baseline
+agentevalops gate --bundle runs/agentic-baseline
 ```
 
 The `agentic-baseline` benchmark runs the `seed` domain pack -- synthetic
 public-sector case handling with six tools, eight seeded cases and
-eighteen scenarios across task execution, tool calling and policy
-compliance (ROADMAP R24, R25; ADR-0006) -- under four evaluators
+twenty-six scenarios across task execution, tool calling, policy
+compliance and robustness (ROADMAP R24–R26; ADR-0006) -- under four evaluators
 (`evaluators: [deterministic, tool_use, state_based, policy]`), each
 scenario declaring which apply. The `policy` evaluator judges the pack's
 rules per task from the harness records: the approval gate on every
@@ -253,6 +255,27 @@ task passes and the summary shows the verdicts by category; change it to
 bundle carries the harness's own `tool_calls.jsonl` and
 `end_states.jsonl` and each scenario's preflight result. No model is
 called.
+
+The run config's `system:` key names a system declaration
+(`configs/seed_system.yaml`; ADR-0005 D6; ROADMAP R27): the tools the
+system exposes with their permission class, data class, reversibility and
+external exposure; the level of human involvement; the intended use,
+out-of-scope uses and the owner's business metrics, which are recorded and
+repeated in the report and never evaluated; repetitions and seed; and
+optional thresholds, which may tighten the pack's and never loosen them.
+From it the run selects the scenarios (every exclusion with its reason),
+fixes each threshold with its source, and writes `test_plan.json` before
+the first task runs, hashing it into `metadata.json`; the agentic-baseline
+benchmark refuses to start without one, and `validate-bundle` fails a
+bundle whose plan was edited afterwards. Each scenario runs `repetitions`
+times and passes only if every repetition passed (pass^k; a scenario with
+a repetition that was not evaluated is not evaluated, with its cause).
+`agentevalops gate --bundle` then holds the bundle to its plan and fails
+closed: exit 0 when every hard gate is met over scenarios that were all
+evaluated, 1 when any hard gate is below its threshold or has a
+not-evaluated scenario, 2 when it cannot judge (no registered plan, an
+invalid or tampered bundle). A comparative threshold is reported and never
+gates.
 
 ## Toy benchmark scenario reference
 
@@ -308,7 +331,11 @@ run_id: "my-run"          # required; used as bundle folder key
 agent_id: "mock-agent-v1" # currently only mock-agent-v1 is implemented
 backend_id: "local"       # only "local"; "aws" is rejected (AWS left v0.5, ADR-0005 D3)
 max_concurrent_tasks: 1
-benchmark_id: "toy"       # only "toy" is implemented
+benchmark_id: "toy"       # "toy", or "agentic-baseline" with benchmark_options.pack
+system: seed_system.yaml  # agentic-baseline only, and required for it: the system
+                          #   declaration, relative to this file (ADR-0005 D6; R27)
+repetitions: 1            # toy runs only; a declaration sets both for its run
+seed: 0
 
 resource_limits:          # enforced during the run
   max_tokens: 100000

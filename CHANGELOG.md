@@ -9,6 +9,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R27 met, except the v0.3 tag — scoping, the pre-registered test
+  plan, repetitions, pass^k, the fail-closed gate** (2026-11-01; ADR-0005
+  D6; ADR-0006 D6, D18, D20; slices `9d3795c` … `551bbe7`). Every exit
+  criterion is checked against running code in `tests/test_r27_exit.py`:
+  editing `test_plan.json` after the run fails `validate-bundle`; a
+  threshold set in `system.yaml` overrides the pack's and is recorded
+  with its source; the declared intended use and business metrics appear
+  unchanged in the plan; pass^k at k = 5 on a seeded flaky agent is the
+  analytic value; `gate` exits non-zero when every evaluated task passed
+  but one gated task was not evaluated. The five entries below are its
+  parts. The tag is the owner's decision.
+
 - **R27 slice 4 — `agentevalops gate --bundle`, fail-closed** (2026-11-01;
   ADR-0005 D6; testing-framework 5.9.1; `efde5b0`). `plans/gate.py`
   judges a bundle against the plan it registered: a hard gate is met only

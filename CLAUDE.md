@@ -93,7 +93,7 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-01, Sai2608, clean checkout at `efde5b0`)
+## Baseline (verified 2026-11-01, Sai2608, clean checkout at `551bbe7`)
 
 - ruff: clean
 - mypy: clean (74 source files) — dedicated `anthropic.*` and `openai.*`
@@ -110,10 +110,10 @@ in this repo.
   independence contract and every forbidden contract; with R27 slice 2,
   `plans` joined the middle tier and every forbidden contract -- each edit
   proven against an injected violation first)
-- pytest: 1342 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1349 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  97.87% branch coverage on a clean checkout (`efde5b0`). The suite takes about
-  75 seconds, under three minutes with coverage; the exit tests replay the whole
+  97.89% branch coverage on a clean checkout (`551bbe7`). The suite takes about
+  100 seconds, under four minutes with coverage; the exit tests replay the whole
   seed pack through the orchestrator several times, and the pack loader uses
   PyYAML's C parser when the wheel has it. Any untracked *or uncommitted*
   change raises it: tests reach the code-drift "inconclusive" warning

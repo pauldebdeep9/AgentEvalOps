@@ -53,6 +53,15 @@ checksums the file when present. D18's YAML path and D6's seeds in the
 plan are built; the pack's thresholds arrive through an optional
 `Thresholded` protocol, checked like `Perturbing`.
 
+**R27 built — 2026-11-01** (`9d3795c` … `551bbe7`; ROADMAP R27 met,
+except the v0.3 tag). D18's YAML path and D6's seeds in the plan as the
+R27 notes above say; pass^k grouped by `task_id`, with D20's three-way
+split carried to the scenario level and every not-evaluated scenario
+naming its cause; `AgentInput.context` now carries the repetition and the
+seed. D21 held: `test_plan.json` is optional content under 0.5 and
+`summary.json` gained `pass_k` fields; the required set is unchanged and
+0.6 stays with R28. Nothing in this ADR is reversed.
+
 **R26 built — 2026-11-01** (`ae2b0ec` … `4bb7ff7`; ROADMAP R26 met). D6
 is built: declarative fault and injection schedules in
 `Scenario.environment`, applied by the in-process environment and written
