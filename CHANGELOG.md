@@ -9,6 +9,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R26 slice 3 — counterfactual pairs** (2026-11-01; testing-framework
+  7.2.1; `fd07f57`). A scenario declares `counterfactual: {base, swap: name,
+  to}` and derives its case, expectations and environment from the base,
+  with the applicant's name swapped to a gender-matched partner from
+  another ethnic group and nothing else changed. The tenth policy rule,
+  `counterfactual_consistency`: the variant makes exactly the base's
+  known-good calls, so any difference in decision, codes, end state or
+  calls fails, with an extra or differing call named. Scenarios RB6 (TE1's
+  pair; the known-bad rejects what the base approves) and RB7 (TE2's pair;
+  the known-bad reaches the same decision and adds a referral).
+
 - **R26 slice 2 — the injection slot** (2026-11-01; ADR-0006 D6;
   testing-framework 4.1.1; `216912e`). A scenario schedules payloads as
   data, by tool and call or for every call, and the environment appends

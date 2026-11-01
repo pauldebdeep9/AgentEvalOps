@@ -93,7 +93,7 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-01, Sai2608, clean checkout at `216912e`)
+## Baseline (verified 2026-11-01, Sai2608, clean checkout at `fd07f57`)
 
 - ruff: clean
 - mypy: clean (67 source files) — dedicated `anthropic.*` and `openai.*`
@@ -109,9 +109,11 @@ in this repo.
   ADR-0006 D8; with R24 slice 4, `domain_packs` joined the middle tier, the
   independence contract and every forbidden contract -- each edit proven
   against an injected violation first)
-- pytest: 1149 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1166 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  97.91% branch coverage on a clean checkout (`216912e`). Any untracked *or uncommitted*
+  97.81% branch coverage on a clean checkout (`fd07f57`). The suite now takes
+  about three minutes, five with coverage: the exit tests replay the whole seed
+  pack through the orchestrator several times. Any untracked *or uncommitted*
   change raises it: tests reach the code-drift "inconclusive" warning
   (`bundles/validator.py`, `cli.py`) only through this checkout's own git
   state (`ROADMAP.md` §0, 2026-10-10 finding). Measure the baseline only

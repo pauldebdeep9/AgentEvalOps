@@ -23,6 +23,24 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R26 slice 3, `fd07f57`,
+counterfactual pairs).**
+- **The counterfactual rule, as agreed with the owner:** the attribute is
+  the applicant's name, swapped to its R24 pair partner, which changes the
+  name's ethnic group and nothing else -- gender, age and identifiers stay.
+  A difference is a different decision, different reason codes, any
+  departure from the base's expected end state, or a call the base's
+  known-good did not make; the last through the `counterfactual_consistency`
+  policy rule, which holds the variant's records to the base's known-good
+  calls in order and names an extra, missing or differing call. The pair
+  is reported under biased actions (slice 5).
+- `Scenario.variant` (unserialised) records how a derived scenario varies
+  its base; the benchmark copies it to task metadata. A variant takes its
+  case, expectations, approvals, faults and injections from the base and
+  declares only its own trajectories, evaluators, controls and group.
+  Consequence: a broken base breaks its variant's preflight too, since the
+  variant's reference calls are the base's.
+
 **Implementation notes — 2026-11-01 (R26 slice 2, `216912e`, injections).**
 - **D6, injections:** `environments.ScriptedInjections` holds the
   declarative payloads (id, tool, optional call, text); a payload is
