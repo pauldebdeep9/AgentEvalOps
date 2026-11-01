@@ -25,7 +25,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import subprocess
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,6 +40,7 @@ from agentevalops.bundles.constants import (
     TOOL_CALLS_FILENAME,
 )
 from agentevalops.bundles.manifest import write_manifest
+from agentevalops.bundles.provenance import UNAVAILABLE, git_state
 from agentevalops.bundles.serializers import to_jsonable
 from agentevalops.core.errors import BundleError
 from agentevalops.core.schemas import (
@@ -66,7 +66,7 @@ BUNDLE_FILES: tuple[str, ...] = REQUIRED_BUNDLE_FILES
 #: replay_command.txt for the Azure resource name when
 #: ``AZURE_OPENAI_ENDPOINT`` is unset -- one sentinel string, one meaning
 #: ("cannot determine"), used everywhere a provenance value is unavailable.
-_GIT_SHA_UNAVAILABLE: str = "unavailable"
+_GIT_SHA_UNAVAILABLE: str = UNAVAILABLE
 
 
 def _azure_resource_name_from_endpoint(endpoint: str) -> str | None:
@@ -94,49 +94,11 @@ def _capture_git_provenance(cwd: Path | None = None) -> tuple[str, bool | None]:
     ``cwd`` defaults to the process's actual working directory when
     ``None`` -- this deliberately answers "is *this* invocation running
     inside a git checkout," not "is the package's own source tree a git
-    checkout" (those can differ, e.g. an installed wheel). Accepting an
-    explicit ``cwd`` is what makes this testable against a real, disposable
-    temporary git repository rather than mocking subprocess calls.
-
-    Returns ``(_GIT_SHA_UNAVAILABLE, None)`` if ``git`` is missing, times
-    out, or the directory isn't a checkout. Returns ``(sha, None)`` (not
-    ``(sha, False)``) if the SHA was found but dirty-state couldn't be
-    determined -- a fabricated "clean" is exactly the false provenance
-    claim this function exists to avoid.
+    checkout" (those can differ, e.g. an installed wheel). What format 0.5
+    records as ``git_sha``; the logic is ``provenance.git_state``, which
+    format 0.6 also points at the package's own tree (docs/adr/0007 D8).
     """
-    try:
-        sha_result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return (_GIT_SHA_UNAVAILABLE, None)
-
-    sha = sha_result.stdout.strip()
-    if sha_result.returncode != 0 or not sha:
-        return (_GIT_SHA_UNAVAILABLE, None)
-
-    try:
-        status_result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return (sha, None)
-
-    if status_result.returncode != 0:
-        return (sha, None)
-
-    dirty = bool(status_result.stdout.strip())
-    return (sha, dirty)
+    return git_state(cwd)
 
 
 class BundleWriter:

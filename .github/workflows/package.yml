@@ -26,6 +26,25 @@ jobs:
       - name: Check distribution metadata
         run: python -m twine check dist/*
 
+      # docs/adr/0007 D8: package_sha256 must identify the same code however
+      # it is installed. Install the built wheel and hash the installed
+      # package; it must equal the hash of the source tree it was built from.
+      - name: Installed wheel hashes the same as the source tree
+        run: |
+          python -m pip install dist/*.whl
+          cd "$RUNNER_TEMP"
+          python - "$GITHUB_WORKSPACE/src/agentevalops" <<'EOF'
+          import sys
+          from pathlib import Path
+          from agentevalops.bundles.provenance import package_dir, package_sha256
+          source = Path(sys.argv[1])
+          installed = package_dir()
+          assert installed != source.resolve(), f"imported from the checkout: {installed}"
+          print(f"installed {installed}: {package_sha256()}")
+          print(f"source    {source}: {package_sha256(source)}")
+          sys.exit(0 if package_sha256() == package_sha256(source) else 1)
+          EOF
+
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v4
         with:

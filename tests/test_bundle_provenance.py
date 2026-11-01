@@ -203,12 +203,13 @@ def test_git_sentinel_when_git_binary_is_missing(
     must produce the same sentinel as "not a checkout" -- never raise, and
     never fabricate a value.
     """
+    from agentevalops.bundles import provenance as provenance_module
     from agentevalops.bundles import writer as writer_module
 
     def _raise_file_not_found(*args: object, **kwargs: object) -> None:
         raise FileNotFoundError("git: command not found")
 
-    monkeypatch.setattr(writer_module.subprocess, "run", _raise_file_not_found)
+    monkeypatch.setattr(provenance_module.subprocess, "run", _raise_file_not_found)
 
     sha, dirty = writer_module._capture_git_provenance(cwd=tmp_path)
 
@@ -223,20 +224,21 @@ def test_git_sha_found_but_status_check_fails(
     after that, the SHA is still reported -- but dirty must be None, not a
     fabricated True/False, since it was never determined.
     """
+    from agentevalops.bundles import provenance as provenance_module
     from agentevalops.bundles import writer as writer_module
 
     repo = tmp_path / "repo"
     repo.mkdir()
     _init_repo(repo)
 
-    real_run = writer_module.subprocess.run
+    real_run = provenance_module.subprocess.run
 
     def _fail_status_only(cmd: list, **kwargs: object):  # type: ignore[type-arg]
         if cmd[:2] == ["git", "status"]:
             raise OSError("simulated: git status failed")
         return real_run(cmd, **kwargs)
 
-    monkeypatch.setattr(writer_module.subprocess, "run", _fail_status_only)
+    monkeypatch.setattr(provenance_module.subprocess, "run", _fail_status_only)
 
     sha, dirty = writer_module._capture_git_provenance(cwd=repo)
 
