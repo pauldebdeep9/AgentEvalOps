@@ -2,6 +2,25 @@
 
 ## Status
 
+**Amended — 2026-11-02 (owner decisions before R28 (b2)).**
+- **Decision 7 changes: the evidence argument is required.**
+  `BundleWriter.write()` takes it with no default; leaving it out is a
+  `TypeError`. A test helper builds minimal inputs -- the shipped
+  catalogue, and a descriptor for each of the summary's task ids, marked
+  selected, with no control ids -- and the 26 direct writer calls in the
+  tests use it. Reason: a default that quietly marks every control "not
+  in pack" is a silent wrong answer, and an evidence pack must never give
+  one.
+- **Decision 6, the open point closed: the Implemented and Elaboration
+  columns stay blank on purpose,** for the organisation to fill in. The
+  test that no table cell of an undeclared run's report is empty exempts
+  exactly those two columns, by name, and the report's introduction says
+  they are left for the organisation.
+- **How (b2) reaches `main`:** built on a local branch, never pushed, and
+  squashed into one commit on `main` (`git merge --squash`), so `main`
+  writes 0.5 bundles before that commit and 0.6 after it, and nothing in
+  between.
+
 **R28 (b1) built — 2026-11-02** (`fb7f657`, `77df2ef`, `8e57cde`,
 `334f1c0`; ROADMAP R28 (b1) met). Library code only; no bundle changed.
 Where the build adds to the text and the decisions below:
@@ -19,9 +38,10 @@ Where the build adds to the text and the decisions below:
   malformed optional file cannot stop its cross-file checks.
 - **D5, decision 1:** `control_coverage` takes the run's end-state records
   (`end_states=`) in write order, so a ref's index is its line.
-- **Decision 6, open:** a test that no cell of an undeclared run's report
-  is empty conflicts with D7's blank Implemented and Elaboration cells. The
-  renderer's test exempts those two columns; the owner should confirm.
+- **Decision 6:** a test that no cell of an undeclared run's report is
+  empty conflicted with D7's blank Implemented and Elaboration cells; the
+  test exempts those two columns. Confirmed by the owner, 2026-11-02 (the
+  amendment above).
 
 **Amended — 2026-11-02 (owner decisions before R28 (b)).** Eight
 decisions. They change D5, D6, D7, D13 and the build order; nothing else.
