@@ -506,6 +506,41 @@ def _faults(raw: Any, where: str) -> list[dict[str, Any]]:
     return schedule
 
 
+def _injections(raw: Any, where: str) -> list[dict[str, Any]]:
+    """The scenario's injected payloads (docs/adr/0006 D6): each has a
+    unique id, names a seed tool, carries a non-empty payload, and applies
+    to one call or, without ``call``, to every call."""
+    schedule: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for position, item in enumerate(_items(raw, where, "injections") if raw else []):
+        ident = _text(item.get("id"), where, f"injections[{position}].id")
+        if ident in seen:
+            raise DomainPackError(
+                f"{where}: injections[{position}] id '{ident}' repeats"
+            )
+        seen.add(ident)
+        tool = _text(item.get("tool"), where, f"injections[{position}].tool")
+        if tool not in _TOOL_NAMES:
+            raise DomainPackError(
+                f"{where}: injections[{position}] names '{tool}', which is not a "
+                "seed tool"
+            )
+        payload = _text(item.get("payload"), where, f"injections[{position}].payload")
+        call = item.get("call")
+        if call is not None and (
+            isinstance(call, bool) or not isinstance(call, int) or call < 1
+        ):
+            raise DomainPackError(
+                f"{where}: injections[{position}].call must be a positive integer "
+                "or absent"
+            )
+        entry: dict[str, Any] = {"id": ident, "tool": tool, "payload": payload}
+        if call is not None:
+            entry["call"] = call
+        schedule.append(entry)
+    return schedule
+
+
 def _scenarios(
     raw: dict[str, Any],
     cases: Mapping[str, Case],
@@ -556,6 +591,7 @@ def _scenarios(
         known_bad = _script(item.get("known_bad"), here, "known_bad")
         approvals = _approvals(item.get("approvals", {}), here)
         faults = _faults(item.get("faults"), here)
+        injections = _injections(item.get("injections"), here)
 
         expected = _mapping(item.get("expected"), here, "expected")
         unknown_keys = sorted(set(expected) - _EXPECTED_KEYS)
@@ -636,7 +672,11 @@ def _scenarios(
                 applicable_evaluators=evaluators,
                 control_ids=control_ids,
                 expected={"case_id": case_id, **expected},
-                environment={"approvals": approvals, "faults": faults},
+                environment={
+                    "approvals": approvals,
+                    "faults": faults,
+                    "injections": injections,
+                },
                 outcome_group=outcome_group,
             )
         )
@@ -718,6 +758,7 @@ class SeedDomainPack:
             self._policy,
             approvals=scenario.environment.get("approvals"),
             faults=scenario.environment.get("faults"),
+            injections=scenario.environment.get("injections"),
         )
 
     # -- the data, for tests and later rows -------------------------------

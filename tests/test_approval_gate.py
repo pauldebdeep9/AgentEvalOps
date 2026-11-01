@@ -311,4 +311,4 @@ def test_approvals_are_optional_for_scenarios_without_irreversible_calls(
 
     pack = SeedDomainPack(_edited(tmp_path, drop))
     te5 = {s.scenario_id: s for s in pack.scenarios()}["TE5"]
-    assert te5.environment == {"approvals": {}, "faults": []}
+    assert te5.environment == {"approvals": {}, "faults": [], "injections": []}

@@ -17,6 +17,7 @@ from agentevalops.core.schemas import (
 from agentevalops.core.types import TaskId
 from agentevalops.environments.approver import Approver, ScriptedApprover
 from agentevalops.environments.faults import ScriptedFaults, garble
+from agentevalops.environments.injections import ScriptedInjections
 
 #: A tool's implementation: arguments in, the text the agent sees out.
 #: Raising is allowed -- the environment turns it into a recorded error.
@@ -46,7 +47,9 @@ class InProcessToolEnvironment:
     Scheduled ``faults`` (D6) apply after the gate: a timeout or transient
     error stops the call before the handler, a malformed result lets the
     handler run and garbles what the agent sees; every fault is written to
-    the record's ``fault`` field.
+    the record's ``fault`` field. Scheduled ``injections`` (D6) append
+    their payload to a result that executed without error, and the record's
+    ``injections`` field names them.
     """
 
     def __init__(
@@ -59,6 +62,7 @@ class InProcessToolEnvironment:
         end_state: Callable[[], EndState] | None = None,
         approver: Approver | None = None,
         faults: ScriptedFaults | None = None,
+        injections: ScriptedInjections | None = None,
     ) -> None:
         names = [spec.name for spec in specs]
         reserved = sorted(set(names) & RESERVED_TOOL_NAMES)
@@ -81,6 +85,7 @@ class InProcessToolEnvironment:
         self._end_state = end_state
         self._approver: Approver = approver or ScriptedApprover()
         self._faults = faults or ScriptedFaults()
+        self._injections = injections or ScriptedInjections()
         self._calls: dict[str, int] = {}
         self._records: list[ToolCallRecord] = []
 
@@ -93,6 +98,7 @@ class InProcessToolEnvironment:
         executed = False
         approval: ToolApproval = "not_required"
         fault: str | None = None
+        injected: tuple[str, ...] = ()
         self._calls[name] = self._calls.get(name, 0) + 1
         if spec is None or handler is None:
             content, error = f"error: unknown tool '{name}'", True
@@ -122,6 +128,12 @@ class InProcessToolEnvironment:
                 content, error = f"error: {exc}", True
             if fault == "malformed_result" and not error:
                 content = garble(content)
+            if not error:
+                # docs/adr/0006 D6: injected content rides on the result.
+                payloads = self._injections.payloads_for(name, self._calls[name])
+                if payloads:
+                    content = "\n".join([content, *(text for _, text in payloads)])
+                    injected = tuple(ident for ident, _ in payloads)
         self._records.append(
             ToolCallRecord(
                 task_id=self._task_id,
@@ -136,6 +148,7 @@ class InProcessToolEnvironment:
                 error=error,
                 approval=approval,
                 fault=fault,
+                injections=injected,
             )
         )
         return ToolResult(content=content, error=error)

@@ -19,9 +19,11 @@ from agentevalops.domain_packs.seed.schema import Case, Policy
 from agentevalops.environments import (
     ApprovalSchedule,
     FaultSchedule,
+    InjectionSchedule,
     InProcessToolEnvironment,
     ScriptedApprover,
     ScriptedFaults,
+    ScriptedInjections,
     ToolHandler,
 )
 
@@ -315,10 +317,12 @@ def build_environment(
     repetition: int = 0,
     approvals: ApprovalSchedule | None = None,
     faults: FaultSchedule | None = None,
+    injections: InjectionSchedule | None = None,
 ) -> InProcessToolEnvironment:
     """A fresh case-handling environment for one task run, its approver
-    scripted with the scenario's *approvals* (docs/adr/0006 D5) and its
-    faults with the scenario's *faults* (D6)."""
+    scripted with the scenario's *approvals* (docs/adr/0006 D5), its faults
+    and injected payloads with the scenario's *faults* and *injections*
+    (D6)."""
     state = CaseHandling(cases, policy)
     return InProcessToolEnvironment(
         task_id,
@@ -328,4 +332,5 @@ def build_environment(
         end_state=state.snapshot,
         approver=ScriptedApprover(approvals),
         faults=ScriptedFaults(faults),
+        injections=ScriptedInjections(injections),
     )
