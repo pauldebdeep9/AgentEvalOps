@@ -8,6 +8,7 @@ from enum import Enum
 from pathlib import Path
 
 import pytest
+from bundle_inputs import minimal_evidence
 
 from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION, MANIFEST_FILENAME
 from agentevalops.bundles.serializers import to_jsonable
@@ -106,6 +107,7 @@ def _write_bundle(tmp_path: Path) -> Path:
         all_events=events,
         policy_spec=policy_spec,
         config_name="configs/test.yaml",
+        evidence=minimal_evidence(summary),
     )
 
 
@@ -132,6 +134,7 @@ def test_write_returns_output_directory(tmp_path: Path) -> None:
         run_config=run_config,
         summary=summary,
         all_events=events,
+        evidence=minimal_evidence(summary),
     )
     assert result == expected
 
@@ -140,7 +143,10 @@ def test_creates_nested_output_directory(tmp_path: Path) -> None:
     deep = tmp_path / "a" / "b" / "c"
     run_config, summary, events, _ = _make_bundle_inputs()
     BundleWriter(deep).write(
-        run_config=run_config, summary=summary, all_events=events
+        run_config=run_config,
+        summary=summary,
+        all_events=events,
+        evidence=minimal_evidence(summary),
     )
     assert deep.exists()
 
@@ -218,7 +224,10 @@ def test_policy_json_is_null_when_no_policy_verdict(tmp_path: Path) -> None:
     run_config, summary, events, _ = _make_bundle_inputs()
     summary.policy_verdict = None
     bundle_dir = BundleWriter(tmp_path / "b").write(
-        run_config=run_config, summary=summary, all_events=events
+        run_config=run_config,
+        summary=summary,
+        all_events=events,
+        evidence=minimal_evidence(summary),
     )
     data = json.loads((bundle_dir / "policy.json").read_text())
     assert data is None
@@ -266,11 +275,17 @@ def test_overwrite_false_raises_on_existing_bundle(tmp_path: Path) -> None:
 def test_overwrite_true_replaces_existing_bundle(tmp_path: Path) -> None:
     run_config, summary, events, policy_spec = _make_bundle_inputs()
     first = BundleWriter(tmp_path / "bundle").write(
-        run_config=run_config, summary=summary, all_events=events
+        run_config=run_config,
+        summary=summary,
+        all_events=events,
+        evidence=minimal_evidence(summary),
     )
     # should NOT raise
     BundleWriter(tmp_path / "bundle", overwrite=True).write(
-        run_config=run_config, summary=summary, all_events=events
+        run_config=run_config,
+        summary=summary,
+        all_events=events,
+        evidence=minimal_evidence(summary),
     )
     assert (first / "metadata.json").exists()
 
@@ -281,7 +296,10 @@ def test_write_to_empty_existing_dir_is_allowed(tmp_path: Path) -> None:
     run_config, summary, events, _ = _make_bundle_inputs()
     # no exception — dir exists but no bundle files present
     BundleWriter(empty).write(
-        run_config=run_config, summary=summary, all_events=events
+        run_config=run_config,
+        summary=summary,
+        all_events=events,
+        evidence=minimal_evidence(summary),
     )
 
 

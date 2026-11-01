@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from bundle_inputs import minimal_evidence, with_score_events
 
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
@@ -99,7 +100,8 @@ def _make_bundle(tmp_path: Path, run_id_str: str = "val-test-001") -> Path:
     BundleWriter(bundle_dir).write(
         run_config=run_config,
         summary=summary,
-        all_events=events,
+        all_events=with_score_events(summary, events),
+        evidence=minimal_evidence(summary),
     )
     return bundle_dir
 

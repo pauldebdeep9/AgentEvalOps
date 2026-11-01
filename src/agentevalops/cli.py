@@ -99,13 +99,25 @@ def run(
     # first -- what the declaration selects, against which thresholds -- and
     # the benchmark runs only the selected scenarios. A declaration that
     # contradicts the pack, or selects nothing, stops the run here.
+    from agentevalops.plans import scenario_descriptors, undeclared_plan
+
     plan: RunPlan | None = None
+    # docs/adr/0007 D5 (decision 5 of 2026-11-02): every scenario of the
+    # pack, selected or not, described before the benchmark is narrowed to
+    # the plan's selection; a benchmark without a pack is described from
+    # its own tasks.
+    pack = getattr(benchmark, "pack", None)
+    descriptors = (
+        scenario_descriptors(pack) if pack is not None else _descriptors(benchmark)
+    )
     if loaded.system is not None:
         from agentevalops.plans import build_plan
 
         pack = getattr(benchmark, "pack", None)
-        if pack is None or not hasattr(benchmark, "scenarios") or not hasattr(
-            benchmark, "narrowed"
+        if (
+            pack is None
+            or not hasattr(benchmark, "scenarios")
+            or not hasattr(benchmark, "narrowed")
         ):
             typer.echo(
                 f"Configuration error: benchmark '{loaded.benchmark_id}' has no "
@@ -139,6 +151,15 @@ def run(
             )
             raise typer.Exit(code=1)
         benchmark = benchmark.narrowed(plan.selected)
+    else:
+        # docs/adr/0007 D2: a run with no declaration registers a plan that
+        # says so, selecting the tasks it will run.
+        plan = undeclared_plan(
+            loaded.run_config,
+            [str(t.task_id) for t in benchmark.list_tasks()],
+            config_name=str(config),
+            evaluators=loaded.evaluators,
+        )
     # docs/adr/0006 D13: every evaluator the run configures, in order.
     evaluators = [
         default_registry.get(KIND_EVALUATOR, name)() for name in loaded.evaluators
@@ -181,18 +202,25 @@ def run(
                     err=True,
                 )
                 raise typer.Exit(code=1)
-            typer.echo(
-                f"Test plan registered: {output / TEST_PLAN_FILENAME} "
-                f"(sha256 {plan_sha256[:12]}...); {len(plan.selected)} of "
-                f"{len(plan.selected) + len(plan.excluded)} scenarios selected"
-            )
+            if plan.declared:
+                typer.echo(
+                    f"Test plan registered: {output / TEST_PLAN_FILENAME} "
+                    f"(sha256 {plan_sha256[:12]}...); {len(plan.selected)} of "
+                    f"{len(plan.selected) + len(plan.excluded)} scenarios selected"
+                )
+            else:
+                typer.echo(
+                    f"Test plan registered: {output / TEST_PLAN_FILENAME} "
+                    f"(sha256 {plan_sha256[:12]}...); no system declared, "
+                    f"{len(plan.selected)} tasks"
+                )
         # Streams traces to <output>/traces.jsonl as they happen, so a hard
         # kill mid-run still leaves a readable (unsealed) partial trace even
         # if the best-effort write below can't run at all (e.g. SIGKILL).
         store: InMemoryTraceStore | LocalTraceStore = LocalTraceStore(output)
     else:
         store = InMemoryTraceStore()
-        if plan is not None:
+        if plan.declared:
             typer.echo(
                 f"No --output: the test plan is not written ({len(plan.selected)} "
                 f"of {len(plan.selected) + len(plan.excluded)} scenarios selected)"
@@ -233,6 +261,8 @@ def run(
         if output is None:
             return
         from agentevalops.bundles.writer import BundleWriter
+        from agentevalops.catalogue import load_catalogue
+        from agentevalops.plans import EvidenceInputs
 
         # overwrite=True: `output` was already validated above to be free of
         # bundle files before the run started; the only file that may exist
@@ -252,6 +282,12 @@ def run(
             scenario_info=scenario_info,
             test_plan_sha256=plan_sha256,
             plan=plan,
+            evidence=EvidenceInputs(catalogue=load_catalogue(), scenarios=descriptors),
+            runner_id=loaded.runner_id,
+            mock_trajectory=(
+                loaded.mock_trajectory if loaded.runner_id == "mock" else None
+            ),
+            evaluators=loaded.evaluators,
         )
         suffix = "" if status == "sealed" else f" (status: {status})"
         typer.echo(f"Bundle written to: {output.resolve()}{suffix}")
@@ -606,6 +642,23 @@ def _task_info(benchmark: Any) -> dict[str, dict[str, Any]]:
         if entry:
             info[str(task.task_id)] = entry
     return info
+
+
+def _descriptors(benchmark: Any) -> dict[str, dict[str, Any]]:
+    """Coverage descriptors for a benchmark with no domain pack, from its
+    tasks' metadata: a task cites the control ids its metadata names, if
+    any (docs/adr/0007 D5)."""
+    descriptors: dict[str, dict[str, Any]] = {}
+    for task in benchmark.list_tasks():
+        meta = task.metadata
+        variant = meta.get("variant")
+        descriptors[str(task.task_id)] = {
+            "category": meta.get("category"),
+            "outcome_group": meta.get("outcome_group"),
+            "variant": dict(variant) if isinstance(variant, dict) else {},
+            "control_ids": [str(c) for c in meta.get("control_ids") or []],
+        }
+    return descriptors
 
 
 def _categories(scenario_info: dict[str, dict[str, Any]]) -> dict[str, str]:

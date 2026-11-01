@@ -28,8 +28,14 @@ from pathlib import Path
 #: REQUIRED_BUNDLE_FILES below stops being a single flat tuple; see
 #: required_files_for_version(). All bumps are additive/backward-compatible
 #: (old bundles simply lack what's new; nothing new is required of them),
-#: so all are minor bumps, not breaks.
-BUNDLE_FORMAT_VERSION: str = "0.5"
+#: so all are minor bumps, not breaks. Bumped 0.5 -> 0.6 in R28 for the
+#: evidence pack (docs/adr/0007): test_plan.json, controls.json and
+#: evidence_report.md required; evaluator.score events; runner fields in
+#: config.json; package_sha256 and the invocation fields in metadata.json,
+#: where git_sha now means the package's own tree; manifest.json.sig
+#: recognised. TraceEventKind.POLICY_VERDICT left the enum with this bump
+#: -- no bundle ever carried one.
+BUNDLE_FORMAT_VERSION: str = "0.6"
 
 #: Older format versions that validate_bundle()/BundleReader still accept,
 #: even though BundleWriter never produces them anymore. "0.1" bundles
@@ -42,7 +48,7 @@ BUNDLE_FORMAT_VERSION: str = "0.5"
 #: bundles on disk, as of 2026-08-05, cover "0.1"); do not add a new legacy
 #: entry speculatively.
 LEGACY_BUNDLE_FORMAT_VERSIONS: frozenset[str] = frozenset(
-    {"0.1", "0.2", "0.3", "0.4"}
+    {"0.1", "0.2", "0.3", "0.4", "0.5"}
 )
 
 #: Files that every bundle up through format "0.3" must contain. Kept as a
@@ -85,15 +91,21 @@ TOOL_CALLS_FILENAME: str = "tool_calls.jsonl"
 END_STATES_FILENAME: str = "end_states.jsonl"
 
 #: The pre-registered test plan (docs/adr/0005 D6; ROADMAP R27): written
-#: and hashed before the first task runs, by a run with a system
-#: declaration. Optional under format 0.5 -- the manifest checksums it when
-#: present and metadata.json's ``test_plan_sha256`` holds it to the hash
-#: registered before the run -- and required from 0.6 (R28, ADR-0007).
+#: and hashed before the first task runs. Optional under format 0.5, where
+#: only a run with a system declaration wrote one; required from 0.6, where
+#: a run without one writes a minimal plan that says so (docs/adr/0007 D2).
+#: metadata.json's ``test_plan_sha256`` holds it to the registered hash.
 TEST_PLAN_FILENAME: str = "test_plan.json"
 
-#: Control coverage (docs/adr/0007 D5): written and required from format
-#: 0.6 (R28 (b2)). Named now so the reader can load it when present.
+#: Control coverage (docs/adr/0007 D5) and the evidence report (D7):
+#: required from format 0.6.
 CONTROLS_FILENAME: str = "controls.json"
+EVIDENCE_REPORT_FILENAME: str = "evidence_report.md"
+
+#: A detached signature over manifest.json (docs/adr/0007 D1): optional,
+#: recognised from 0.6, signed and verified from R29. Never listed in the
+#: manifest and never checksummed -- it signs the manifest itself.
+MANIFEST_SIGNATURE_FILENAME: str = "manifest.json.sig"
 
 #: Files required by format "0.5" -- the 0.4 set plus the harness streams.
 REQUIRED_BUNDLE_FILES_0_5: tuple[str, ...] = (
@@ -102,10 +114,20 @@ REQUIRED_BUNDLE_FILES_0_5: tuple[str, ...] = (
     END_STATES_FILENAME,
 )
 
+#: Files required by format "0.6" -- the 0.5 set plus the plan and the
+#: evidence pack's two files (docs/adr/0007 D1).
+REQUIRED_BUNDLE_FILES_0_6: tuple[str, ...] = (
+    *REQUIRED_BUNDLE_FILES_0_5,
+    TEST_PLAN_FILENAME,
+    CONTROLS_FILENAME,
+    EVIDENCE_REPORT_FILENAME,
+)
+
 #: Required files by declared version, for versions that grew the set.
 _REQUIRED_FILES_BY_VERSION: dict[str, tuple[str, ...]] = {
     "0.4": REQUIRED_BUNDLE_FILES_0_4,
     "0.5": REQUIRED_BUNDLE_FILES_0_5,
+    "0.6": REQUIRED_BUNDLE_FILES_0_6,
 }
 
 
@@ -120,8 +142,9 @@ def required_files_for_version(version: str | None) -> tuple[str, ...]:
     exactly the cases where we can't even tell what a bundle claims to be)
     is the conservative default: the pre-"0.4" flat set, the same
     requirement every version through "0.3" already had. A bundle that
-    explicitly declares "0.4" or "0.5" is held to that version's larger set
-    (0.4 added ``replay_command.txt``; 0.5 the two harness streams) -- a
+    explicitly declares "0.4", "0.5" or "0.6" is held to that version's
+    larger set (0.4 added ``replay_command.txt``; 0.5 the two harness
+    streams; 0.6 the plan, ``controls.json`` and ``evidence_report.md``) -- a
     bundle declaring some other/unrecognized version string falls back to
     the flat set rather than guessing.
     """

@@ -25,6 +25,7 @@ call this; until then it is library code.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from agentevalops.catalogue import Catalogue, Control
@@ -72,6 +73,20 @@ _VERDICT_FIELDS = (
     "pass_k",
     "not_evaluated_cause",
 )
+
+
+@dataclass(frozen=True)
+class EvidenceInputs:
+    """What ``BundleWriter.write()`` needs beyond the run to write
+    ``controls.json`` and ``evidence_report.md`` (docs/adr/0007 D13,
+    decision 7 as amended 2026-11-02): the catalogue the run's control ids
+    resolve against, and a descriptor for every scenario of the pack --
+    selected or not -- keyed by scenario id (``scenario_descriptors``).
+    Required, with no default: a writer that guessed would mark every
+    control "not in pack", a silent wrong answer."""
+
+    catalogue: Catalogue
+    scenarios: Mapping[str, Mapping[str, Any]]
 
 
 def scenario_descriptors(pack: DomainPack) -> dict[str, dict[str, Any]]:
@@ -211,8 +226,9 @@ def control_coverage(
     2026-11-02).
 
     *scenarios* maps every scenario id in the pack -- selected or not -- to
-    its descriptors (``scenario_descriptors``). *plan* is ``None`` for a run
-    that declared nothing: nothing is selected, and each pack scenario's
+    its descriptors (``scenario_descriptors``). For a run that declared
+    nothing -- an undeclared plan (``declared: false``) or *plan* ``None``
+    -- nothing is selected against a declaration, and each scenario's
     reason is ``NO_PLAN``. *plan_sha256* is the hash registered before the
     run. *end_states* are the run's end-state records in the order
     ``end_states.jsonl`` holds them, so an end-state ref's ``index`` is the
@@ -222,10 +238,12 @@ def control_coverage(
     ``selected`` or not with its ``reason``; a selected one carries its
     pass^k counts, an excluded one ``None`` in their place.
     """
-    declared = plan is not None
-    selected: tuple[str, ...] = plan.selected if plan is not None else ()
+    declared = plan is not None and plan.declared
+    selected: tuple[str, ...] = plan.selected if plan is not None and declared else ()
     exclusions = (
-        {e.scenario_id: e.reason for e in plan.excluded} if plan is not None else {}
+        {e.scenario_id: e.reason for e in plan.excluded}
+        if plan is not None and declared
+        else {}
     )
     by_task = {r.task_id: r for r in summary.pass_k}
     end_state_lines = {

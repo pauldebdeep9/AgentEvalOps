@@ -335,7 +335,8 @@ def test_a_bundle_without_a_plan_cannot_be_judged(tmp_path: Path) -> None:
     )
     result = _gate(out)
     assert result.exit_code == EXIT_CANNOT_JUDGE == 2
-    assert "no registered plan" in result.output
+    # From 0.6 the toy run registers the undeclared plan (docs/adr/0007 D2).
+    assert "no test plan was declared" in result.output
     assert "GATE: CANNOT JUDGE" in result.output
 
 
@@ -368,15 +369,25 @@ def test_a_run_outside_its_plan_cannot_be_judged(tmp_path: Path) -> None:
     bundle = _bundle(tmp_path, _config(tmp_path))
     plan_path = bundle / TEST_PLAN_FILENAME
     doc = json.loads(plan_path.read_text(encoding="utf-8"))
+    dropped = doc["selected"][-1]
     doc["selected"] = doc["selected"][:-1]
     plan_path.write_text(json.dumps(doc), encoding="utf-8")
-    write_manifest(bundle)
     metadata_path = bundle / "metadata.json"
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     import hashlib
 
-    metadata["test_plan_sha256"] = hashlib.sha256(plan_path.read_bytes()).hexdigest()
+    registered = hashlib.sha256(plan_path.read_bytes()).hexdigest()
+    metadata["test_plan_sha256"] = registered
     metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+    # From 0.6 controls.json is tied to the plan too (docs/adr/0007 D1):
+    # re-tie it, so the bundle is structurally valid and only the gate's
+    # own check -- the run executed a scenario its plan did not select --
+    # is left to catch it.
+    controls_path = bundle / "controls.json"
+    controls = json.loads(controls_path.read_text(encoding="utf-8"))
+    controls["plan_sha256"] = registered
+    controls["scenarios"][dropped]["selected"] = False
+    controls_path.write_text(json.dumps(controls), encoding="utf-8")
     write_manifest(bundle)
     assert validate_bundle(bundle).valid
     result = _gate(bundle)

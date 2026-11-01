@@ -34,6 +34,18 @@ OUTCOME_LABELS: dict[str, str] = {
 }
 
 
+#: The runner whose trajectories are scripted (docs/adr/0007 D4): a report
+#: says so by ``runner_id``, never by the agent's name.
+SCRIPTED_RUNNER = "mock"
+
+#: Decision 6 of 2026-11-02: all either report says about a run with no
+#: system declaration's plan.
+NO_PLAN_SENTENCE = (
+    "No test plan was declared before this run, so nothing here was "
+    "registered in advance."
+)
+
+
 def format_pass_rate(summary: RunSummary) -> str:
     """Render a run's pass rate as a string that cannot be misread.
 
@@ -72,8 +84,12 @@ def render_report(
     config_name: str = "",
     scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
     plan: RunPlan | None = None,
+    runner_id: str | None = None,
 ) -> str:
     """Return a plain Markdown report string for a completed run.
+
+    *runner_id* is the runner that produced the run (``config.json``,
+    docs/adr/0007 D4); ``"mock"`` marks it scripted.
 
     Sections: header, run summary, task results, outcomes by kind of harm
     (when *scenario_info* gives the tasks' outcome groups -- a domain pack's
@@ -146,7 +162,11 @@ def render_report(
         lines.extend(repeatability_section(summary, scenario_info or {}))
 
     if scenario_info:
-        lines.extend(outcome_section(run_config, summary, scenario_info))
+        lines.extend(
+            outcome_section(
+                run_config, summary, scenario_info, runner_id == SCRIPTED_RUNNER
+            )
+        )
 
     if plan is not None:
         lines.extend(plan_section(plan, summary))
@@ -262,11 +282,12 @@ def outcome_section(
     run_config: RunConfig,
     summary: RunSummary,
     scenario_info: Mapping[str, Mapping[str, Any]],
+    scripted: bool = False,
 ) -> list[str]:
     """The five groups in §1.2.2's order, each with its scenarios' rows and
     no total across groups -- ADR-0005 forbids a composite. A group with no
-    executed scenario says so rather than disappearing."""
-    scripted = "mock" in str(run_config.agent_id)
+    executed scenario says so rather than disappearing. *scripted* comes
+    from the run's ``runner_id`` (docs/adr/0007 D4), not the agent's name."""
     by_run = {(str(r.task_id), r.repetition): r for r in summary.task_results}
     lines = ["## Outcomes by kind of harm (MGF-Agentic §1.2.2)", ""]
     lines.append(
@@ -386,8 +407,11 @@ def plan_section(plan: RunPlan, summary: RunSummary) -> list[str]:
     """The pre-registered plan repeated (docs/adr/0005 D6; testing-framework
     3.6.1, 3.7.1): the declaration's intended use, out-of-scope uses and
     business metrics, never evaluated; the selection; and each threshold
-    with its source and the run's standing against it."""
+    with its source and the run's standing against it. A plan that declared
+    nothing gets one sentence and nothing else (decision 6 of 2026-11-02)."""
     system = plan.system
+    if not plan.declared or system is None:
+        return ["## Test plan", "", NO_PLAN_SENTENCE, ""]
     lines = ["## Test plan (pre-registered)", ""]
     lines.append(
         "Registered as `test_plan.json` before the first task ran; its sha256 is "
@@ -462,8 +486,9 @@ class MarkdownReportGenerator:
         config_name: str = "",
         scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
         plan: RunPlan | None = None,
+        runner_id: str | None = None,
     ) -> str:
         """Produce a report.  Returns the report content as a string."""
         return render_report(
-            run_config, summary, trace, config_name, scenario_info, plan
+            run_config, summary, trace, config_name, scenario_info, plan, runner_id
         )

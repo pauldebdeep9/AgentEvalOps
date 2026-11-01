@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+from bundle_inputs import minimal_evidence
+
 from agentevalops.agents.mock_runner import MockAgentRunner
 from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
 from agentevalops.bundles.reader import BundleReader
@@ -77,6 +79,7 @@ def _run_and_write(
         all_events=store.events(loaded.run_config.run_id),
         policy_spec=loaded.policy_spec,
         config_name=str(config_path),
+        evidence=minimal_evidence(summary),
     )
     return summary, bundle_dir
 
@@ -225,9 +228,11 @@ def test_trace_limit_notes_mention_events() -> None:
 
 
 def test_trace_limit_trace_event_count() -> None:
-    """Default runner: 3 events/task × 2 tasks = 6."""
+    """Default runner: 3 agent events/task × 2 tasks = 6, and from format
+    0.6 one evaluator.score event per task's evaluation = 8. The policy's
+    ceiling of 5 counts the 6 agent events only (docs/adr/0007 D3)."""
     summary, _ = _run(Path("configs/toy_trace_limit.yaml"))
-    assert summary.trace_event_count == 6
+    assert summary.trace_event_count == 8
 
 
 def test_trace_limit_bundle_written(tmp_path: Path) -> None:

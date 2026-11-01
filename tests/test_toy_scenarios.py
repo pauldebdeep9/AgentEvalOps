@@ -94,7 +94,8 @@ def test_smoke_pass_rate_is_one() -> None:
 def test_smoke_trace_event_count() -> None:
     """3 events per task (plan + final_answer + terminal) × 2 tasks = 6."""
     summary = _run_scenario("smoke")
-    assert summary.trace_event_count == 6
+    # 3 agent events and 1 evaluator.score event per task (format 0.6).
+    assert summary.trace_event_count == 8
 
 
 def test_smoke_total_tokens() -> None:
@@ -152,7 +153,8 @@ def test_failure_policy_passes_zero_cost() -> None:
 def test_failure_trace_event_count() -> None:
     """Happy-mode runner: 3 events per task × 2 tasks = 6."""
     summary = _run_scenario("failure")
-    assert summary.trace_event_count == 6
+    # 3 agent events and 1 evaluator.score event per task (format 0.6).
+    assert summary.trace_event_count == 8
 
 
 # ---------------------------------------------------------------------------
@@ -211,10 +213,12 @@ def test_trace_limit_policy_fails() -> None:
 
 
 def test_trace_limit_actual_event_count() -> None:
-    """6 events > 5 max → fails."""
+    """6 agent events > 5 max → fails; the 2 evaluator.score events are not
+    agent activity and do not count (docs/adr/0007 D3)."""
     policy = PolicySpec(policy_id="p", max_trace_events=5)
     summary = _run_scenario("trace_limit", policy_spec=policy)
-    assert summary.trace_event_count == 6
+    # 3 agent events and 1 evaluator.score event per task (format 0.6).
+    assert summary.trace_event_count == 8
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +257,8 @@ def test_mixed_policy_passes_with_no_cost() -> None:
 def test_mixed_trace_event_count() -> None:
     """3 events per task × 3 tasks = 9."""
     summary = _run_scenario("mixed")
-    assert summary.trace_event_count == 9
+    # 3 agent events and 1 evaluator.score event per task (format 0.6).
+    assert summary.trace_event_count == 12
 
 
 # ---------------------------------------------------------------------------

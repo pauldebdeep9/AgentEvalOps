@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from agentevalops.core.schemas import (
+    HARNESS_EVENT_KINDS,
     AgentOutput,
     EvaluatorContext,
     PolicySpec,
@@ -29,7 +30,10 @@ class BasicPolicyChecker:
        ``AGENT_TOOL_CALL`` events: an attempt counts whether or not it
        ran, and a claim the harness never saw does not.
     3. **Trace event ceiling** — if ``PolicySpec.max_trace_events`` is set
-       and ``len(trace)`` exceeds it, the verdict is ``FAIL``.
+       and the trace's agent events exceed it, the verdict is ``FAIL``. The
+       harness's own events (``HARNESS_EVENT_KINDS``: ``evaluator.score``
+       from format 0.6) are not counted: the ceiling is on the agent's
+       activity, not on what the harness writes about it (docs/adr/0007 D3).
     4. **Least privilege** — if ``PolicySpec.allowed_tool_ids`` is
        non-empty, a recorded call to any tool outside it is a violation
        and the verdict is ``FAIL`` (D15; R25).
@@ -84,10 +88,13 @@ class BasicPolicyChecker:
                         f"denied tool '{record.tool_name}' at {_where(record)}"
                     )
 
-        # --- check 3: trace event ceiling ---------------------------------
-        if policy.max_trace_events is not None and len(trace) > policy.max_trace_events:
+        # --- check 3: trace event ceiling (agent events only, D3) ----------
+        agent_events = sum(e.kind not in HARNESS_EVENT_KINDS for e in trace)
+        ceiling = policy.max_trace_events
+        if ceiling is not None and agent_events > ceiling:
             notes_parts.append(
-                f"trace has {len(trace)} events, exceeds max {policy.max_trace_events}"
+                f"trace has {agent_events} agent events, exceeds max "
+                f"{policy.max_trace_events}"
             )
 
         # --- check 4: least privilege (D15) --------------------------------

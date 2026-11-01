@@ -17,6 +17,17 @@ from __future__ import annotations
 
 from agentevalops.bundles.reader import LoadedBundle
 
+#: The first format whose traces carry one ``evaluator.score`` event per
+#: evaluation result (docs/adr/0007 D3).
+_SCORE_EVENTS_FROM = (0, 6)
+
+
+def _version(value: object) -> tuple[int, ...] | None:
+    try:
+        return tuple(int(part) for part in str(value).split("."))
+    except ValueError:
+        return None
+
 
 class LocalReplayVerifier:
     """Cross-file consistency checks over a ``LoadedBundle``.
@@ -101,6 +112,24 @@ class LocalReplayVerifier:
                     if isinstance(e, dict)
                 }
             )
+        # ---- 0.6: one evaluator.score event per evaluation result (D3) ---
+        # The bundle's declared format: the manifest's, as the validator
+        # reads it, else metadata.json's.
+        manifest = self._bundle.manifest or {}
+        version = _version(
+            manifest.get("bundle_format_version")
+            or self._bundle.metadata.get("schema_version")
+        )
+        if version is not None and version >= _SCORE_EVENTS_FROM:
+            scores = sum(
+                1 for e in self._bundle.traces if e.get("kind") == "evaluator.score"
+            )
+            if scores != eval_count:
+                errors.append(
+                    f"evaluator.score event count mismatch: {scores} in "
+                    f"traces.jsonl, {eval_count} entries in evaluations.json"
+                )
+
         meta_task_count = self._bundle.metadata.get("task_count")
         if isinstance(meta_task_count, int) and meta_task_count != evaluated_runs:
             errors.append(

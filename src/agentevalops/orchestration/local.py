@@ -314,20 +314,18 @@ class LocalOrchestrator:
             task: TaskSpec, repetition: int
         ) -> tuple[TaskRunResult, list[TraceEvent]]:
             if str(task.task_id) in defective:
-                return (
-                    _not_evaluated_result(
-                        task,
-                        InfrastructureError(defective[str(task.task_id)]),
-                        [],
-                        self._evaluators,
-                        repetition=repetition,
-                        stage="preflight",
-                        cause="environment_defect",
-                    ),
+                result = _not_evaluated_result(
+                    task,
+                    InfrastructureError(defective[str(task.task_id)]),
                     [],
+                    self._evaluators,
+                    repetition=repetition,
+                    stage="preflight",
+                    cause="environment_defect",
                 )
+                return await self._scored(result, [])
             async with semaphore:
-                return await self._run_task(task, repetition)
+                return await self._scored(*await self._run_task(task, repetition))
 
         all_events: list[TraceEvent] = []
 
@@ -403,6 +401,41 @@ class LocalOrchestrator:
         )
 
         return summary
+
+    async def _scored(
+        self, result: TaskRunResult, events: list[TraceEvent]
+    ) -> tuple[TaskRunResult, list[TraceEvent]]:
+        """Append one ``evaluator.score`` event per evaluation result to the
+        task run's stream, in ``evaluations`` order, and count them in its
+        ``event_count`` (docs/adr/0007 D3, format 0.6). Every result counts:
+        the real ones, the synthesised ``configuration`` ones and the
+        not-evaluated ones, so the trace says what ``evaluations.json``
+        says. ``step_index`` continues the task's own stream."""
+        run_id: RunId = self._config.run_id
+        step = max((e.step_index for e in events), default=-1) + 1
+        evaluations = result.evaluations or [result.evaluation]
+        for offset, evaluation in enumerate(evaluations):
+            event = TraceEvent(
+                run_id=run_id,
+                step_index=step + offset,
+                kind=TraceEventKind.EVALUATOR_SCORE,
+                payload={
+                    "evaluator_id": evaluation.evaluator_id,
+                    "evaluator_kind": evaluation.evaluator_kind,
+                    "applicable": evaluation.applicable,
+                    "evaluated": evaluation.evaluated,
+                    "passed": evaluation.passed,
+                    "score": evaluation.score,
+                    "not_evaluated_cause": evaluation.not_evaluated_cause,
+                    "refs": list(evaluation.refs),
+                },
+                task_id=result.task_id,
+                repetition=result.repetition,
+            )
+            await self._trace_store.append(run_id, event)
+            events.append(event)
+        result.event_count = len(events)
+        return result, events
 
     async def _run_task(
         self, task: TaskSpec, repetition: int = 0

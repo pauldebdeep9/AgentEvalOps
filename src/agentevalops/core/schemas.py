@@ -40,7 +40,10 @@ class TraceEventKind(str, Enum):
 
     Using a closed enum rather than free-form strings makes trace analysis
     a typed problem rather than a regex problem.  New values require a
-    schema_version bump.
+    schema_version bump; so does removing one. ``policy.verdict`` was
+    removed at format 0.6 (docs/adr/0007 D3): a policy verdict is one
+    judgement over the whole run, ``policy.json`` holds it, and no bundle
+    ever carried one as an event.
     """
 
     AGENT_PLAN = "agent.plan"
@@ -50,8 +53,15 @@ class TraceEventKind(str, Enum):
     AGENT_FINAL_ANSWER = "agent.final_answer"
     AGENT_TERMINAL = "agent.terminal"
     EVALUATOR_SCORE = "evaluator.score"
-    POLICY_VERDICT = "policy.verdict"
     COST_TICK = "cost.tick"
+
+
+#: Events the harness writes about a task run, not the agent's activity
+#: (docs/adr/0007 D3): one ``evaluator.score`` per evaluation result, from
+#: format 0.6. The policy's trace ceiling does not count them.
+HARNESS_EVENT_KINDS: frozenset[TraceEventKind] = frozenset(
+    {TraceEventKind.EVALUATOR_SCORE}
+)
 
 
 class Verdict(str, Enum):
@@ -486,6 +496,12 @@ class RunPlan:
     written and hashed before the first task runs, so what the run was
     going to test, and against what, is fixed before it tests it.
 
+    Plan version "2" (docs/adr/0007 D2, D9): every 0.6 bundle has a plan.
+    ``declared`` is ``False`` for a run without a system declaration, whose
+    plan has no ``system``, ``system_path`` or pack, selects the tasks the
+    run executes and sets no threshold. ``data_sha256`` is the pack's data
+    hash (``DataHashed``), ``None`` when the pack names none.
+
     ``system`` is the declaration as loaded; ``scenarios_sha256`` is the
     hash of the pack's scenarios as loaded, so a pack edit after the plan
     shows. ``seeds`` holds every (task, repetition) seed D6 derives.
@@ -501,11 +517,11 @@ class RunPlan:
     config_name: str
     created_at: str
     platform_version: str
-    system: SystemDeclaration
-    system_path: str
-    pack_id: str
-    pack_version: str
-    scenarios_sha256: str
+    system: SystemDeclaration | None
+    system_path: str | None
+    pack_id: str | None
+    pack_version: str | None
+    scenarios_sha256: str | None
     repetitions: int
     seed: int
     evaluators: tuple[str, ...]
@@ -515,6 +531,8 @@ class RunPlan:
     seeds: dict[str, tuple[int, ...]]
     thresholds: tuple[PlanThreshold, ...]
     uncovered_tools: tuple[str, ...]
+    declared: bool = True
+    data_sha256: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -909,3 +927,12 @@ class ResultBundleMetadata:
     #: before the first task ran; ``None`` for a run without a plan. The
     #: validator holds the file to it.
     test_plan_sha256: str | None = None
+    #: docs/adr/0007 D8 (format 0.6): the sha256 of the package's ``.py``
+    #: and ``.yaml`` files, which identifies the code on any install. From
+    #: 0.6 ``git_sha``/``git_dirty`` describe the package's own source tree
+    #: (an editable install's checkout; ``"unavailable"`` otherwise), and
+    #: ``invocation_git_sha``/``invocation_git_dirty`` the caller's working
+    #: directory -- what ``git_sha`` meant up to 0.5. Never compared.
+    package_sha256: str | None = None
+    invocation_git_sha: str = "unavailable"
+    invocation_git_dirty: bool | None = None

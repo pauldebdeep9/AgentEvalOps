@@ -9,24 +9,96 @@ from pathlib import Path
 from typing import Any
 
 from agentevalops.bundles.constants import TEST_PLAN_FILENAME
-from agentevalops.core.schemas import RunPlan
+from agentevalops.core.schemas import (
+    BusinessMetric,
+    DeclaredTool,
+    PlanExclusion,
+    PlanThreshold,
+    RunPlan,
+    SystemDeclaration,
+    ThresholdOverride,
+)
 
-__all__ = ["plan_sha256", "read_plan", "to_document", "write_plan"]
+__all__ = [
+    "plan_from_document",
+    "plan_sha256",
+    "read_plan",
+    "to_document",
+    "write_plan",
+]
 
 
 def to_document(plan: RunPlan) -> dict[str, Any]:
     """The plan as the JSON document ``test_plan.json`` holds: the dataclass
-    as data, with the pack's identity gathered under ``pack`` and the
-    declaration's own hash lifted to ``system_sha256``. Plain JSON types
-    only, so the file is readable without this package."""
+    as data, with the pack's identity and data hash gathered under ``pack``
+    and the declaration's own hash lifted to ``system_sha256``. An
+    undeclared plan (``declared: false``, plan version "2") has ``null``
+    for ``system``, ``system_path``, ``system_sha256`` and ``pack``. Plain
+    JSON types only, so the file is readable without this package."""
     data = dataclasses.asdict(plan)
-    data["pack"] = {
+    pack = {
         "pack_id": data.pop("pack_id"),
         "pack_version": data.pop("pack_version"),
         "scenarios_sha256": data.pop("scenarios_sha256"),
+        "data_sha256": data.pop("data_sha256"),
     }
-    data["system_sha256"] = plan.system.sha256
+    data["pack"] = None if pack["pack_id"] is None else pack
+    data["system_sha256"] = None if plan.system is None else plan.system.sha256
     return data
+
+
+def plan_from_document(doc: dict[str, Any]) -> RunPlan:
+    """The ``RunPlan`` a ``test_plan.json`` document holds -- the inverse of
+    ``to_document``, so a reader of a bundle (the evidence report rendered
+    again, R29's ``rescore``) works from the plan as registered. Reads plan
+    versions "1" and "2"; a version "1" plan was always declared."""
+    system = doc.get("system")
+    declaration = None
+    if isinstance(system, dict):
+        declaration = SystemDeclaration(
+            system_id=system["system_id"],
+            pack_id=system["pack_id"],
+            involvement=system["involvement"],
+            tools=tuple(DeclaredTool(**tool) for tool in system["tools"]),
+            intended_use=system["intended_use"],
+            out_of_scope=tuple(system.get("out_of_scope") or ()),
+            business_metrics=tuple(
+                BusinessMetric(**metric)
+                for metric in system.get("business_metrics") or ()
+            ),
+            repetitions=system.get("repetitions", 1),
+            seed=system.get("seed", 0),
+            thresholds=tuple(
+                ThresholdOverride(**override)
+                for override in system.get("thresholds") or ()
+            ),
+            sha256=system.get("sha256", ""),
+        )
+    pack = doc.get("pack") or {}
+    requested = doc.get("requested")
+    return RunPlan(
+        plan_version=doc["plan_version"],
+        run_id=doc["run_id"],
+        config_name=doc["config_name"],
+        created_at=doc["created_at"],
+        platform_version=doc["platform_version"],
+        system=declaration,
+        system_path=doc.get("system_path"),
+        pack_id=pack.get("pack_id"),
+        pack_version=pack.get("pack_version"),
+        scenarios_sha256=pack.get("scenarios_sha256"),
+        repetitions=doc["repetitions"],
+        seed=doc["seed"],
+        evaluators=tuple(doc.get("evaluators") or ()),
+        requested=None if requested is None else tuple(requested),
+        selected=tuple(doc.get("selected") or ()),
+        excluded=tuple(PlanExclusion(**e) for e in doc.get("excluded") or ()),
+        seeds={k: tuple(v) for k, v in (doc.get("seeds") or {}).items()},
+        thresholds=tuple(PlanThreshold(**t) for t in doc.get("thresholds") or ()),
+        uncovered_tools=tuple(doc.get("uncovered_tools") or ()),
+        declared=doc.get("declared", True),
+        data_sha256=pack.get("data_sha256"),
+    )
 
 
 def write_plan(directory: Path, plan: RunPlan) -> str:

@@ -30,7 +30,6 @@ from agentevalops import __version__
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
     MANIFEST_FILENAME,
-    TEST_PLAN_FILENAME,
     required_files_for_version,
 )
 
@@ -102,9 +101,9 @@ def generate_manifest(bundle_dir: Path) -> dict[str, Any]:
     """
     required = required_files_for_version(BUNDLE_FORMAT_VERSION)
     files: dict[str, dict[str, Any]] = {}
-    # The test plan is checksummed when present (docs/adr/0005 D6; optional
-    # under 0.5, so it never joins ``required_files``).
-    for filename in (*required, TEST_PLAN_FILENAME):
+    # From 0.6 the plan is a required file like any other (docs/adr/0007
+    # D1). manifest.json.sig is never here: it signs this manifest.
+    for filename in required:
         path = bundle_dir / filename
         if path.exists():
             size = path.stat().st_size

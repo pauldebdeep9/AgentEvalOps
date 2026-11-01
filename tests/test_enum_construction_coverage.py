@@ -26,7 +26,9 @@ even though some of its members are more "process" than "outcome"
 scoping this check to only the two enums already known to have the problem
 would have missed ``AGENT_OBSERVATION``/``EVALUATOR_SCORE``/
 ``POLICY_VERDICT`` — this test found those three itself, the first time it
-was written.
+was written. With format 0.6 (docs/adr/0007 D3) ``EVALUATOR_SCORE`` left
+the allowlist by being constructed (one event per evaluation result) and
+``POLICY_VERDICT`` by being removed from the enum.
 
 Detection method: does the literal text ``EnumClassName.MEMBER_NAME``
 appear anywhere in a non-test ``.py`` file under ``src/agentevalops/``,
@@ -82,15 +84,6 @@ _ALLOWLIST: dict[type, frozenset[str]] = {
             # benchmark (SWE-bench, later)" -- a richer agent loop's
             # natural companion event, distinct from AGENT_TOOL_RESULT.
             "AGENT_OBSERVATION",
-            # ROADMAP.md §0's 2026-08-04 entry: orchestration/local.py's
-            # run() computes RunSummary.score_result but never emits a
-            # corresponding trace event. No roadmap week assigned; found
-            # while building this test, not previously tracked.
-            "EVALUATOR_SCORE",
-            # Same gap, the policy-check half -- see the same ROADMAP.md
-            # §0 2026-08-04 entry. run() computes RunSummary.policy_verdict
-            # but never emits one of these either.
-            "POLICY_VERDICT",
         }
     ),
     Verdict: frozenset(),  # WARN wired 2026-08-03; nothing reserved here.

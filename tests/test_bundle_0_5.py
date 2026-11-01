@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from bundle_inputs import minimal_evidence
 
 from agentevalops.agents.mock_runner import MockAgentRunner
 from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
@@ -114,6 +115,7 @@ def _bundle(tmp_path: Path, orch: LocalOrchestrator) -> tuple[Path, RunSummary]:
         benchmark_options={"scenario": "smoke"},
         tool_calls=orch.tool_call_records,
         end_states=orch.end_states,
+        evidence=minimal_evidence(summary),
     )
     return out, summary
 
@@ -131,11 +133,12 @@ def _toy_bundle(tmp_path: Path, **kw: Any) -> tuple[Path, RunSummary]:
 # ---------------------------------------------------------------------------
 
 
-def test_fresh_bundle_is_0_5_and_validates(tmp_path: Path) -> None:
+def test_a_fresh_bundle_carries_the_0_5_streams_and_validates(tmp_path: Path) -> None:
+    """0.5's streams stay required at 0.6 (docs/adr/0007 D1)."""
     out, _ = _toy_bundle(tmp_path)
     manifest = json.loads((out / MANIFEST_FILENAME).read_text())
-    assert BUNDLE_FORMAT_VERSION == "0.5"
-    assert manifest["bundle_format_version"] == "0.5"
+    assert BUNDLE_FORMAT_VERSION == "0.6"
+    assert manifest["bundle_format_version"] == "0.6"
     for name in (TOOL_CALLS_FILENAME, END_STATES_FILENAME):
         assert name in manifest["required_files"]
         assert (out / name).exists()

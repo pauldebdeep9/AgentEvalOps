@@ -11,7 +11,6 @@ import pytest
 
 from agentevalops.catalogue import CatalogueError, load_catalogue
 from agentevalops.catalogue.loader import (
-    BUNDLE_0_6_FILES,
     CLASSIFICATIONS,
     SCENARIO_CLASSES,
 )
@@ -454,26 +453,6 @@ def test_later_entries_name_their_version_and_evidenced_ones_their_pointers() ->
             assert all(e.startswith("artefact:") for e in control.evidence)
         else:
             assert control.evidence == ()
-
-
-def test_bundle_0_6_files_are_the_0_5_set_and_adr_0007s_additions() -> None:
-    """The list the loader checks pointers against cannot drift from the
-    bundle's own. Until R28 (b) adds them to ``bundles.constants``, the 0.6
-    additions are named here as ADR-0007 D1 names them."""
-    from agentevalops.bundles.constants import (
-        MANIFEST_FILENAME,
-        TEST_PLAN_FILENAME,
-        required_files_for_version,
-    )
-
-    assert BUNDLE_0_6_FILES == {
-        *required_files_for_version("0.5"),
-        TEST_PLAN_FILENAME,
-        "controls.json",
-        "evidence_report.md",
-        MANIFEST_FILENAME,
-        "manifest.json.sig",
-    }
 
 
 def test_the_shipped_file_loads_alone(tmp_path: Path) -> None:

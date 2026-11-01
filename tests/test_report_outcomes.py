@@ -143,8 +143,15 @@ def test_a_counterfactual_row_reports_its_pair_and_whether_it_differs() -> None:
 
 
 def test_a_perturbation_row_on_a_scripted_run_says_it_is_not_agent_evidence() -> None:
+    """Scripted is the run's runner_id (docs/adr/0007 D4), never the agent's
+    name: an agent called "mock-..." on a model-backed runner is not
+    scripted, and a scripted run under any agent name is."""
     summary = RunSummary(run_id=RunId("r"), task_results=[_result("RB8", passed=True)])
-    scripted = "\n".join(outcome_section(_config("mock-agent-v1"), summary, INFO))
+    named_mock = "\n".join(outcome_section(_config("mock-agent-v1"), summary, INFO))
+    assert "scripted trajectory" not in named_mock
+    scripted = "\n".join(
+        outcome_section(_config("any-agent"), summary, INFO, scripted=True)
+    )
     assert (
         "TE1's text under typos_punctuation; run on a scripted trajectory" in scripted
     )

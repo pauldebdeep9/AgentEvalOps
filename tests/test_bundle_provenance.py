@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from bundle_inputs import minimal_evidence
 
 from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION
 from agentevalops.bundles.writer import BundleWriter, _capture_git_provenance
@@ -36,6 +37,7 @@ def test_model_backed_bundle_names_its_model(tmp_path: Path) -> None:
         summary=RunSummary(run_id=loaded.run_config.run_id),
         all_events=[],
         policy_spec=loaded.policy_spec,
+        evidence=minimal_evidence(),
     )
 
     config_data = json.loads((bundle_dir / "config.json").read_text(encoding="utf-8"))
@@ -61,6 +63,7 @@ def test_mock_backed_bundle_records_no_model(tmp_path: Path) -> None:
         summary=RunSummary(run_id=run_config.run_id),
         all_events=[],
         policy_spec=PolicySpec(policy_id="default"),
+        evidence=minimal_evidence(),
     )
     config_data = json.loads((bundle_dir / "config.json").read_text(encoding="utf-8"))
     assert "model" in config_data["run_config"]
@@ -102,6 +105,7 @@ def test_azure_openai_bundle_names_deployment_and_api_version(
         summary=RunSummary(run_id=loaded.run_config.run_id),
         all_events=[],
         policy_spec=loaded.policy_spec,
+        evidence=minimal_evidence(),
     )
 
     config_data = json.loads(
@@ -137,6 +141,7 @@ def test_non_azure_bundle_records_no_deployment(tmp_path: Path) -> None:
         summary=RunSummary(run_id=run_config.run_id),
         all_events=[],
         policy_spec=PolicySpec(policy_id="default"),
+        evidence=minimal_evidence(),
     )
     config_data = json.loads(
         (bundle_dir / "config.json").read_text(encoding="utf-8")
@@ -282,6 +287,7 @@ def test_bundle_metadata_carries_real_git_provenance_in_this_repo(
         summary=RunSummary(run_id=run_config.run_id),
         all_events=[],
         policy_spec=PolicySpec(policy_id="default"),
+        evidence=minimal_evidence(),
     )
     metadata = json.loads((bundle_dir / "metadata.json").read_text(encoding="utf-8"))
     assert metadata["git_sha"] != "unavailable"
@@ -313,6 +319,7 @@ def test_metadata_and_manifest_version_strings_agree(tmp_path: Path) -> None:
         summary=RunSummary(run_id=run_config.run_id),
         all_events=[],
         policy_spec=PolicySpec(policy_id="default"),
+        evidence=minimal_evidence(),
     )
     metadata = json.loads((bundle_dir / "metadata.json").read_text(encoding="utf-8"))
     manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))

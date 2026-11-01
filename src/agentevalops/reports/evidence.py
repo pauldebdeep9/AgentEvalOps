@@ -28,20 +28,17 @@ from typing import Any
 
 from agentevalops.catalogue import Catalogue, Control
 from agentevalops.core.schemas import RunPlan, RunSummary
-from agentevalops.reports.markdown import plan_section
+from agentevalops.reports.markdown import (
+    NO_PLAN_SENTENCE,
+    SCRIPTED_RUNNER,
+    plan_section,
+)
 
-#: The runner whose trajectories are scripted (docs/adr/0007 D4, D7).
-SCRIPTED_RUNNER = "mock"
 SCRIPTED_SENTENCE = (
     "This run played scripted trajectories; it is not evidence of an "
     "agent's behaviour until a model-backed run (ROADMAP R30)."
 )
 SCRIPTED_TAG = "(scripted)"
-#: Decision 6 of 2026-11-02: what a report says for a run with no plan.
-NO_PLAN_SENTENCE = (
-    "No test plan was declared before this run, so nothing here was "
-    "registered in advance."
-)
 EVERY_SCENARIO = "every scenario in the plan"
 #: This project's names for the other sources' sections.
 _SOURCE_HEADINGS = {"mgf-agentic": "MGF-Agentic", "starter-kit": "Starter Kit"}
@@ -198,7 +195,7 @@ def _header(
     lines = [f"# Evidence report — {run_id}", ""]
     lines.append(f"- Run: `{run_id}`")
     lines.append(f"- Created: {created_at} (the run's, from `metadata.json`)")
-    if plan is not None:
+    if plan is not None and plan.system is not None:
         lines.append(f"- System: `{plan.system.system_id}`")
         lines.append(f"- Pack: `{plan.pack_id}` {plan.pack_version}")
     lines.append(f"- Runner: `{runner_id}`")
@@ -209,7 +206,7 @@ def _header(
             f"is tagged {SCRIPTED_TAG}.",
             "",
         ]
-    if plan is None:
+    if plan is None or not plan.declared:
         lines += [NO_PLAN_SENTENCE, ""]
     return lines
 
@@ -387,7 +384,7 @@ def _limits(declared: bool) -> list[str]:
         "system."
     )
     if not declared:
-        lines.append(f"- {NO_PLAN_SENTENCE}")
+        lines.append("- No scenario was selected against a declaration.")
     lines.append("")
     return lines
 
@@ -411,16 +408,16 @@ def render_evidence_report(
     *runner_id* is ``mock`` the scripted-run sentence is in the header and
     each cell with evidence from the run carries the ``(scripted)`` tag.
     """
-    declared = bool(controls["declared"]) and plan is not None
+    declared = bool(controls["declared"]) and plan is not None and plan.declared
     scripted = runner_id == SCRIPTED_RUNNER
     entries: Mapping[str, Mapping[str, Any]] = {
         c["id"]: c for c in controls["controls"]
     }
     lines = _header(controls, plan, runner_id, created_at)
     lines += _about()
-    if plan is not None:
+    if plan is not None and declared:
         lines += plan_section(plan, summary)
-    lines += _scenarios_table(controls, plan, scripted)
+        lines += _scenarios_table(controls, plan, scripted)
     lines += _principle_tables(catalogue, entries, declared, scripted)
     lines += _source_sections(catalogue, entries, scripted)
     lines += _sources(controls)

@@ -43,8 +43,10 @@ from agentevalops.core.types import (
 
 
 class TestTraceEventKind:
-    def test_nine_members(self) -> None:
-        assert len(TraceEventKind) == 9
+    def test_eight_members(self) -> None:
+        """``policy.verdict`` left with format 0.6 (docs/adr/0007 D3)."""
+        assert len(TraceEventKind) == 8
+        assert "policy.verdict" not in {k.value for k in TraceEventKind}
 
     def test_values_are_stable(self) -> None:
         assert TraceEventKind.AGENT_PLAN.value == "agent.plan"
@@ -54,7 +56,6 @@ class TestTraceEventKind:
         assert TraceEventKind.AGENT_FINAL_ANSWER.value == "agent.final_answer"
         assert TraceEventKind.AGENT_TERMINAL.value == "agent.terminal"
         assert TraceEventKind.EVALUATOR_SCORE.value == "evaluator.score"
-        assert TraceEventKind.POLICY_VERDICT.value == "policy.verdict"
         assert TraceEventKind.COST_TICK.value == "cost.tick"
 
     def test_is_str_subclass(self) -> None:

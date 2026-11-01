@@ -36,7 +36,7 @@ from datetime import datetime, timezone
 from agentevalops import __version__
 from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.perturbation import derive_seed
-from agentevalops.core.protocols import DomainPack, Thresholded
+from agentevalops.core.protocols import DataHashed, DomainPack, Thresholded
 from agentevalops.core.schemas import (
     MGF_CATEGORIES,
     PlanExclusion,
@@ -50,10 +50,13 @@ from agentevalops.core.schemas import (
 from agentevalops.core.scripts import parse_script
 from agentevalops.core.types import TaskId
 
-__all__ = ["PLAN_VERSION", "build_plan", "select"]
+__all__ = ["PLAN_VERSION", "build_plan", "select", "undeclared_plan"]
 
 #: The plan document's own version, independent of the bundle format.
-PLAN_VERSION: str = "1"
+#: "2" from format 0.6 (docs/adr/0007 D2): ``declared``, ``pack.data_sha256``,
+#: and ``system``, ``system_path`` and ``pack`` nullable. "1" plans still
+#: read and gate.
+PLAN_VERSION: str = "2"
 
 
 def _called_tools(scenario: Scenario) -> list[str]:
@@ -261,4 +264,50 @@ def build_plan(
         seeds=seeds,
         thresholds=_thresholds(declaration, pack),
         uncovered_tools=uncovered,
+        declared=True,
+        data_sha256=pack.data_sha256 if isinstance(pack, DataHashed) else None,
+    )
+
+
+def undeclared_plan(
+    run_config: RunConfig,
+    task_ids: Sequence[str],
+    *,
+    config_name: str = "",
+    evaluators: Sequence[str] = (),
+) -> RunPlan:
+    """The plan of a run with no system declaration (docs/adr/0007 D2): it
+    says nothing was declared -- no system, no pack, no threshold -- and
+    selects the tasks the run will execute, in the benchmark's order, with
+    their seeds. Registered before the first task like any plan, so every
+    0.6 bundle has one; the gate cannot judge it."""
+    repetitions = max(1, run_config.repetitions)
+    selected = tuple(str(t) for t in task_ids)
+    return RunPlan(
+        plan_version=PLAN_VERSION,
+        run_id=str(run_config.run_id),
+        config_name=config_name,
+        created_at=datetime.now(timezone.utc).isoformat(),
+        platform_version=__version__,
+        system=None,
+        system_path=None,
+        pack_id=None,
+        pack_version=None,
+        scenarios_sha256=None,
+        repetitions=repetitions,
+        seed=run_config.seed,
+        evaluators=tuple(evaluators),
+        requested=None,
+        selected=selected,
+        excluded=(),
+        seeds={
+            task_id: tuple(
+                derive_seed(run_config.seed, task_id, r) for r in range(repetitions)
+            )
+            for task_id in selected
+        },
+        thresholds=(),
+        uncovered_tools=(),
+        declared=False,
+        data_sha256=None,
     )

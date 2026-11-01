@@ -129,19 +129,29 @@ def bundles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
 
 def test_a_seed_bundle_loads_its_plan_and_streams(bundles: dict[str, Path]) -> None:
     loaded = BundleReader(bundles["seed"]).read()
-    assert loaded.metadata["schema_version"] == "0.5"
+    assert loaded.metadata["schema_version"] == "0.6"
     assert loaded.test_plan is not None
     assert loaded.test_plan["selected"][0] == "TE1"
-    assert loaded.controls is None
+    assert loaded.controls is not None
+    assert len(loaded.controls["scenarios"]) == 26
     assert len(loaded.tool_calls) > 0
     assert len(loaded.end_states) == 26
 
 
-def test_a_toy_bundle_has_no_plan(bundles: dict[str, Path]) -> None:
+def test_a_toy_bundle_has_the_undeclared_plan(bundles: dict[str, Path]) -> None:
     loaded = BundleReader(bundles["toy"]).read()
-    assert loaded.test_plan is None and loaded.controls is None
+    assert loaded.test_plan is not None
+    assert loaded.test_plan["declared"] is False
+    assert loaded.controls is not None and loaded.controls["declared"] is False
     assert isinstance(loaded.tool_calls, list)
     assert isinstance(loaded.end_states, list)
+
+
+def test_the_0_5_fixture_loads_with_no_controls() -> None:
+    fixture = ROOT / "tests/fixtures/bundles/seed-narrow-0.5"
+    loaded = BundleReader(fixture).read()
+    assert loaded.test_plan is not None and loaded.controls is None
+    assert len(loaded.tool_calls) > 0
 
 
 def test_a_bundle_before_the_streams_reads_empty(
@@ -150,7 +160,13 @@ def test_a_bundle_before_the_streams_reads_empty(
     """A seed bundle made to look like format 0.4: no plan, no streams."""
     copy = tmp_path / "bundle"
     shutil.copytree(bundles["seed"], copy)
-    for name in ("test_plan.json", "tool_calls.jsonl", "end_states.jsonl"):
+    for name in (
+        "test_plan.json",
+        "tool_calls.jsonl",
+        "end_states.jsonl",
+        "controls.json",
+        "evidence_report.md",
+    ):
         (copy / name).unlink()
     manifest = json.loads((copy / "manifest.json").read_text(encoding="utf-8"))
     manifest["bundle_format_version"] = "0.4"

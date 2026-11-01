@@ -106,7 +106,8 @@ def test_run_events_recorded_in_store() -> None:
     asyncio.run(orch.run())
     # 2 tasks × 3 events per task
     events = store.events(RunId("test-orch-001"))
-    assert len(events) == 6
+    # 3 agent events and 1 evaluator.score event per task (format 0.6).
+    assert len(events) == 8
 
 
 def test_task_results_have_expected_task_ids() -> None:
@@ -150,7 +151,7 @@ def test_run_summary_trace_event_count() -> None:
     orch, _ = _make_orchestrator()
     summary = asyncio.run(orch.run())
     # 2 tasks × 3 events each
-    assert summary.trace_event_count == 6
+    assert summary.trace_event_count == 8  # with 2 evaluator.score events
 
 
 def test_score_result_pass_rate_all_pass() -> None:
@@ -573,7 +574,9 @@ def test_prepare_infra_error_matches_w12a_shape_and_skips_run_and_teardown() -> 
     assert (
         prepare_fail_result.evaluation.score == runner_fail_result.evaluation.score
     )
-    assert prepare_fail_result.event_count == runner_fail_result.event_count == 0
+    # No agent event either way; each carries its one evaluator.score event,
+    # for its not-evaluated result (docs/adr/0007 D3).
+    assert prepare_fail_result.event_count == runner_fail_result.event_count == 1
 
     # But the failure is attributed to prepare_environment, not the runner.
     assert "prepare_environment" in (prepare_fail_result.output.error or "")

@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 import pytest
+from bundle_inputs import minimal_evidence, with_score_events
 
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
@@ -100,9 +101,10 @@ def _make_bundle(
     BundleWriter(bundle_dir).write(
         run_config=run_config,
         summary=summary,
-        all_events=events,
+        all_events=with_score_events(summary, events),
         policy_spec=PolicySpec(policy_id="default"),
         config_name="configs/toy_smoke.yaml",
+        evidence=minimal_evidence(summary),
     )
     return bundle_dir
 
@@ -259,7 +261,7 @@ def test_replay_command_git_sha_never_omitted_outside_checkout(
 
     monkeypatch.setattr(
         writer_module,
-        "_capture_git_provenance",
+        "_capture_package_provenance",
         lambda cwd=None: ("unavailable", None),
     )
     bundle_dir = _make_bundle(tmp_path, dirname="no-checkout-bundle")
@@ -278,7 +280,7 @@ def test_replay_command_git_dirty_true_never_hidden(
 
     monkeypatch.setattr(
         writer_module,
-        "_capture_git_provenance",
+        "_capture_package_provenance",
         lambda cwd=None: ("abc123def456", True),
     )
     bundle_dir = _make_bundle(tmp_path, dirname="dirty-tree-bundle")
@@ -386,10 +388,14 @@ def test_drift_warning_present_when_git_sha_differs(
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     meta["git_sha"] = "0" * 40
     meta["git_dirty"] = False
+    # git_sha meant the invocation's checkout up to format 0.5; the 0.6
+    # branch compares package_sha256 (test_drift_by_format.py).
+    meta["schema_version"] = "0.5"
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
     # Recompute checksum so this isn't reported as tampering instead.
     manifest_path = bundle_dir / MANIFEST_FILENAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["bundle_format_version"] = "0.5"
     manifest["files"]["metadata.json"] = {
         "size_bytes": meta_path.stat().st_size,
         "sha256": _sha256_file(meta_path),
@@ -421,9 +427,13 @@ def test_no_drift_warning_when_sha_matches_and_tree_clean(
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     meta["git_sha"] = "a" * 40
     meta["git_dirty"] = False
+    # git_sha meant the invocation's checkout up to format 0.5; the 0.6
+    # branch compares package_sha256 (test_drift_by_format.py).
+    meta["schema_version"] = "0.5"
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
     manifest_path = bundle_dir / MANIFEST_FILENAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["bundle_format_version"] = "0.5"
     manifest["files"]["metadata.json"] = {
         "size_bytes": meta_path.stat().st_size,
         "sha256": _sha256_file(meta_path),
@@ -483,6 +493,7 @@ def test_no_drift_check_for_bundles_predating_git_sha(tmp_path: Path) -> None:
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
     manifest_path = bundle_dir / MANIFEST_FILENAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["bundle_format_version"] = "0.5"
     manifest["files"]["metadata.json"] = {
         "size_bytes": meta_path.stat().st_size,
         "sha256": _sha256_file(meta_path),

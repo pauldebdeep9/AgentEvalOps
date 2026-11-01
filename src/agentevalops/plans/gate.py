@@ -83,7 +83,14 @@ def _rate(value: float) -> str:
 def judge(plan: dict[str, Any], summary: dict[str, Any]) -> GateResult:
     """Hold *summary*'s pass^k to *plan*'s thresholds (documents as read
     from the bundle). Raises ``GateError`` when there is nothing to judge
-    or the run did not follow its plan."""
+    or the run did not follow its plan. Reads plan versions "1" and "2"; a
+    version "2" plan with ``declared: false`` (docs/adr/0007 D2) cannot be
+    judged."""
+    if plan.get("declared") is False:
+        raise GateError(
+            "no test plan was declared before this run: nothing was registered "
+            "to judge it against (docs/adr/0007 D2)"
+        )
     thresholds = plan.get("thresholds")
     if not isinstance(thresholds, list) or not thresholds:
         raise GateError(

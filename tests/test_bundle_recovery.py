@@ -21,6 +21,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from bundle_inputs import minimal_evidence
 
 from agentevalops.bundles.constants import MANIFEST_FILENAME, REQUIRED_BUNDLE_FILES
 from agentevalops.bundles.reader import BundleReader
@@ -109,6 +110,7 @@ def _write_full_bundle(tmp_path: Path) -> Path:
         run_config=run_config,
         summary=summary,
         all_events=events,
+        evidence=minimal_evidence(summary),
     )
     return bundle_dir
 

@@ -10,10 +10,17 @@ Bundle layout (all files in *output_dir*):
     summary.json        — RunSummary (counts, cost, tokens, task results)
     report.md           — human-readable markdown report
     replay_command.txt  — structural provenance: invocation, git_sha/
-                          git_dirty, platform_version, run_id, resolved
-                          model id (docs/adr/0003-replay-semantics.md Q4).
+                          git_dirty, package_sha256, the invocation's git,
+                          platform_version, run_id, the plan's hash, the
+                          resolved model id (docs/adr/0003 Q4; 0007 D8).
                           Required starting at format "0.4"; see
                           bundles/constants.py's required_files_for_version.
+    tool_calls.jsonl, end_states.jsonl — the harness streams (format 0.5)
+    test_plan.json      — the plan, registered before the first task; from
+                          format 0.6 every bundle has one (docs/adr/0007 D2)
+    controls.json       — control coverage (0.6, docs/adr/0007 D5, D6)
+    evidence_report.md  — the testing framework's checks with evidence
+                          pointers (0.6, docs/adr/0007 D7)
     manifest.json       — bundle format version, file sizes, SHA-256 checksums
 
 The manifest is always written *last* so that its checksums cover all
@@ -25,7 +32,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -34,13 +42,20 @@ from urllib.parse import urlparse
 from agentevalops import __version__
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
+    CONTROLS_FILENAME,
     END_STATES_FILENAME,
+    EVIDENCE_REPORT_FILENAME,
     REPLAY_COMMAND_FILENAME,
     REQUIRED_BUNDLE_FILES,
     TOOL_CALLS_FILENAME,
 )
 from agentevalops.bundles.manifest import write_manifest
-from agentevalops.bundles.provenance import UNAVAILABLE, git_state
+from agentevalops.bundles.provenance import (
+    UNAVAILABLE,
+    git_state,
+    package_git_provenance,
+    package_sha256,
+)
 from agentevalops.bundles.serializers import to_jsonable
 from agentevalops.core.errors import BundleError
 from agentevalops.core.schemas import (
@@ -53,6 +68,10 @@ from agentevalops.core.schemas import (
     ToolCallRecord,
     TraceEvent,
 )
+from agentevalops.plans.builder import undeclared_plan
+from agentevalops.plans.coverage import EvidenceInputs, control_coverage
+from agentevalops.plans.io import write_plan
+from agentevalops.reports.evidence import render_evidence_report
 from agentevalops.reports.markdown import MarkdownReportGenerator
 
 #: Re-exported for backward compatibility with code that imports BUNDLE_FILES
@@ -101,6 +120,25 @@ def _capture_git_provenance(cwd: Path | None = None) -> tuple[str, bool | None]:
     return git_state(cwd)
 
 
+def _capture_package_provenance() -> tuple[str, bool | None]:
+    """``(git_sha, git_dirty)`` of the package's own source tree, the
+    format 0.6 meaning of ``git_sha`` (docs/adr/0007 D8): the editable
+    install's checkout, or ``"unavailable"``."""
+    return package_git_provenance()
+
+
+@dataclass(frozen=True)
+class _Provenance:
+    """One capture of what code produced the bundle (docs/adr/0007 D8),
+    shared by metadata.json and replay_command.txt."""
+
+    git_sha: str
+    git_dirty: bool | None
+    package_sha256: str
+    invocation_git_sha: str
+    invocation_git_dirty: bool | None
+
+
 class BundleWriter:
     """Write a complete local result bundle to a directory.
 
@@ -134,8 +172,27 @@ class BundleWriter:
         scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
         test_plan_sha256: str | None = None,
         plan: RunPlan | None = None,
+        *,
+        evidence: EvidenceInputs,
+        runner_id: str | None = None,
+        mock_trajectory: str | None = None,
+        evaluators: Sequence[str] = (),
     ) -> Path:
         """Write all bundle files including manifest; return output dir.
+
+        ``evidence`` (docs/adr/0007 D13, decision 7 as amended 2026-11-02):
+        the catalogue and every pack scenario's descriptor, from which
+        ``controls.json`` and ``evidence_report.md`` are written. Required:
+        a guessed default would mark every control "not in pack".
+
+        Every format 0.6 bundle has a plan (D2). A caller that passes none
+        gets the undeclared plan, built from the run config and the
+        summary's task ids, written as ``test_plan.json`` and registered;
+        a caller that passes a plan without its registered hash gets it
+        written and registered here.
+
+        ``runner_id``, ``mock_trajectory`` and ``evaluators`` (D4) go to
+        ``config.json``; the reports call a run scripted by ``runner_id``.
 
         ``test_plan_sha256`` (docs/adr/0005 D6; R27): the hash of
         ``test_plan.json`` the caller registered before the first task ran,
@@ -154,14 +211,29 @@ class BundleWriter:
         populated one are the same shape, so the caller must say which.
         """
         self._prepare_dir()
+        if plan is None:
+            task_ids = dict.fromkeys(str(r.task_id) for r in summary.task_results)
+            plan = undeclared_plan(
+                run_config,
+                list(task_ids),
+                config_name=config_name,
+                evaluators=evaluators,
+            )
+            test_plan_sha256 = None
+        if test_plan_sha256 is None:
+            test_plan_sha256 = write_plan(self._dir, plan)
         # Captured once and threaded through -- metadata.json and
-        # replay_command.txt must agree on git_sha/git_dirty by
-        # construction (one source of truth), not by two independent
-        # subprocess calls that could theoretically observe different
+        # replay_command.txt must agree by construction (one source of
+        # truth), not by independent probes that could observe different
         # states if the tree changed between them.
-        git_sha, git_dirty = _capture_git_provenance()
+        provenance = _Provenance(
+            *_capture_package_provenance(),
+            package_sha256(),
+            *_capture_git_provenance(),
+        )
+        created_at = datetime.now(timezone.utc)
         self._write_metadata(
-            run_config, summary, status, git_sha, git_dirty, test_plan_sha256
+            run_config, summary, status, provenance, test_plan_sha256, created_at
         )
         self._write_config(
             run_config,
@@ -170,6 +242,9 @@ class BundleWriter:
             benchmark_id,
             benchmark_scenario,
             benchmark_options or {},
+            runner_id=runner_id,
+            mock_trajectory=mock_trajectory,
+            evaluators=evaluators,
         )
         self._write_traces(all_events)
         # Format 0.5's harness streams (docs/adr/0006 D19): always written,
@@ -180,9 +255,34 @@ class BundleWriter:
         self._write_policy(summary)
         self._write_summary(summary)
         self._write_report(
-            run_config, summary, all_events, config_name, scenario_info, plan
+            run_config, summary, all_events, config_name, scenario_info, plan, runner_id
         )
-        self._write_replay_command(run_config, config_name, git_sha, git_dirty)
+        # docs/adr/0007 D5-D7: coverage from the plan, the summary, the
+        # scenarios and the catalogue; the report rendered from it, dated by
+        # the run's own created_at so a re-render gives the same bytes.
+        controls = control_coverage(
+            evidence.catalogue,
+            plan,
+            evidence.scenarios,
+            summary,
+            plan_sha256=test_plan_sha256,
+            end_states=end_states or [],
+        )
+        self._write_json(CONTROLS_FILENAME, controls)
+        report = render_evidence_report(
+            evidence.catalogue,
+            plan,
+            controls,
+            summary,
+            runner_id=runner_id or "not recorded",
+            created_at=created_at.isoformat(),
+        )
+        (self._dir / EVIDENCE_REPORT_FILENAME).write_text(
+            report + "\n", encoding="utf-8"
+        )
+        self._write_replay_command(
+            run_config, config_name, provenance, test_plan_sha256
+        )
         # Manifest is written last so checksums cover all content files.
         write_manifest(self._dir)
         return self._dir
@@ -213,22 +313,25 @@ class BundleWriter:
         run_config: RunConfig,
         summary: RunSummary,
         status: Literal["sealed", "interrupted", "partial"],
-        git_sha: str,
-        git_dirty: bool | None,
-        test_plan_sha256: str | None = None,
+        provenance: _Provenance,
+        test_plan_sha256: str | None,
+        created_at: datetime,
     ) -> None:
         metadata = ResultBundleMetadata(
             schema_version=BUNDLE_FORMAT_VERSION,
             run_id=run_config.run_id,
-            created_at=datetime.now(timezone.utc),
+            created_at=created_at,
             platform_version=__version__,
             backend_id=run_config.backend_id,
             task_count=summary.total_tasks,
             sealed=(status == "sealed"),
             status=status,
-            git_sha=git_sha,
-            git_dirty=git_dirty,
+            git_sha=provenance.git_sha,
+            git_dirty=provenance.git_dirty,
             test_plan_sha256=test_plan_sha256,
+            package_sha256=provenance.package_sha256,
+            invocation_git_sha=provenance.invocation_git_sha,
+            invocation_git_dirty=provenance.invocation_git_dirty,
         )
         self._write_json("metadata.json", metadata)
 
@@ -240,6 +343,10 @@ class BundleWriter:
         benchmark_id: str = "",
         benchmark_scenario: str = "",
         benchmark_options: dict[str, Any] | None = None,
+        *,
+        runner_id: str | None = None,
+        mock_trajectory: str | None = None,
+        evaluators: Sequence[str] = (),
     ) -> None:
         data: dict[str, Any] = {
             "config_name": config_name,
@@ -253,6 +360,11 @@ class BundleWriter:
         # docs/adr/0006 D25 (format 0.5): the options the benchmark was
         # built with, always recorded.
         data["benchmark_options"] = dict(benchmark_options or {})
+        # docs/adr/0007 D4 (format 0.6): which runner played the run, whether
+        # it played a script, and the evaluator kinds configured.
+        data["runner_id"] = runner_id
+        data["mock_trajectory"] = mock_trajectory
+        data["evaluators"] = list(evaluators)
         self._write_json("config.json", data)
 
     def _write_traces(self, events: list[TraceEvent]) -> None:
@@ -296,6 +408,7 @@ class BundleWriter:
         config_name: str,
         scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
         plan: RunPlan | None = None,
+        runner_id: str | None = None,
     ) -> None:
         """report.md. *scenario_info* (R26) is the tasks' outcome groups and
         variants from the benchmark, for the outcomes section; *plan* (R27)
@@ -304,7 +417,13 @@ class BundleWriter:
         generator = MarkdownReportGenerator()
         report = asyncio.run(
             generator.render(
-                run_config, summary, all_events, config_name, scenario_info, plan
+                run_config,
+                summary,
+                all_events,
+                config_name,
+                scenario_info,
+                plan,
+                runner_id,
             )
         )
         path = self._dir / "report.md"
@@ -315,8 +434,8 @@ class BundleWriter:
         self,
         run_config: RunConfig,
         config_name: str,
-        git_sha: str,
-        git_dirty: bool | None,
+        provenance: _Provenance,
+        test_plan_sha256: str | None,
     ) -> None:
         """Write ``replay_command.txt`` -- structural provenance, not a
         behavioral replay mechanism (docs/adr/0003-replay-semantics.md Q4).
@@ -329,7 +448,10 @@ class BundleWriter:
         ``ResultBundleMetadata``'s own docstring: *"cannot determine" must
         never read as a match by omission*.
         """
-        dirty_str = "unknown" if git_dirty is None else str(git_dirty)
+
+        def dirty(value: bool | None) -> str:
+            return "unknown" if value is None else str(value)
+
         lines = [
             "# replay_command.txt -- structural provenance for this bundle.",
             "#",
@@ -355,11 +477,18 @@ class BundleWriter:
             f"run_id: {run_config.run_id}",
             f"platform_version: {__version__}",
             '# platform_version alone is too coarse to answer "did the code',
-            '# change": every bundle this repo has produced to date records',
-            "# the same value across dozens of intervening commits. git_sha",
-            "# below is the field that actually answers that question.",
-            f"git_sha: {git_sha}",
-            f"git_dirty: {dirty_str}",
+            '# change": every bundle this repo has produced records the same',
+            "# value across dozens of commits. package_sha256 answers it on",
+            "# any install: the hash of the package's .py and .yaml files.",
+            "# From format 0.6 git_sha is the package's own source tree (an",
+            "# editable install's checkout, else unavailable); invocation_*",
+            "# is the directory the run was started from (docs/adr/0007 D8).",
+            f"package_sha256: {provenance.package_sha256}",
+            f"git_sha: {provenance.git_sha}",
+            f"git_dirty: {dirty(provenance.git_dirty)}",
+            f"invocation_git_sha: {provenance.invocation_git_sha}",
+            f"invocation_git_dirty: {dirty(provenance.invocation_git_dirty)}",
+            f"test_plan_sha256: {test_plan_sha256 or _GIT_SHA_UNAVAILABLE}",
         ]
         if run_config.model is not None:
             lines.append(f"model: {run_config.model}")

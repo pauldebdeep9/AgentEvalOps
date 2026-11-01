@@ -37,21 +37,99 @@ import dataclasses
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
     END_STATES_FILENAME,
     LEGACY_BUNDLE_FORMAT_VERSIONS,
     MANIFEST_FILENAME,
+    MANIFEST_SIGNATURE_FILENAME,
     TEST_PLAN_FILENAME,
     TOOL_CALLS_FILENAME,
     peek_declared_format_version,
     required_files_for_version,
 )
-from agentevalops.bundles.reader import BundleReader
+from agentevalops.bundles.provenance import package_sha256
+from agentevalops.bundles.reader import BundleReader, LoadedBundle
 from agentevalops.bundles.writer import _GIT_SHA_UNAVAILABLE, _capture_git_provenance
 from agentevalops.core.errors import BundleError
 from agentevalops.replay.local import LocalReplayVerifier
+
+#: The first format whose metadata.json records ``package_sha256`` and whose
+#: ``git_sha`` is the package's own tree (docs/adr/0007 D8): drift is judged
+#: by the hash from here, and by the invocation's git before.
+_PACKAGE_HASH_FROM = (0, 6)
+
+#: The running package's hash, for the 0.6 drift warning. Module-level so
+#: tests inject it, as they inject ``_capture_git_provenance`` for the 0.5
+#: branch: the warning must not depend on the checkout's state.
+_current_package_sha256 = package_sha256
+
+
+def _version(value: object) -> tuple[int, ...] | None:
+    try:
+        return tuple(int(part) for part in str(value).split("."))
+    except ValueError:
+        return None
+
+
+def _evidence_pack_checks(loaded: LoadedBundle) -> list[str]:
+    """Format 0.6's cross-file checks on the evidence pack (docs/adr/0007
+    D1; decisions 1 and 5 of 2026-11-02). The evaluator-event count is the
+    replay verifier's."""
+    errors: list[str] = []
+    controls, plan = loaded.controls, loaded.test_plan
+    if controls is None or plan is None:
+        return errors  # a missing required file is check 2's error
+    registered = loaded.metadata.get("test_plan_sha256")
+    if controls.get("plan_sha256") != registered:
+        errors.append(
+            "controls.json is not tied to the registered plan: its plan_sha256 "
+            f"is {controls.get('plan_sha256')!r}, metadata.json registers "
+            f"{registered!r}"
+        )
+    scenarios = controls.get("scenarios")
+    scenarios = scenarios if isinstance(scenarios, dict) else {}
+    chosen = {
+        s for s, e in scenarios.items() if isinstance(e, dict) and e.get("selected")
+    }
+    planned = (
+        set(plan.get("selected") or []) if plan.get("declared") is not False else set()
+    )
+    if chosen != planned:
+        errors.append(
+            "controls.json's selected scenarios are not the plan's: "
+            f"controls.json selects {sorted(chosen)}, test_plan.json "
+            f"{sorted(planned)}"
+        )
+    lines = loaded.end_states
+    for control in controls.get("controls") or []:
+        if not isinstance(control, dict):
+            continue
+        for verdict in control.get("verdicts") or []:
+            for ref in (
+                verdict.get("end_states") or [] if isinstance(verdict, dict) else []
+            ):
+                if not _points_at(ref, lines):
+                    errors.append(
+                        f"controls.json: {control.get('id')} cites end state "
+                        f"{ref!r}, which is not a line of end_states.jsonl"
+                    )
+    return errors
+
+
+def _points_at(ref: Any, lines: list[dict[str, Any]]) -> bool:
+    if not isinstance(ref, dict) or ref.get("stream") != "end_states":
+        return False
+    index = ref.get("index")
+    if not isinstance(index, int) or not 0 <= index < len(lines):
+        return False
+    line = lines[index]
+    return str(line.get("task_id")) == str(ref.get("task_id")) and line.get(
+        "repetition"
+    ) == ref.get("repetition")
+
 
 #: Bundle format versions that this validator understands: the current one
 #: plus any legacy versions still readable (see LEGACY_BUNDLE_FORMAT_VERSIONS'
@@ -140,6 +218,7 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
     policy_verdict: str | None = None
     bundle_git_sha: str | None = None
     bundle_git_dirty: bool | None = None
+    bundle_package_sha: str | None = None
     registered_plan_sha: str | None = None
 
     # ------------------------------------------------------------------ #
@@ -148,13 +227,17 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
     if not bundle_path.exists():
         errors.append(f"Bundle path does not exist: {bundle_path}")
         return BundleValidationResult(
-            valid=False, errors=errors, warnings=warnings,
+            valid=False,
+            errors=errors,
+            warnings=warnings,
             checked_files=checked_files,
         )
     if not bundle_path.is_dir():
         errors.append(f"Bundle path is not a directory: {bundle_path}")
         return BundleValidationResult(
-            valid=False, errors=errors, warnings=warnings,
+            valid=False,
+            errors=errors,
+            warnings=warnings,
             checked_files=checked_files,
         )
 
@@ -194,17 +277,20 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"Cannot parse {MANIFEST_FILENAME}: {exc}")
         return BundleValidationResult(
-            valid=False, errors=errors, warnings=warnings,
+            valid=False,
+            errors=errors,
+            warnings=warnings,
             checked_files=checked_files,
         )
 
     if not isinstance(manifest, dict):
         errors.append(
-            f"{MANIFEST_FILENAME} must be a JSON object, "
-            f"got {type(manifest).__name__}"
+            f"{MANIFEST_FILENAME} must be a JSON object, got {type(manifest).__name__}"
         )
         return BundleValidationResult(
-            valid=False, errors=errors, warnings=warnings,
+            valid=False,
+            errors=errors,
+            warnings=warnings,
             checked_files=checked_files,
         )
 
@@ -216,9 +302,7 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
         fmt_version if isinstance(fmt_version, str) else None
     )
     if fmt_version is None:
-        errors.append(
-            f"{MANIFEST_FILENAME} is missing 'bundle_format_version'"
-        )
+        errors.append(f"{MANIFEST_FILENAME} is missing 'bundle_format_version'")
     elif fmt_version not in SUPPORTED_FORMAT_VERSIONS:
         errors.append(
             f"Unsupported bundle_format_version '{fmt_version}'. "
@@ -237,9 +321,7 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
     for filename, info in files_section.items():
         file_path = bundle_path / filename
         if not file_path.exists():
-            errors.append(
-                f"Manifest lists '{filename}' but file does not exist"
-            )
+            errors.append(f"Manifest lists '{filename}' but file does not exist")
             manifest_had_mismatch = True
             continue
         if not isinstance(info, dict):
@@ -287,8 +369,7 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
     # 8. JSON files parse
     # ------------------------------------------------------------------ #
     json_files = [
-        f for f in required_files
-        if f.endswith(".json") and (bundle_path / f).exists()
+        f for f in required_files if f.endswith(".json") and (bundle_path / f).exists()
     ]
     for filename in json_files:
         path = bundle_path / filename
@@ -313,15 +394,12 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
                     obj = json.loads(stripped)
                     if not isinstance(obj, dict):
                         errors.append(
-                            f"traces.jsonl line {lineno}: "
-                            "expected a JSON object"
+                            f"traces.jsonl line {lineno}: expected a JSON object"
                         )
                     else:
                         trace_line_count += 1
                 except json.JSONDecodeError as exc:
-                    errors.append(
-                        f"traces.jsonl line {lineno}: invalid JSON: {exc}"
-                    )
+                    errors.append(f"traces.jsonl line {lineno}: invalid JSON: {exc}")
         except OSError as exc:
             errors.append(f"Cannot read traces.jsonl: {exc}")
     trace_event_count = trace_line_count
@@ -354,9 +432,7 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
     summary_path = bundle_path / "summary.json"
     if summary_path.exists():
         try:
-            summary_obj = json.loads(
-                summary_path.read_text(encoding="utf-8")
-            )
+            summary_obj = json.loads(summary_path.read_text(encoding="utf-8"))
             if isinstance(summary_obj, dict):
                 tec = summary_obj.get("trace_event_count")
                 if isinstance(tec, int) and tec != trace_line_count:
@@ -405,6 +481,8 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
                 bundle_git_dirty = dirty if isinstance(dirty, bool) else None
                 plan_sha = meta_obj.get("test_plan_sha256")
                 registered_plan_sha = plan_sha if isinstance(plan_sha, str) else None
+                pkg = meta_obj.get("package_sha256")
+                bundle_package_sha = pkg if isinstance(pkg, str) else None
         except (json.JSONDecodeError, OSError):
             pass  # already caught by check 8
 
@@ -451,8 +529,7 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
         missing_from_list = canonical - listed
         if extra:
             warnings.append(
-                f"Manifest required_files lists unknown files: "
-                f"{sorted(extra)}"
+                f"Manifest required_files lists unknown files: {sorted(extra)}"
             )
         if missing_from_list:
             warnings.append(
@@ -463,24 +540,68 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
     # ------------------------------------------------------------------ #
     # 12. Cross-file consistency (LocalReplayVerifier, folded in per D2)
     # ------------------------------------------------------------------ #
+    # One reader for every cross-file check (docs/adr/0007 D15). A file the
+    # full read cannot parse -- the plan, the controls, a harness stream --
+    # is a finding, and the checks that need only the core files still run.
+    loaded: LoadedBundle | None
     try:
-        loaded = BundleReader(bundle_path, strict=False, optional_files=False).read()
-    except BundleError:
-        # Bundle too broken to load at all (e.g. several required files
-        # missing) -- checks 1-11 above already reported the real reasons;
-        # there is nothing further to cross-check.
-        loaded = None
+        loaded = BundleReader(bundle_path, strict=False).read()
+    except BundleError as exc:
+        try:
+            loaded = BundleReader(
+                bundle_path, strict=False, optional_files=False
+            ).read()
+            errors.append(f"Cannot load the bundle for cross-file checks: {exc}")
+        except BundleError:
+            # Bundle too broken to load at all (e.g. several required files
+            # missing) -- checks 1-11 above already reported the real
+            # reasons; there is nothing further to cross-check.
+            loaded = None
     if loaded is not None:
         cross_errors, cross_warnings = LocalReplayVerifier(loaded).check()
         errors.extend(cross_errors)
         warnings.extend(cross_warnings)
 
     # ------------------------------------------------------------------ #
-    # 13. Code-drift warning (docs/adr/0003, D5) -- never an error, never
-    # changes `valid`. Skipped entirely for bundles that predate git_sha
-    # (format "0.1"), where metadata.json simply has no such field.
+    # 12b. Format 0.6: the evidence pack agrees with the plan and the
+    # streams (docs/adr/0007 D1), and a signature is recognised, not yet
+    # verified (R29).
     # ------------------------------------------------------------------ #
-    if bundle_git_sha is not None:
+    format_tuple = _version(fmt_version) if fmt_version is not None else None
+    at_0_6 = format_tuple is not None and format_tuple >= _PACKAGE_HASH_FROM
+    if at_0_6 and loaded is not None:
+        errors.extend(_evidence_pack_checks(loaded))
+    if at_0_6 and (bundle_path / MANIFEST_SIGNATURE_FILENAME).exists():
+        warnings.append(
+            f"{MANIFEST_SIGNATURE_FILENAME} is present but not verified: "
+            "signature checking arrives in R29 (pass --allowed-signers)"
+        )
+
+    # ------------------------------------------------------------------ #
+    # 13. Code-drift warning (docs/adr/0003, D5) -- never an error, never
+    # changes `valid`. By the bundle's format (docs/adr/0007 D8): from 0.6
+    # the package hash says whether the code changed, determinate on every
+    # install; up to 0.5 git_sha was the invocation's checkout, so it is
+    # compared with the current one. Skipped for bundles that predate
+    # git_sha (format "0.1").
+    # ------------------------------------------------------------------ #
+    if at_0_6:
+        current_package = _current_package_sha256()
+        if bundle_package_sha is None:
+            warnings.append(
+                "Code-drift check inconclusive: metadata.json records no "
+                "package_sha256."
+            )
+        elif bundle_package_sha != current_package:
+            warnings.append(
+                f"Code drift: this bundle was written by package_sha256 "
+                f"{bundle_package_sha}, but the running package hashes to "
+                f"{current_package} (git_sha at writing: {bundle_git_sha}). "
+                "Structural validity is unaffected, but a behavioral "
+                "comparison against it would not be meaningful without "
+                "accounting for this."
+            )
+    elif bundle_git_sha is not None:
         current_sha, current_dirty = _capture_git_provenance()
         determinate = (
             bundle_git_sha != _GIT_SHA_UNAVAILABLE

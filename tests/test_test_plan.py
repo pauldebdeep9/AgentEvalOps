@@ -49,6 +49,7 @@ from agentevalops.plans import build_plan, plan_sha256, read_plan, write_plan
 SHIPPED_SYSTEM = Path("configs/seed_system.yaml")
 RUN_CONFIG = Path("configs/agentic_baseline_mock.yaml")
 PACK = SeedDomainPack()
+LEGACY_0_5 = Path(__file__).resolve().parent / "fixtures/bundles/seed-narrow-0.5"
 SCENARIO_IDS = [s.scenario_id for s in PACK.scenarios()]
 DECLARATION = load_system_declaration(SHIPPED_SYSTEM)
 RUN = RunConfig(
@@ -477,7 +478,8 @@ def test_the_plan_file_round_trips_and_hashes_its_bytes(tmp_path: Path) -> None:
     path = tmp_path / TEST_PLAN_FILENAME
     assert digest == hashlib.sha256(path.read_bytes()).hexdigest() == plan_sha256(path)
     doc = read_plan(tmp_path)
-    assert doc["plan_version"] == "1"
+    assert doc["plan_version"] == "2"
+    assert doc["declared"] is True
     assert doc["selected"] == SCENARIO_IDS
     assert doc["repetitions"] == 3 and doc["seed"] == 11
     assert doc["seeds"]["TE1"] == [derive_seed(11, "TE1", r) for r in range(3)]
@@ -485,6 +487,7 @@ def test_the_plan_file_round_trips_and_hashes_its_bytes(tmp_path: Path) -> None:
         "pack_id": "seed",
         "pack_version": PACK.pack_version,
         "scenarios_sha256": plan.scenarios_sha256,
+        "data_sha256": PACK.data_sha256,
     }
     assert {t["category"] for t in doc["thresholds"]} == {
         t.category for t in plan.thresholds
@@ -555,8 +558,9 @@ def test_a_seed_run_registers_its_plan(tmp_path: Path) -> None:
     assert metadata["test_plan_sha256"] == plan_sha256(plan_path)
     manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["files"][TEST_PLAN_FILENAME]["sha256"] == plan_sha256(plan_path)
-    assert TEST_PLAN_FILENAME not in manifest["required_files"]
-    assert manifest["bundle_format_version"] == "0.5"
+    # From format 0.6 every bundle has a plan (docs/adr/0007 D1, D2).
+    assert TEST_PLAN_FILENAME in manifest["required_files"]
+    assert manifest["bundle_format_version"] == "0.6"
     validation = validate_bundle(out)
     assert validation.valid, validation.errors
     doc = read_plan(out)
@@ -685,32 +689,51 @@ def test_the_run_is_narrowed_to_the_selected_scenarios(tmp_path: Path) -> None:
     }
 
 
-def test_a_toy_run_has_no_plan_and_still_validates(tmp_path: Path) -> None:
+def test_a_toy_run_registers_the_undeclared_plan_and_validates(
+    tmp_path: Path,
+) -> None:
+    """docs/adr/0007 D2: a run without a declaration registers a plan that
+    says so -- no system, no pack, no threshold -- selecting its tasks."""
     out = tmp_path / "bundle"
     result = CliRunner().invoke(
         app, ["run", "--config", "configs/toy_smoke.yaml", "--output", str(out)]
     )
     assert result.exit_code == 0, result.output
-    assert not (out / TEST_PLAN_FILENAME).exists()
+    assert "no system declared" in result.output
+    plan_path = out / TEST_PLAN_FILENAME
     metadata = json.loads((out / "metadata.json").read_text(encoding="utf-8"))
-    assert metadata["test_plan_sha256"] is None
+    assert metadata["test_plan_sha256"] == plan_sha256(plan_path)
+    doc = read_plan(out)
+    assert doc is not None
+    assert (doc["plan_version"], doc["declared"]) == ("2", False)
+    assert doc["system"] is None and doc["system_path"] is None
+    assert doc["pack"] is None and doc["system_sha256"] is None
+    assert doc["selected"] == ["toy-001", "toy-002"]
+    assert doc["thresholds"] == [] and doc["excluded"] == []
     assert validate_bundle(out).valid
 
 
 def test_an_unregistered_plan_file_is_a_warning_not_an_error(tmp_path: Path) -> None:
+    """Up to format 0.5 a plan was optional: one no run registered is only a
+    warning. From 0.6 every bundle registers its plan."""
+    import hashlib
+    import shutil
+
     out = tmp_path / "bundle"
-    assert (
-        CliRunner()
-        .invoke(
-            app, ["run", "--config", "configs/toy_smoke.yaml", "--output", str(out)]
-        )
-        .exit_code
-        == 0
-    )
-    (out / TEST_PLAN_FILENAME).write_text("{}", encoding="utf-8")
-    write_manifest(out)
+    shutil.copytree(LEGACY_0_5, out)
+    meta_path = out / "metadata.json"
+    metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    metadata["test_plan_sha256"] = None
+    meta_path.write_text(json.dumps(metadata), encoding="utf-8")
+    manifest_path = out / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"]["metadata.json"] = {
+        "size_bytes": meta_path.stat().st_size,
+        "sha256": hashlib.sha256(meta_path.read_bytes()).hexdigest(),
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     result = validate_bundle(out)
-    assert result.valid
+    assert result.valid, result.errors
     assert any("not registered" in w for w in result.warnings)
 
 
@@ -734,3 +757,25 @@ def test_the_shipped_config_loads_and_its_benchmark_narrows() -> None:
     assert [s.scenario_id for s in narrowed.scenarios()] == ["RB1"]
     assert narrowed.pack is benchmark.pack
     assert isinstance(narrowed.pack, DomainPack)
+
+
+def test_the_plan_document_reads_back_into_the_plan(tmp_path: Path) -> None:
+    """``plan_from_document`` inverts ``to_document`` (docs/adr/0007 D15):
+    a bundle's reader works from the plan as registered."""
+    from agentevalops.plans import plan_from_document
+
+    plan = _plan()
+    write_plan(tmp_path, plan)
+    doc = read_plan(tmp_path)
+    assert doc is not None
+    assert plan_from_document(doc) == plan
+
+
+def test_a_version_1_plan_reads_back_as_declared() -> None:
+    from agentevalops.plans import plan_from_document
+
+    doc = json.loads((LEGACY_0_5 / TEST_PLAN_FILENAME).read_text(encoding="utf-8"))
+    assert doc["plan_version"] == "1" and "declared" not in doc
+    plan = plan_from_document(doc)
+    assert plan.declared is True and plan.data_sha256 is None
+    assert plan.system is not None and plan.selected == ("TE1", "TC1", "PC1")
