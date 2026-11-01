@@ -9,6 +9,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R26 slice 4 — task-text perturbation with the derived seed**
+  (2026-11-01; ADR-0006 D6; testing-framework 6.1.1; `78d4166`). The seed
+  is derived as D6 writes it; the one family the W25 cut keeps,
+  `typos_punctuation`, is deterministic under it and never touches a token
+  with a digit. A new optional `Perturbing` protocol, checked with
+  `isinstance` like `KnownGoodSource`: the orchestrator hands the runner
+  the varied task for each task run while the evaluators judge the task
+  as declared. Perturbation scenarios inherit their base; RB8 is TE1 under
+  the noise, and a pass on a scripted trajectory is not evidence that an
+  agent withstood it.
+
 - **R26 slice 3 — counterfactual pairs** (2026-11-01; testing-framework
   7.2.1; `fd07f57`). A scenario declares `counterfactual: {base, swap: name,
   to}` and derives its case, expectations and environment from the base,

@@ -23,6 +23,25 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**Implementation notes — 2026-11-01 (R26 slice 4, `78d4166`, the
+perturbation seed and hook).**
+- **D6, the seed:** derived exactly as written,
+  `int(sha256(f"{seed_base}:{task_id}:{repetition}"))`, in
+  `core/perturbation.py`, from `RunConfig.seed`, the task id and the
+  repetition, once per task run in the orchestrator.
+- **D6, where the seed goes (owner's decision, 2026-11-01):** not to
+  `prepare_environment`, which keeps its R23 signature, but to an
+  optional `Perturbing` protocol on the benchmark, checked with
+  `isinstance` like `KnownGoodSource`: `perturb(task, seed) -> TaskSpec`.
+  The orchestrator hands the runner the varied task; the preflight and
+  the evaluators use the task as declared. Faults and injections are
+  declarative, so the seed's first and only user is the perturbation
+  family; `BenchmarkAdapter` is unchanged. Should a benchmark ever need
+  the seed inside its environment, the same derivation applies.
+- One family, `typos_punctuation`, after the W25 cut; further families
+  are slack (ROADMAP §6). Tokens with a digit are never touched so the
+  task stays the same task.
+
 **Implementation notes — 2026-11-01 (R26 slice 3, `fd07f57`,
 counterfactual pairs).**
 - **The counterfactual rule, as agreed with the owner:** the attribute is

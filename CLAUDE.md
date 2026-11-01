@@ -93,10 +93,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-01, Sai2608, clean checkout at `fd07f57`)
+## Baseline (verified 2026-11-01, Sai2608, clean checkout at `78d4166`)
 
 - ruff: clean
-- mypy: clean (67 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (68 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -109,9 +109,9 @@ in this repo.
   ADR-0006 D8; with R24 slice 4, `domain_packs` joined the middle tier, the
   independence contract and every forbidden contract -- each edit proven
   against an injected violation first)
-- pytest: 1166 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1184 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  97.81% branch coverage on a clean checkout (`fd07f57`). The suite now takes
+  97.83% branch coverage on a clean checkout (`78d4166`). The suite now takes
   about three minutes, five with coverage: the exit tests replay the whole seed
   pack through the orchestrator several times. Any untracked *or uncommitted*
   change raises it: tests reach the code-drift "inconclusive" warning
