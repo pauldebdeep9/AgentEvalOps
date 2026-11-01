@@ -48,6 +48,7 @@ from agentevalops.core.schemas import (
     PolicySpec,
     ResultBundleMetadata,
     RunConfig,
+    RunPlan,
     RunSummary,
     ToolCallRecord,
     TraceEvent,
@@ -170,13 +171,15 @@ class BundleWriter:
         end_states: list[EndStateRecord] | None = None,
         scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
         test_plan_sha256: str | None = None,
+        plan: RunPlan | None = None,
     ) -> Path:
         """Write all bundle files including manifest; return output dir.
 
         ``test_plan_sha256`` (docs/adr/0005 D6; R27): the hash of
         ``test_plan.json`` the caller registered before the first task ran,
         recorded in metadata.json so the validator can hold the file to it.
-        The writer never touches the plan file itself.
+        The writer never touches the plan file itself. ``plan`` is the same
+        plan as built, for the report to repeat (content, not shape).
 
         ``status`` (docs/adr/0002, Axis 4): the caller's own knowledge of
         *why* it's writing right now -- ``"sealed"`` for a normal run that
@@ -214,7 +217,9 @@ class BundleWriter:
         self._write_evaluations(summary)
         self._write_policy(summary)
         self._write_summary(summary)
-        self._write_report(run_config, summary, all_events, config_name, scenario_info)
+        self._write_report(
+            run_config, summary, all_events, config_name, scenario_info, plan
+        )
         self._write_replay_command(run_config, config_name, git_sha, git_dirty)
         # Manifest is written last so checksums cover all content files.
         write_manifest(self._dir)
@@ -328,14 +333,16 @@ class BundleWriter:
         all_events: list[TraceEvent],
         config_name: str,
         scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
+        plan: RunPlan | None = None,
     ) -> None:
         """report.md. *scenario_info* (R26) is the tasks' outcome groups and
-        variants from the benchmark, for the outcomes section -- content in
-        the report, never a change to the bundle's shape."""
+        variants from the benchmark, for the outcomes section; *plan* (R27)
+        the pre-registered plan, for the report to repeat -- content in the
+        report, never a change to the bundle's shape."""
         generator = MarkdownReportGenerator()
         report = asyncio.run(
             generator.render(
-                run_config, summary, all_events, config_name, scenario_info
+                run_config, summary, all_events, config_name, scenario_info, plan
             )
         )
         path = self._dir / "report.md"

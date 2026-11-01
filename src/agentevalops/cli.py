@@ -11,7 +11,7 @@ import typer
 if TYPE_CHECKING:
     from agentevalops.bundles.validator import BundleValidationResult
     from agentevalops.config.loader import LoadedRunConfig
-    from agentevalops.core.schemas import RunSummary, TraceEvent
+    from agentevalops.core.schemas import CategoryPassK, RunSummary, TraceEvent
 
 from agentevalops import __version__
 
@@ -251,6 +251,7 @@ def run(
             end_states=orchestrator.end_states,
             scenario_info=scenario_info,
             test_plan_sha256=plan_sha256,
+            plan=plan,
         )
         suffix = "" if status == "sealed" else f" (status: {status})"
         typer.echo(f"Bundle written to: {output.resolve()}{suffix}")
@@ -547,12 +548,35 @@ def category_lines(summary: RunSummary, categories: dict[str, str]) -> list[str]
             if result.evaluation.passed:
                 counts[category][0] += 1
     width = max(len(c) for c in order) if order else 0
-    return [
-        f"  {category:<{width}}  {passed}/{evaluated} evaluated passed "
-        f"({not_evaluated} not evaluated)"
-        for category in order
-        for passed, evaluated, not_evaluated in [counts[category]]
-    ]
+    roll_up = {c.category: c for c in summary.pass_k_by_category}
+    lines = []
+    for category in order:
+        passed, evaluated, not_evaluated = counts[category]
+        line = (
+            f"  {category:<{width}}  {passed}/{evaluated} evaluated passed "
+            f"({not_evaluated} not evaluated)"
+        )
+        if category in roll_up:
+            line += pass_k_phrase(roll_up[category])
+        lines.append(line)
+    return lines
+
+
+def pass_k_phrase(roll_up: CategoryPassK) -> str:
+    """``; pass^k a/b scenarios``, with the not-evaluated scenarios and
+    their causes when there are any -- never "not evaluated" without a
+    cause (ROADMAP R27; docs/adr/0006 D20)."""
+    phrase = f"; pass^{roll_up.k} {roll_up.passed}/{roll_up.scenarios} scenarios"
+    if roll_up.not_evaluated:
+        phrase += f", {roll_up.not_evaluated} not evaluated ({causes_phrase(roll_up)})"
+    return phrase
+
+
+def causes_phrase(roll_up: CategoryPassK) -> str:
+    return ", ".join(
+        f"{cause} x{count}" if count > 1 else cause
+        for cause, count in roll_up.not_evaluated_causes.items()
+    )
 
 
 def _print_summary(summary: object, categories: dict[str, str] | None = None) -> None:

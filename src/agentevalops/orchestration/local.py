@@ -43,6 +43,7 @@ from agentevalops.core.schemas import (
     TraceEventKind,
 )
 from agentevalops.core.types import RunId
+from agentevalops.scorers.pass_k import pass_k_by_category, pass_k_results
 from agentevalops.scorers.simple import SimpleScorer
 
 logger = logging.getLogger(__name__)
@@ -377,6 +378,18 @@ class LocalOrchestrator:
         summary.score_result = scorer.summarize(
             [r.evaluation for r in summary.task_results]
         )
+        # ROADMAP R27 (docs/adr/0006 D18, D20): pass^k per scenario over its
+        # repetitions, and per category for the tasks that carry one.
+        summary.pass_k = pass_k_results(summary.task_results)
+        summary.pass_k_by_category = pass_k_by_category(
+            summary.pass_k,
+            {
+                str(t.task_id): str(t.metadata["category"])
+                for t in tasks
+                if isinstance(t.metadata.get("category"), str)
+                and t.metadata["category"]
+            },
+        )
 
         combined = _combined_output(summary)
         summary.policy_verdict = await self._policy_checker.check(
@@ -475,12 +488,15 @@ class LocalOrchestrator:
             # seed derived from the run's seed, the task and the repetition;
             # the evaluators judge against the task as declared.
             seen = task
+            seed = derive_seed(self._config.seed, str(task.task_id), repetition)
             if isinstance(self._benchmark, Perturbing):
-                seed = derive_seed(self._config.seed, str(task.task_id), repetition)
                 seen = self._benchmark.perturb(task, seed)
+            # The runner is told its repetition and seed (R27): a runner that
+            # randomises can be reproducible by construction, like the
+            # environment (D6), without any new protocol.
             agent_input = AgentInput(
                 task=seen,
-                context={"run_id": run_id},
+                context={"run_id": run_id, "repetition": repetition, "seed": seed},
                 environment=handle.tools,
             )
             limits = self._config.resource_limits

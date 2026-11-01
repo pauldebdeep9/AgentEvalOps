@@ -14,7 +14,10 @@ from agentevalops.bundles.constants import (
 )
 from agentevalops.core.schemas import (
     NEGATIVE_OUTCOMES,
+    CategoryPassK,
+    PlanThreshold,
     RunConfig,
+    RunPlan,
     RunSummary,
     TaskRunResult,
     TraceEvent,
@@ -68,6 +71,7 @@ def render_report(
     all_events: list[TraceEvent],
     config_name: str = "",
     scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
+    plan: RunPlan | None = None,
 ) -> str:
     """Return a plain Markdown report string for a completed run.
 
@@ -138,8 +142,14 @@ def render_report(
     lines.append("")
 
     # ---- outcomes by kind of harm (MGF-Agentic §1.2.2; ROADMAP R26) ------
+    if summary.pass_k:
+        lines.extend(repeatability_section(summary, scenario_info or {}))
+
     if scenario_info:
         lines.extend(outcome_section(run_config, summary, scenario_info))
+
+    if plan is not None:
+        lines.extend(plan_section(plan, summary))
 
     # ---- policy checks ---------------------------------------------------
     lines.append("## Policy Checks")
@@ -290,6 +300,155 @@ def outcome_section(
     return lines
 
 
+def _rate(value: float) -> str:
+    return str(round(value, 2))
+
+
+def _causes(roll_up: CategoryPassK) -> str:
+    return ", ".join(
+        f"{cause} x{count}" if count > 1 else cause
+        for cause, count in roll_up.not_evaluated_causes.items()
+    )
+
+
+def repeatability_section(
+    summary: RunSummary, scenario_info: Mapping[str, Mapping[str, Any]]
+) -> list[str]:
+    """pass^k per scenario and per category (ROADMAP R27; docs/adr/0006
+    D18, D20): raw counts and k, no intervals; a not-evaluated scenario
+    always with its cause."""
+    k = max(r.k for r in summary.pass_k)
+    lines = [f"## Repeatability (pass^k, k = {k})", ""]
+    lines.append(
+        f"Each scenario ran {k} time{'s' if k != 1 else ''}; it passes only if "
+        "every repetition passed. A scenario with a repetition that was not "
+        "evaluated is not evaluated, not failed, and its cause is named "
+        "(docs/adr/0006 D20). Raw counts; no confidence intervals."
+    )
+    lines.append("")
+    for roll_up in summary.pass_k_by_category:
+        line = (
+            f"- {roll_up.category}: {roll_up.passed}/{roll_up.scenarios} scenarios "
+            f"passed all {roll_up.k} repetitions"
+        )
+        if roll_up.not_evaluated:
+            line += f"; {roll_up.not_evaluated} not evaluated ({_causes(roll_up)})"
+        lines.append(line)
+    if summary.pass_k_by_category:
+        lines.append("")
+    lines.append(
+        "| Scenario | Category | k | Passed | Failed | Not evaluated | pass^k |"
+    )
+    lines.append(
+        "|----------|----------|---|--------|--------|---------------|--------|"
+    )
+    for result in summary.pass_k:
+        category = str(scenario_info.get(result.task_id, {}).get("category", "") or "-")
+        if result.pass_k is None:
+            verdict = f"not evaluated ({result.not_evaluated_cause})"
+        else:
+            verdict = "yes" if result.pass_k else "no"
+        lines.append(
+            f"| {result.task_id} | {category} | {result.k} | {result.passed} | "
+            f"{result.failed} | {result.not_evaluated} | {verdict} |"
+        )
+    lines.append("")
+    return lines
+
+
+def threshold_status(threshold: PlanThreshold, roll_up: CategoryPassK | None) -> str:
+    """How the run stands against one plan threshold, in words a reader
+    cannot take for a tolerated failure: a comparative threshold that is
+    not met says it does not gate; a hard gate that cannot be judged says
+    it fails closed (ROADMAP R27; docs/adr/0005 D6)."""
+    hard = threshold.gate == "hard"
+    if roll_up is None:
+        return "no scenario ran" + ("; a hard gate fails closed" if hard else "")
+    if roll_up.not_evaluated:
+        plural = "s" if roll_up.not_evaluated != 1 else ""
+        verdict = (
+            f"not evaluated: {roll_up.not_evaluated} scenario{plural} "
+            f"({_causes(roll_up)})"
+        )
+        return verdict + (
+            "; a hard gate fails closed"
+            if hard
+            else "; comparative threshold; does not gate"
+        )
+    if roll_up.pass_k_rate >= threshold.min_pass_k:
+        return "met"
+    if hard:
+        return "below (hard gate)"
+    return "below (comparative threshold; does not gate)"
+
+
+def plan_section(plan: RunPlan, summary: RunSummary) -> list[str]:
+    """The pre-registered plan repeated (docs/adr/0005 D6; testing-framework
+    3.6.1, 3.7.1): the declaration's intended use, out-of-scope uses and
+    business metrics, never evaluated; the selection; and each threshold
+    with its source and the run's standing against it."""
+    system = plan.system
+    lines = ["## Test plan (pre-registered)", ""]
+    lines.append(
+        "Registered as `test_plan.json` before the first task ran; its sha256 is "
+        "in `metadata.json` (docs/adr/0005 D6)."
+    )
+    lines.append("")
+    lines.append(
+        f"- System: `{system.system_id}`, pack `{plan.pack_id}` {plan.pack_version}, "
+        f"involvement `{system.involvement}`"
+    )
+    lines.append(f"- Intended use: {system.intended_use}")
+    out_of_scope = (
+        "; ".join(system.out_of_scope) if system.out_of_scope else "none declared"
+    )
+    lines.append(f"- Out of scope: {out_of_scope}")
+    if system.business_metrics:
+        metrics = "; ".join(
+            f"`{m.name}` -- {m.definition}" for m in system.business_metrics
+        )
+    else:
+        metrics = "none declared"
+    lines.append(f"- Business metrics (recorded, not evaluated): {metrics}")
+    lines.append(
+        f"- Scenarios: {len(plan.selected)} selected, {len(plan.excluded)} excluded; "
+        f"repetitions {plan.repetitions}; seed {plan.seed}"
+    )
+    uncovered = ", ".join(plan.uncovered_tools) if plan.uncovered_tools else "none"
+    lines.append(f"- Declared tools the pack does not model: {uncovered}")
+    lines.append("")
+    if plan.excluded:
+        lines.append("| Excluded scenario | Reason |")
+        lines.append("|-------------------|--------|")
+        for exclusion in plan.excluded:
+            lines.append(f"| {exclusion.scenario_id} | {exclusion.reason} |")
+        lines.append("")
+    if plan.thresholds:
+        roll_ups = {c.category: c for c in summary.pass_k_by_category}
+        lines.append(
+            "| Category | Min pass^k | Source | Gate | Gate source | "
+            "Observed pass^k | Status |"
+        )
+        lines.append(
+            "|----------|------------|--------|------|-------------|"
+            "-----------------|--------|"
+        )
+        for threshold in plan.thresholds:
+            roll_up = roll_ups.get(threshold.category)
+            observed = "-" if roll_up is None else _rate(roll_up.pass_k_rate)
+            status = threshold_status(threshold, roll_up)
+            lines.append(
+                f"| {threshold.category} | {threshold.min_pass_k} | "
+                f"{threshold.min_pass_k_source} | {threshold.gate} | "
+                f"{threshold.gate_source} | {observed} | {status} |"
+            )
+        lines.append("")
+    else:
+        lines.append("No threshold applies to this run.")
+        lines.append("")
+    return lines
+
+
 class MarkdownReportGenerator:
     """``ReportGenerator`` implementation backed by ``render_report``."""
 
@@ -302,6 +461,9 @@ class MarkdownReportGenerator:
         trace: list[TraceEvent],
         config_name: str = "",
         scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
+        plan: RunPlan | None = None,
     ) -> str:
         """Produce a report.  Returns the report content as a string."""
-        return render_report(run_config, summary, trace, config_name, scenario_info)
+        return render_report(
+            run_config, summary, trace, config_name, scenario_info, plan
+        )

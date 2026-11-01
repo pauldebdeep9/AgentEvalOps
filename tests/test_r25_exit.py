@@ -169,6 +169,7 @@ def test_the_shipped_config_produces_verdicts_in_three_categories(
         counts[s.category] += 1
     assert lines == [
         f"  {category:<17}  {n}/{n} evaluated passed (0 not evaluated)"
+        f"; pass^1 {n}/{n} scenarios"  # R27: pass^k on every category line
         for category, n in counts.items()
     ]
     assert list(counts)[:3] == ["task_execution", "tool_calling", "policy_compliance"]

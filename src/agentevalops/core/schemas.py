@@ -779,6 +779,43 @@ class EvaluatorContext:
         return None
 
 
+@dataclass(frozen=True)
+class PassKResult:
+    """pass^k for one scenario (docs/adr/0006 D18, D20; ROADMAP R27): its
+    ``k`` task runs, how many passed, failed and were not evaluated, and
+    the verdict -- ``True`` only if every run passed; ``None`` if any run
+    was not evaluated, since not evaluated is not failed; ``False``
+    otherwise. A ``None`` verdict always carries ``not_evaluated_cause``:
+    the first such repetition's cause, or ``"mixed"`` when the repetitions'
+    causes differ. Raw counts; no confidence interval (the W25 cut).
+    """
+
+    task_id: str
+    k: int
+    passed: int
+    failed: int
+    not_evaluated: int
+    pass_k: bool | None
+    not_evaluated_cause: str | None = None
+
+
+@dataclass(frozen=True)
+class CategoryPassK:
+    """pass^k rolled up over one category's scenarios: ``pass_k_rate`` is
+    passing scenarios over scenarios; ``not_evaluated_causes`` counts the
+    not-evaluated scenarios by cause. What the plan's thresholds are held
+    against (docs/adr/0005 D6)."""
+
+    category: str
+    k: int
+    scenarios: int
+    passed: int
+    failed: int
+    not_evaluated: int
+    pass_k_rate: float
+    not_evaluated_causes: dict[str, int] = field(default_factory=dict)
+
+
 @dataclass
 class RunSummary:
     """Aggregated result of a complete orchestrator run.
@@ -808,6 +845,10 @@ class RunSummary:
     not_evaluated_by_cause: dict[str, int] = field(default_factory=dict)
     #: docs/adr/0006 D16 (format 0.5): each scenario's known-good preflight.
     preflight: list[PreflightResult] = field(default_factory=list)
+    #: ROADMAP R27 (content under format 0.5): pass^k per scenario, and
+    #: rolled up per category for the tasks that carry one.
+    pass_k: list[PassKResult] = field(default_factory=list)
+    pass_k_by_category: list[CategoryPassK] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
