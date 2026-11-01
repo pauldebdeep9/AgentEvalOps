@@ -84,6 +84,13 @@ REQUIRED_BUNDLE_FILES_0_4: tuple[str, ...] = (
 TOOL_CALLS_FILENAME: str = "tool_calls.jsonl"
 END_STATES_FILENAME: str = "end_states.jsonl"
 
+#: The pre-registered test plan (docs/adr/0005 D6; ROADMAP R27): written
+#: and hashed before the first task runs, by a run with a system
+#: declaration. Optional under format 0.5 -- the manifest checksums it when
+#: present and metadata.json's ``test_plan_sha256`` holds it to the hash
+#: registered before the run -- and required from 0.6 (R28, ADR-0007).
+TEST_PLAN_FILENAME: str = "test_plan.json"
+
 #: Files required by format "0.5" -- the 0.4 set plus the harness streams.
 REQUIRED_BUNDLE_FILES_0_5: tuple[str, ...] = (
     *REQUIRED_BUNDLE_FILES_0_4,

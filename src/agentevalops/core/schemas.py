@@ -442,6 +442,81 @@ class SystemDeclaration:
     sha256: str = ""
 
 
+@dataclass(frozen=True)
+class CategoryThreshold:
+    """A domain pack's threshold for one category (docs/adr/0005 D6):
+    ``min_pass_k`` is the least fraction of the category's scenarios that
+    must pass every repetition (pass^k); ``gate`` says whether falling
+    short fails the run. The owner may tighten either in ``system.yaml``."""
+
+    category: str
+    min_pass_k: float
+    gate: GateKind
+
+
+#: Who set a threshold's value in the plan: the domain pack, or the owner
+#: in ``system.yaml`` (testing-framework 3.6.1).
+ThresholdSource = Literal["pack", "owner"]
+
+
+@dataclass(frozen=True)
+class PlanThreshold:
+    """One category's threshold as the plan fixes it, each value with its
+    source."""
+
+    category: str
+    min_pass_k: float
+    min_pass_k_source: ThresholdSource
+    gate: GateKind
+    gate_source: ThresholdSource
+
+
+@dataclass(frozen=True)
+class PlanExclusion:
+    """A candidate scenario the declaration left out, and the rule that
+    excluded it (``plans/builder.py``)."""
+
+    scenario_id: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class RunPlan:
+    """The pre-registered test plan, ``test_plan.json`` (docs/adr/0005 D6):
+    written and hashed before the first task runs, so what the run was
+    going to test, and against what, is fixed before it tests it.
+
+    ``system`` is the declaration as loaded; ``scenarios_sha256`` is the
+    hash of the pack's scenarios as loaded, so a pack edit after the plan
+    shows. ``seeds`` holds every (task, repetition) seed D6 derives.
+    ``requested`` is the run config's own subset, or ``None`` for the whole
+    pack; ``selected`` and ``excluded`` are the declaration's choice over
+    it, in the pack's order. ``uncovered_tools`` are declared tools the
+    pack does not model: recorded, since a real system may have more tools
+    than a pack exercises, never an error.
+    """
+
+    plan_version: str
+    run_id: str
+    config_name: str
+    created_at: str
+    platform_version: str
+    system: SystemDeclaration
+    system_path: str
+    pack_id: str
+    pack_version: str
+    scenarios_sha256: str
+    repetitions: int
+    seed: int
+    evaluators: tuple[str, ...]
+    requested: tuple[str, ...] | None
+    selected: tuple[str, ...]
+    excluded: tuple[PlanExclusion, ...]
+    seeds: dict[str, tuple[int, ...]]
+    thresholds: tuple[PlanThreshold, ...]
+    uncovered_tools: tuple[str, ...]
+
+
 # ---------------------------------------------------------------------------
 # Trace
 # ---------------------------------------------------------------------------
@@ -789,3 +864,7 @@ class ResultBundleMetadata:
     status: Literal["sealed", "interrupted", "partial"] = "sealed"
     git_sha: str = "unavailable"
     git_dirty: bool | None = None
+    #: docs/adr/0005 D6 (R27): sha256 of ``test_plan.json`` as registered
+    #: before the first task ran; ``None`` for a run without a plan. The
+    #: validator holds the file to it.
+    test_plan_sha256: str | None = None

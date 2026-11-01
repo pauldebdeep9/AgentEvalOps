@@ -169,8 +169,14 @@ class BundleWriter:
         tool_calls: list[ToolCallRecord] | None = None,
         end_states: list[EndStateRecord] | None = None,
         scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
+        test_plan_sha256: str | None = None,
     ) -> Path:
         """Write all bundle files including manifest; return output dir.
+
+        ``test_plan_sha256`` (docs/adr/0005 D6; R27): the hash of
+        ``test_plan.json`` the caller registered before the first task ran,
+        recorded in metadata.json so the validator can hold the file to it.
+        The writer never touches the plan file itself.
 
         ``status`` (docs/adr/0002, Axis 4): the caller's own knowledge of
         *why* it's writing right now -- ``"sealed"`` for a normal run that
@@ -189,7 +195,9 @@ class BundleWriter:
         # subprocess calls that could theoretically observe different
         # states if the tree changed between them.
         git_sha, git_dirty = _capture_git_provenance()
-        self._write_metadata(run_config, summary, status, git_sha, git_dirty)
+        self._write_metadata(
+            run_config, summary, status, git_sha, git_dirty, test_plan_sha256
+        )
         self._write_config(
             run_config,
             policy_spec,
@@ -240,6 +248,7 @@ class BundleWriter:
         status: Literal["sealed", "interrupted", "partial"],
         git_sha: str,
         git_dirty: bool | None,
+        test_plan_sha256: str | None = None,
     ) -> None:
         metadata = ResultBundleMetadata(
             schema_version=BUNDLE_FORMAT_VERSION,
@@ -252,6 +261,7 @@ class BundleWriter:
             status=status,
             git_sha=git_sha,
             git_dirty=git_dirty,
+            test_plan_sha256=test_plan_sha256,
         )
         self._write_json("metadata.json", metadata)
 

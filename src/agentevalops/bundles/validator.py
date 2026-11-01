@@ -43,6 +43,7 @@ from agentevalops.bundles.constants import (
     END_STATES_FILENAME,
     LEGACY_BUNDLE_FORMAT_VERSIONS,
     MANIFEST_FILENAME,
+    TEST_PLAN_FILENAME,
     TOOL_CALLS_FILENAME,
     peek_declared_format_version,
     required_files_for_version,
@@ -139,6 +140,7 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
     policy_verdict: str | None = None
     bundle_git_sha: str | None = None
     bundle_git_dirty: bool | None = None
+    registered_plan_sha: str | None = None
 
     # ------------------------------------------------------------------ #
     # 1. Directory check
@@ -401,8 +403,42 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
                 bundle_git_sha = sha if isinstance(sha, str) else None
                 dirty = meta_obj.get("git_dirty")
                 bundle_git_dirty = dirty if isinstance(dirty, bool) else None
+                plan_sha = meta_obj.get("test_plan_sha256")
+                registered_plan_sha = plan_sha if isinstance(plan_sha, str) else None
         except (json.JSONDecodeError, OSError):
             pass  # already caught by check 8
+
+    # ------------------------------------------------------------------ #
+    # 10b. The pre-registered test plan (docs/adr/0005 D6; R27). The hash
+    # in metadata.json was computed before the first task ran; the file
+    # must still hash to it. The manifest's own entry (check 5-7) catches
+    # an edit too, but a manifest can be rewritten after an edit and this
+    # cannot -- so an edited or removed plan fails here whatever the
+    # manifest says. A plan file no run registered is only a warning.
+    # ------------------------------------------------------------------ #
+    plan_path = bundle_path / TEST_PLAN_FILENAME
+    if registered_plan_sha is not None:
+        if not plan_path.exists():
+            errors.append(
+                f"{TEST_PLAN_FILENAME} is missing, but metadata.json records "
+                f"its sha256 ({registered_plan_sha}): the run registered a "
+                "plan before its first task (docs/adr/0005 D6)"
+            )
+        else:
+            actual_plan_sha = _sha256_bytes(plan_path.read_bytes())
+            if actual_plan_sha != registered_plan_sha:
+                errors.append(
+                    f"{TEST_PLAN_FILENAME} was changed after the plan was "
+                    f"registered: metadata.json records sha256 "
+                    f"{registered_plan_sha}, the file hashes to "
+                    f"{actual_plan_sha}"
+                )
+    elif plan_path.exists():
+        warnings.append(
+            f"{TEST_PLAN_FILENAME} is present but metadata.json records no "
+            "test_plan_sha256: the plan is not registered, and nothing holds "
+            "the file to what the run was going to test"
+        )
 
     # ------------------------------------------------------------------ #
     # 11. required_files agreement (version-aware, docs/adr/0003 D3)

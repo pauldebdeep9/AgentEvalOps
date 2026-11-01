@@ -22,6 +22,7 @@ from typing import Any, Protocol, runtime_checkable
 from agentevalops.core.schemas import (
     AgentInput,
     AgentOutput,
+    CategoryThreshold,
     EndState,
     EnvHandle,
     EvaluationResult,
@@ -173,6 +174,19 @@ class Perturbing(Protocol):
 
     def perturb(self, task: TaskSpec, seed: int) -> TaskSpec:
         """*task* as the agent should see it for this seed."""
+        ...
+
+
+@runtime_checkable
+class Thresholded(Protocol):
+    """A domain pack that declares its default thresholds per category
+    (docs/adr/0005 D6; ROADMAP R27). Optional, like ``Perturbing``: the plan
+    builder checks for it with ``isinstance``. A pack without it has no
+    thresholds of its own, and the plan takes only the owner's.
+    """
+
+    def thresholds(self) -> Sequence[CategoryThreshold]:
+        """One threshold per category the pack sets one for."""
         ...
 
 

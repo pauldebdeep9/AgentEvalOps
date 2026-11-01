@@ -10,10 +10,10 @@ identifier -- so a bad pack fails when it is built, never in a run.
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -28,9 +28,12 @@ from agentevalops.core.identifiers import (
 from agentevalops.core.perturbation import PERTURBATION_FAMILIES
 from agentevalops.core.schemas import (
     FAULT_KINDS,
+    GATE_KINDS,
     MGF_CATEGORIES,
     NEGATIVE_OUTCOMES,
     POLICY_RULES,
+    CategoryThreshold,
+    GateKind,
     Scenario,
 )
 from agentevalops.core.scripts import ScriptStep, parse_script
@@ -66,6 +69,7 @@ DATA_FILES: tuple[str, ...] = (
     "names.yaml",
     "cases.yaml",
     "scenarios.yaml",
+    "thresholds.yaml",
 )
 _TOOL_USE_KEYS: frozenset[str] = frozenset({"required", "forbidden", "order"})
 _EXPECTED_KEYS: frozenset[str] = frozenset(
@@ -153,6 +157,48 @@ def _strings(
 # ---------------------------------------------------------------------------
 # The files
 # ---------------------------------------------------------------------------
+
+
+def _thresholds(
+    raw: dict[str, Any], categories: Iterable[str]
+) -> tuple[CategoryThreshold, ...]:
+    """``thresholds.yaml``: one threshold per category the scenarios use
+    (docs/adr/0005 D6; R27). ``min_pass_k`` in [0, 1]; ``gate`` a gate
+    kind; nothing else; no category the scenarios use may be missing."""
+    where = "thresholds.yaml"
+    block = _mapping(raw.get("thresholds"), where, "thresholds")
+    out: list[CategoryThreshold] = []
+    for category, value in block.items():
+        here = f"{where}: thresholds.{category}"
+        if category not in CATEGORIES:
+            raise DomainPackError(f"{here}: not a category; use {sorted(CATEGORIES)}")
+        entry = _mapping(value, where, f"thresholds.{category}")
+        unknown = sorted(set(entry) - {"min_pass_k", "gate"})
+        if unknown:
+            raise DomainPackError(f"{here}: unknown key(s) {unknown}")
+        min_pass_k = entry.get("min_pass_k")
+        if (
+            isinstance(min_pass_k, bool)
+            or not isinstance(min_pass_k, (int, float))
+            or not 0.0 <= float(min_pass_k) <= 1.0
+        ):
+            raise DomainPackError(f"{here}: min_pass_k must be a number in [0, 1]")
+        gate = entry.get("gate")
+        if gate not in GATE_KINDS:
+            raise DomainPackError(f"{here}: gate must be one of {list(GATE_KINDS)}")
+        out.append(
+            CategoryThreshold(
+                category=category,
+                min_pass_k=float(min_pass_k),
+                gate=cast(GateKind, gate),
+            )
+        )
+    missing = sorted(set(categories) - {t.category for t in out})
+    if missing:
+        raise DomainPackError(
+            f"{where}: no threshold for category(s) {missing}, which scenarios use"
+        )
+    return tuple(out)
 
 
 def _policy(raw: dict[str, Any]) -> Policy:
@@ -980,11 +1026,20 @@ class SeedDomainPack:
             self._policy,
             self._names,
         )
+        self._thresholds = _thresholds(
+            self._raw["thresholds.yaml"], {s.category for s in self._scenarios}
+        )
 
     # -- the DomainPack protocol ------------------------------------------
 
     def scenarios(self) -> Sequence[Scenario]:
         return self._scenarios
+
+    def thresholds(self) -> Sequence[CategoryThreshold]:
+        """The pack's default threshold per category (``Thresholded``,
+        docs/adr/0005 D6): what the plan takes unless the owner tightens
+        it in ``system.yaml``."""
+        return self._thresholds
 
     def build_environment(
         self, scenario: Scenario, task_id: TaskId

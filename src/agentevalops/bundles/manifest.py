@@ -30,6 +30,7 @@ from agentevalops import __version__
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
     MANIFEST_FILENAME,
+    TEST_PLAN_FILENAME,
     required_files_for_version,
 )
 
@@ -101,7 +102,9 @@ def generate_manifest(bundle_dir: Path) -> dict[str, Any]:
     """
     required = required_files_for_version(BUNDLE_FORMAT_VERSION)
     files: dict[str, dict[str, Any]] = {}
-    for filename in required:
+    # The test plan is checksummed when present (docs/adr/0005 D6; optional
+    # under 0.5, so it never joins ``required_files``).
+    for filename in (*required, TEST_PLAN_FILENAME):
         path = bundle_dir / filename
         if path.exists():
             size = path.stat().st_size

@@ -64,6 +64,16 @@ class AgenticBaselineBenchmark:
     def pack(self) -> DomainPack:
         return self._pack
 
+    def scenarios(self) -> tuple[Scenario, ...]:
+        """The scenarios this benchmark runs, in the pack's order."""
+        return tuple(self._scenarios.values())
+
+    def narrowed(self, scenario_ids: Sequence[str]) -> AgenticBaselineBenchmark:
+        """The same pack, limited to *scenario_ids* -- what the test plan
+        selected (docs/adr/0005 D6; R27). A new benchmark; this one is
+        unchanged."""
+        return AgenticBaselineBenchmark(self._pack, scenarios=scenario_ids)
+
     def _scenario(self, task: TaskSpec) -> Scenario:
         try:
             return self._scenarios[str(task.task_id)]

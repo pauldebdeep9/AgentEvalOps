@@ -601,6 +601,7 @@ def test_strings_in_walks_keys_and_leaves() -> None:
         "names.yaml",
         "cases.yaml",
         "scenarios.yaml",
+        "thresholds.yaml",
     }
 
 

@@ -54,10 +54,13 @@ def run(
     """Run an evaluation from a YAML config file."""
     import asyncio
 
-    from agentevalops.bundles.constants import REQUIRED_BUNDLE_FILES
+    from agentevalops.bundles.constants import (
+        REQUIRED_BUNDLE_FILES,
+        TEST_PLAN_FILENAME,
+    )
     from agentevalops.config.loader import load_run_config
     from agentevalops.core.errors import ConfigurationError, InfrastructureError
-    from agentevalops.core.schemas import RunSummary
+    from agentevalops.core.schemas import RunPlan, RunSummary
     from agentevalops.orchestration.local import LocalOrchestrator
     from agentevalops.registry import (
         KIND_BENCHMARK,
@@ -92,6 +95,50 @@ def run(
     except ConfigurationError as exc:
         typer.echo(f"Configuration error: {exc}", err=True)
         raise typer.Exit(code=1)
+    # docs/adr/0005 D6 (R27): under a system declaration, the plan is built
+    # first -- what the declaration selects, against which thresholds -- and
+    # the benchmark runs only the selected scenarios. A declaration that
+    # contradicts the pack, or selects nothing, stops the run here.
+    plan: RunPlan | None = None
+    if loaded.system is not None:
+        from agentevalops.plans import build_plan
+
+        pack = getattr(benchmark, "pack", None)
+        if pack is None or not hasattr(benchmark, "scenarios") or not hasattr(
+            benchmark, "narrowed"
+        ):
+            typer.echo(
+                f"Configuration error: benchmark '{loaded.benchmark_id}' has no "
+                "domain pack to plan against; a system declaration needs the "
+                "agentic-baseline benchmark",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        requested = loaded.benchmark_options.get("scenarios")
+        try:
+            plan = build_plan(
+                loaded.system,
+                pack,
+                benchmark.scenarios(),
+                run_config=loaded.run_config,
+                config_name=str(config),
+                evaluators=loaded.evaluators,
+                requested=None if requested is None else [str(s) for s in requested],
+                system_path=str(loaded.raw.get("system", "")),
+            )
+        except ConfigurationError as exc:
+            typer.echo(f"Configuration error: {exc}", err=True)
+            raise typer.Exit(code=1)
+        if not plan.selected:
+            reasons = sorted({e.reason for e in plan.excluded})
+            typer.echo(
+                "Configuration error: the system declaration selects no scenario "
+                f"of pack '{pack.pack_id}' ({len(plan.excluded)} excluded: "
+                f"{', '.join(reasons)}); nothing to run",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        benchmark = benchmark.narrowed(plan.selected)
     # docs/adr/0006 D13: every evaluator the run configures, in order.
     evaluators = [
         default_registry.get(KIND_EVALUATOR, name)() for name in loaded.evaluators
@@ -104,8 +151,13 @@ def run(
         typer.echo(f"Configuration error: {exc}", err=True)
         raise typer.Exit(code=1)
 
+    plan_sha256: str | None = None
     if output is not None:
-        existing = [f for f in REQUIRED_BUNDLE_FILES if (output / f).exists()]
+        existing = [
+            f
+            for f in (*REQUIRED_BUNDLE_FILES, TEST_PLAN_FILENAME)
+            if (output / f).exists()
+        ]
         if existing:
             typer.echo(
                 f"Output directory '{output}' already contains bundle "
@@ -113,12 +165,38 @@ def run(
                 err=True,
             )
             raise typer.Exit(code=1)
+        if plan is not None:
+            # docs/adr/0005 D6: the plan is on disk and hashed before the
+            # first task runs; a run that cannot register its plan does not
+            # start. The hash goes to metadata.json with the bundle.
+            from agentevalops.plans import write_plan
+
+            try:
+                plan_sha256 = write_plan(output, plan)
+            except OSError as exc:
+                typer.echo(
+                    f"Cannot write {TEST_PLAN_FILENAME} to '{output}': {exc}. "
+                    "The run does not start without its registered plan "
+                    "(docs/adr/0005 D6).",
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+            typer.echo(
+                f"Test plan registered: {output / TEST_PLAN_FILENAME} "
+                f"(sha256 {plan_sha256[:12]}...); {len(plan.selected)} of "
+                f"{len(plan.selected) + len(plan.excluded)} scenarios selected"
+            )
         # Streams traces to <output>/traces.jsonl as they happen, so a hard
         # kill mid-run still leaves a readable (unsealed) partial trace even
         # if the best-effort write below can't run at all (e.g. SIGKILL).
         store: InMemoryTraceStore | LocalTraceStore = LocalTraceStore(output)
     else:
         store = InMemoryTraceStore()
+        if plan is not None:
+            typer.echo(
+                f"No --output: the test plan is not written ({len(plan.selected)} "
+                f"of {len(plan.selected) + len(plan.excluded)} scenarios selected)"
+            )
 
     # ROADMAP R25, R26: the tasks' categories, outcome groups and variants,
     # from the benchmark's task metadata, for the CLI's summary and the
@@ -172,6 +250,7 @@ def run(
             tool_calls=orchestrator.tool_call_records,
             end_states=orchestrator.end_states,
             scenario_info=scenario_info,
+            test_plan_sha256=plan_sha256,
         )
         suffix = "" if status == "sealed" else f" (status: {status})"
         typer.echo(f"Bundle written to: {output.resolve()}{suffix}")
