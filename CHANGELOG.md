@@ -9,6 +9,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R27 slice 4 — `agentevalops gate --bundle`, fail-closed** (2026-11-01;
+  ADR-0005 D6; testing-framework 5.9.1; `efde5b0`). `plans/gate.py`
+  judges a bundle against the plan it registered: a hard gate is met only
+  when the category's pass^k rate reaches its threshold and every one of
+  its scenarios was evaluated; a not-evaluated scenario fails it whatever
+  the evaluated ones did, as does a gated category no scenario ran in; a
+  comparative threshold is reported and never gates, and says so where it
+  prints "below". The command validates the bundle first, so a tampered
+  plan cannot be judged. Exit 0 every hard gate met, 1 any failed, 2
+  cannot judge (no bundle, invalid, no registered plan, no threshold, no
+  pass^k, or a run that did not follow its plan). One line per threshold
+  with the source of each value, then the reasons and the verdict. The
+  bundle is never modified. Every rule has a fail-first test.
+
 - **R27 slice 3 — repetitions and pass^k** (2026-11-01; ADR-0006 D18,
   D20; testing-framework 3.6.1; `628c1d2`). `scorers/pass_k.py` groups
   the run's task runs by task id: a scenario passes only if every one of

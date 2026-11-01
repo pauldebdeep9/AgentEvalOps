@@ -408,7 +408,7 @@ AgentEvalOps/
 │   └── agentevalops/
 │       ├── __init__.py
 │       ├── cli.py                  # entry point: `agentevalops` (run, report, replay,
-│       │                           #   validate-bundle, version, doctor)
+│       │                           #   validate-bundle, gate, version, doctor)
 │       ├── registry.py             # entry-point discovery (top-level, not under core/)
 │       │
 │       ├── core/                   # LEAF: no dependency on any adapter or engine package
@@ -441,6 +441,7 @@ AgentEvalOps/
 │       │
 │       ├── plans/                  # the pre-registered test plan (ADR-0005 D6; R27)
 │       │   ├── builder.py          # selection rules, thresholds with sources, seeds
+│       │   ├── gate.py             # the fail-closed gate over a finished bundle
 │       │   └── io.py               # test_plan.json: write (hashed), read
 │       │
 │       ├── agents/                 # AgentRunner adapters

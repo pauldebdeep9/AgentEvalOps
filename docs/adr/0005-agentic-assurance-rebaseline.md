@@ -44,8 +44,13 @@ bump stays with R28's 0.6, where it becomes required -- and the
 agentic-baseline benchmark refuses to start without a declaration, so a
 seed-pack bundle always carries a plan. "Exact file formats are
 ADR-0007's" holds for the rest of the evidence pack; the plan's format is
-recorded in ADR-0006's R27 notes, which ADR-0007 lifts. The `gate`
-command and pass^k follow in R27's later slices.
+recorded in ADR-0006's R27 notes, which ADR-0007 lifts. pass^k (slice
+3, `628c1d2`) and the gate (slice 4, `efde5b0`) are built as D6 says:
+`agentevalops gate --bundle` fails any hard-gated category with
+`not_evaluated > 0`, below its threshold or with no scenario run;
+comparative thresholds are reported, never gate, and say so where they
+print "below"; a bundle without a registered plan, or whose plan no
+longer hashes to the registered value, cannot be judged (exit 2).
 
 **Release week moved — 2026-10-31 (owner decision, W25 checkpoint).** v0.5
 moves from Jan 4–10 to **Jan 25–31, 2027**, so D2's "the target week (Jan
