@@ -9,6 +9,21 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R27 slice 1 — the system declaration, and the YAML path for
+  repetitions and seed** (2026-11-01; ADR-0005 D6, ADR-0006 D18;
+  `9d3795c`). `configs/seed_system.yaml` is the scoping step: the tools
+  the system exposes with permission class, data class, reversibility and
+  external exposure; the involvement level, in this project's own labels
+  for what MGF-Agentic §1.1.3 describes; intended use, out-of-scope uses
+  and the owner's business metrics, recorded and never evaluated;
+  repetitions and seed; optional threshold overrides. `config/system.py`
+  loads it and rejects every malformed or contradictory field, naming the
+  file. The run config's `system:` key names it: the agentic-baseline
+  benchmark refuses to start without one, no other benchmark accepts one,
+  and repetitions and seed live in one place. Every rejection has a
+  fail-first test; the seed pack's pure-Python YAML fallback is now
+  tested. Nothing in the bundle changes yet.
+
 - **R26 met — robustness category; report by negative outcome**
   (2026-11-01; ADR-0006 D6; slices `ae2b0ec` … `4bb7ff7`). Every exit
   criterion is checked against running code in `tests/test_r26_exit.py`:

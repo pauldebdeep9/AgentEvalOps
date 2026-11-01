@@ -644,6 +644,15 @@ known-good preflight.**
 - The YAML path for `repetitions` arrives in R27; until then it is always
   1.
 
+**Implementation note — 2026-11-01 (R27 slice 1, `9d3795c`).** The YAML
+path is the system declaration's `repetitions` and `seed`
+(`configs/seed_system.yaml`, ADR-0005 D6), which `config/loader.py`
+copies into `RunConfig`; a run without a declaration (the toy configs)
+may set both at the top level of its run config, and setting them in
+both places is a load error, so a bundle's plan and its config cannot
+disagree. An agentic-baseline run without a declaration refuses to start
+(owner's condition, 2026-11-01).
+
 **D19. Harness data has its own files; no new `TraceEventKind`.**
 - Two new bundle files, one JSON object per line, keyed by `task_id` and
   `repetition`:
