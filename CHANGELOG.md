@@ -13,7 +13,7 @@ _Nothing yet._
 
 ## [0.3.0] — 2026-11-01
 
-Tagged `v0.3.0` on the 0.3.0 release commit, six weeks ahead of its Dec 13
+Tagged `v0.3.0` on `b3a2f11`, six weeks ahead of its Dec 13
 slot: the robustness category on the seed domain, with the report by kind
 of harm (R26), and scoping into a pre-registered test plan, repetitions
 with pass^k, and the fail-closed gate (R27). All four MGF-Agentic §2.3.2
