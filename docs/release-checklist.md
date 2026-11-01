@@ -94,6 +94,8 @@ without warnings.
 - [ ] `LICENSE` present
 - [ ] Version in `pyproject.toml` and `__init__.py` match
 - [ ] No `dist/`, `build/`, `runs/`, or `.coverage` files staged
+- [ ] `scripts/check_catalogue_ip.py` run against all three pinned PDFs
+      (`CLAUDE.md`, "Before any tag"): each PDF matches its pin, 0 overlap
 
 ---
 

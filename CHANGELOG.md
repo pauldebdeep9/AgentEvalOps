@@ -28,7 +28,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `reports/evidence.py` (a deterministic evidence report, answers left
   blank, the scripted-run sentence for the mock runner) are tested on
   synthetic inputs; the writer calls them in R28 (b). Bundles are unchanged
-  at format 0.5.
+  at format 0.5. **The seed scenarios' hash changed at `54a68fb`** (the new
+  citations are part of each `Scenario`), so a plan registered before that
+  commit records a `scenarios_sha256` that no longer matches the pack. That
+  is intended: the plan pins the scenarios it was registered against. No
+  check compares the two today -- `validate-bundle` holds `test_plan.json`
+  to the hash in `metadata.json`, not to the current pack; R29's `rescore`
+  is the first comparison (ADR-0007 D15).
 
 - **ADR-0007 Proposed — the evidence pack, bundle format 0.6** (2026-11-01;
   `docs/adr/0007-evidence-pack.md`). Fifteen decisions, the owner's choices

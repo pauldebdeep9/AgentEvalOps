@@ -29,6 +29,20 @@ point at a different interpreter than the one the project is installed into.
 The `Makefile` targets invoke bare executables and are therefore only safe with
 the env already activated. Prefer the absolute-path commands above.
 
+**Don't edit files while a gate is running on the tree.** Wait for it to
+finish, or stop it first. Tests read the checkout's own git state and
+files, so an edit mid-run makes the result describe neither the old tree
+nor the new one: on 2026-11-01 a docs-only gate reported 70 failures
+because catalogue code was edited while it ran.
+
+**Before any tag:** follow `docs/release-checklist.md`, and run the IP
+script against all three pinned PDFs (in `~/Documents/aeo-sources/`, never
+committed): `$ENV/bin/python scripts/check_catalogue_ip.py
+~/Documents/aeo-sources/mgf-for-agentic-ai.pdf
+~/Documents/aeo-sources/starter-kit-llm-testing.pdf
+~/Documents/aeo-sources/aivtf-2025.pdf`. It must name each PDF's pinned
+source and report 0 overlap. CI cannot run it.
+
 **Every gate or CI command chain starts with `set -o pipefail`.** Without it a
 pipeline's exit status is its last command's, so `pytest ... | tail -1` or
 `ruff check ... | grep ...` reports success whatever the gate found, and a

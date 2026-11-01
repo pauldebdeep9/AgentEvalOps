@@ -2,6 +2,56 @@
 
 ## Status
 
+**Amended — 2026-11-02 (owner decisions before R28 (b)).** Eight
+decisions. They change D5, D6, D7, D13 and the build order; nothing else.
+1. **`end_states` on each verdict (D5): accepted.** Every `controls.json`
+   verdict carries `end_states`, always present (an empty list when no
+   state-based evaluation judged an end state), as refs in the bundle's
+   existing ref format (`stream`, `task_id`, `repetition`, `index`, with
+   stream `end_states` and the line's index in `end_states.jsonl`). In 0.6
+   the validator checks that every such ref points at a real line of
+   `end_states.jsonl`.
+2. **"undeclared" becomes "not in pack" (D6).** A control no scenario in
+   the pack cites is `not_in_pack` in `controls.json` and "not in pack" in
+   the report. Reason: an undeclared run and an undeclared control would
+   read the same in one report. The report carries a legend saying what
+   each of the five states means. An undeclared run is still an
+   undeclared run (D2, decision 6).
+3. **Compact cells in `evidence_report.md` (D7).** `controls.json` keeps
+   the full lists; only the Markdown is shorter.
+   - The five run-level checks (3.6.1, 3.7.1, 3.12.1, 4.10.1, 9.9.2) say
+     "every scenario in the plan", then their artefact pointers. Which
+     checks read this way comes from the catalogue entry, not from
+     counting scenarios.
+   - A Scenarios table lists each pack scenario once: a selected one with
+     its pass^k, or its cause when pass^k is null; an excluded one with
+     the plan's reason.
+   - No counts or percentages in these cells (ADR-0005 D2: no
+     aggregate).
+4. **The scripted-run sentence once (D7, review item E5).** It appears
+   once, in the header. Each evidence cell carries a short "(scripted)"
+   tag instead, so a row copied out of the report keeps the warning.
+5. **Scenario descriptors (D5, review item A9).** `controls.json`'s
+   `scenarios` block lists every scenario in the pack, each marked
+   selected or excluded, with the plan's reason where it has one. The CLI
+   builds the descriptors from the whole pack, before it narrows the
+   benchmark. In 0.6 the validator checks that the block's selected ids
+   are the plan's `selected`.
+6. **The undeclared run (D2, D7, review item A1).** `report.md` and
+   `evidence_report.md` each say one plain sentence, for example "No test
+   plan was declared before this run, so nothing here was registered in
+   advance.", and show nothing else from the plan. A test checks that
+   neither report contains "None", "null" or an empty table cell for such
+   a run.
+7. **The writer's evidence inputs (D13).** `BundleWriter.write()` takes
+   one keyword argument for the evidence inputs: the catalogue and the
+   pack's scenario descriptors. The CLI always passes it, and an R28 (b2)
+   test proves it does for a narrowed seed run. When a caller leaves it
+   out, the writer uses the shipped catalogue and the run's own tasks, so
+   the bump does not touch every test that calls the writer.
+8. **R28 (b) runs as two sessions.** (b1) builds the library pieces with
+   no bundle change; (b2) is the bump in one commit, then the close-out.
+
 **R28 (a) built — 2026-11-01** (`9efca72`, `54a68fb`, `1eadf87`,
 `4b591f8`; ROADMAP R28 (a) met). Where the build departs from or adds to
 the text below:
