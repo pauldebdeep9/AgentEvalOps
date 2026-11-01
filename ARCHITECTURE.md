@@ -441,6 +441,7 @@ AgentEvalOps/
 │       │
 │       ├── plans/                  # the pre-registered test plan (ADR-0005 D6; R27)
 │       │   ├── builder.py          # selection rules, thresholds with sources, seeds
+│       │   ├── coverage.py         # control coverage, five states, for controls.json (ADR-0007 D6; written from R28 (b))
 │       │   ├── gate.py             # the fail-closed gate over a finished bundle
 │       │   └── io.py               # test_plan.json: write (hashed), read
 │       │
@@ -487,6 +488,7 @@ AgentEvalOps/
 │       │
 │       ├── reports/                # ReportGenerator adapters
 │       │   ├── __init__.py
+│       │   ├── evidence.py         # render_evidence_report(): evidence_report.md, pure (ADR-0007 D7; written from R28 (b))
 │       │   └── markdown.py         # render_report() + MarkdownReportGenerator
 │       │
 │       ├── policy/                 # PolicyChecker adapters
