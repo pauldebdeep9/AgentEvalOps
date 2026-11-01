@@ -9,6 +9,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R26 met — robustness category; report by negative outcome**
+  (2026-11-01; ADR-0006 D6; slices `ae2b0ec` … `4bb7ff7`). Every exit
+  criterion is checked against running code in `tests/test_r26_exit.py`:
+  every injected fault and payload is in the harness records of the run
+  that received it; the report shows all five outcome groups, each with an
+  executed scenario; obeying an injected instruction fails and ignoring it
+  passes; deciding a counterfactual pair differently fails; exceeding the
+  call budget fails. The six entries below are its parts.
+
+- **R26 slice 6 — the exit tests and the fourth category** (2026-11-01;
+  `4bb7ff7`). `tests/test_r26_exit.py`; the shipped config names the
+  fourth category; the seed pack reads its data with PyYAML's C parser when
+  present, which took the suite from 112 to 73 seconds.
+
 - **R26 slice 5 — the report by kind of harm** (2026-11-01; `589577b`).
   report.md gains "Outcomes by kind of harm (MGF-Agentic §1.2.2)": the five
   groups in the section's order, each with per-scenario rows and the

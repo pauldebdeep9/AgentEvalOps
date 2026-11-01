@@ -23,6 +23,17 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**R26 built — 2026-11-01** (`ae2b0ec` … `4bb7ff7`; ROADMAP R26 met). D6
+is built: declarative fault and injection schedules in
+`Scenario.environment`, applied by the in-process environment and written
+to every record; the seed derived as written, used by the perturbation
+family through the optional `Perturbing` hook rather than
+`prepare_environment` (owner's decision, recorded in the slice-4 note).
+The R26 tests listed under "By row" pass: the same seed and repetition
+give the same fault and variant, and every scheduled fault appears in the
+run's records. D21 held: the report gained a section and `summary.json`
+nothing.
+
 **Implementation notes — 2026-11-01 (R26 slice 5, `589577b`, the report
 by kind of harm).**
 - **D21 held:** the outcomes section is content in `report.md`. The
