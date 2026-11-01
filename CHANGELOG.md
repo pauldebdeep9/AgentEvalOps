@@ -7,6 +7,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.3.0] — 2026-11-01
+
+Tagged `v0.3.0` on the 0.3.0 release commit, six weeks ahead of its Dec 13
+slot: the robustness category on the seed domain, with the report by kind
+of harm (R26), and scoping into a pre-registered test plan, repetitions
+with pass^k, and the fail-closed gate (R27). All four MGF-Agentic §2.3.2
+categories now run on the seed domain. Bundle format stays 0.5. Everything
+below landed since v0.2.0.
+
 ### Added
 
 - **R27 met, except the v0.3 tag — scoping, the pre-registered test
