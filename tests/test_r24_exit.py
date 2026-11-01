@@ -44,6 +44,7 @@ from agentevalops.registry import KIND_EVALUATOR, build_default_registry
 from agentevalops.stores.memory import InMemoryTraceStore
 
 CONFIG = Path("configs/agentic_baseline_mock.yaml")
+SYSTEM = Path("configs/seed_system.yaml")
 DATA_DIR = Path(str(resources.files("agentevalops.domain_packs.seed") / "data"))
 _PACK = SeedDomainPack()
 #: Every scenario the pack ships, R25's policy-compliance ones included.
@@ -412,6 +413,7 @@ def test_the_shipped_config_runs_the_pack_through_the_cli(tmp_path: Path) -> Non
 
 def test_the_known_bad_playback_fails_every_task(tmp_path: Path) -> None:
     doc = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    doc["system"] = str(SYSTEM.resolve())  # the copy lives in tmp_path (R27)
     doc["mock_trajectory"] = "known_bad"
     doc["run_id"] = "agentic-baseline-mock-bad"
     config = tmp_path / "bad.yaml"

@@ -28,6 +28,7 @@ from agentevalops.core.identifiers import (
 from agentevalops.core.perturbation import PERTURBATION_FAMILIES
 from agentevalops.core.schemas import (
     FAULT_KINDS,
+    MGF_CATEGORIES,
     NEGATIVE_OUTCOMES,
     POLICY_RULES,
     Scenario,
@@ -57,9 +58,7 @@ EVALUATOR_KINDS: frozenset[str] = frozenset(
 OUTCOMES: tuple[str, ...] = ("approve", "reject", "refer")
 AMBIGUITIES: frozenset[str] = frozenset({"missing", "conflict"})
 GENDERS: frozenset[str] = frozenset({"female", "male"})
-CATEGORIES: frozenset[str] = frozenset(
-    {"task_execution", "tool_calling", "policy_compliance", "robustness"}
-)
+CATEGORIES: frozenset[str] = frozenset(MGF_CATEGORIES)
 #: The roles the policy rules name; every one maps to a seed tool.
 POLICY_ROLES: tuple[str, ...] = ("lookup", "decide", "notify", "refer", "export")
 DATA_FILES: tuple[str, ...] = (

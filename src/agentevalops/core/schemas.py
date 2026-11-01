@@ -349,6 +349,100 @@ class AgentOutput:
 
 
 # ---------------------------------------------------------------------------
+# System declaration (docs/adr/0005 D6; ROADMAP R27)
+# ---------------------------------------------------------------------------
+
+#: MGF-Agentic §2.3.2's four categories, as this project labels them
+#: (docs/imda-alignment.md), in the section's order. Every scenario of a
+#: domain pack is in one; the plan's thresholds are per category.
+MGF_CATEGORIES: tuple[str, ...] = (
+    "task_execution",
+    "tool_calling",
+    "policy_compliance",
+    "robustness",
+)
+
+#: The level of human involvement a system declares. MGF-Agentic §1.1.3
+#: describes levels of human involvement in an agent's actions; these three
+#: labels are this project's own words for them, not the framework's
+#: (docs/adr/0005 D5). ``human_approves``: a person answers each approval
+#: request before an irreversible action. ``human_monitors``: a person can
+#: see the actions but answers no approval request. ``autonomous``: no
+#: person in the loop.
+InvolvementLevel = Literal["human_approves", "human_monitors", "autonomous"]
+INVOLVEMENT_LEVELS: tuple[str, ...] = ("human_approves", "human_monitors", "autonomous")
+
+#: How a threshold is used (docs/adr/0005 D6): a ``hard`` gate fails the
+#: run; a ``comparative`` threshold is reported and never gates.
+GateKind = Literal["hard", "comparative"]
+GATE_KINDS: tuple[str, ...] = ("hard", "comparative")
+
+
+@dataclass(frozen=True)
+class DeclaredTool:
+    """One tool the system under test exposes, as its owner declares it.
+
+    ``permission`` and ``data_class`` use the harness's own vocabulary
+    (``ToolSpec``); the plan checks them against the pack's specs.
+    ``reversible`` is ``False`` exactly when ``permission`` is
+    ``irreversible``: a declaration that says otherwise contradicts the
+    approval gate (docs/adr/0006 D5) and is rejected. ``external`` says
+    whether the tool reaches outside the system (a notice sent, a record
+    exported); the pack has no view of it, so it is the owner's fact.
+    """
+
+    name: str
+    permission: ToolPermission
+    data_class: ToolDataClass = "normal"
+    reversible: bool = True
+    external: bool = False
+
+
+@dataclass(frozen=True)
+class BusinessMetric:
+    """A metric the owner names (name and definition), recorded in the plan
+    and repeated in the report, never computed (testing-framework 3.7.1)."""
+
+    name: str
+    definition: str
+
+
+@dataclass(frozen=True)
+class ThresholdOverride:
+    """The owner's threshold for one category, from ``system.yaml``. Either
+    field may be omitted; the plan fills the rest from the pack's and
+    records each value's source (testing-framework 3.6.1)."""
+
+    category: str
+    min_pass_k: float | None = None
+    gate: GateKind | None = None
+
+
+@dataclass(frozen=True)
+class SystemDeclaration:
+    """What the owner declares about the system under test (``system.yaml``):
+    the scoping step, from which the plan selects scenarios and thresholds.
+
+    ``intended_use``, ``out_of_scope`` and ``business_metrics`` are recorded
+    and repeated, never evaluated. ``repetitions`` and ``seed`` are the
+    run's (docs/adr/0006 D18, D6). ``sha256`` is of the YAML bytes the
+    declaration was loaded from, empty when it was built in code.
+    """
+
+    system_id: str
+    pack_id: str
+    involvement: InvolvementLevel
+    tools: tuple[DeclaredTool, ...]
+    intended_use: str
+    out_of_scope: tuple[str, ...] = ()
+    business_metrics: tuple[BusinessMetric, ...] = ()
+    repetitions: int = 1
+    seed: int = 0
+    thresholds: tuple[ThresholdOverride, ...] = ()
+    sha256: str = ""
+
+
+# ---------------------------------------------------------------------------
 # Trace
 # ---------------------------------------------------------------------------
 

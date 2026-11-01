@@ -212,9 +212,16 @@ def test_cli_runs_a_pack_and_records_the_preflight(
     fresh = registry_module.build_default_registry()
     fresh.register(KIND_DOMAIN_PACK, "test-pack", _TestPack)
     monkeypatch.setattr(registry_module, "default_registry", fresh)
+    # docs/adr/0005 D6 (R27): an agentic-baseline run needs a declaration.
+    (tmp_path / "system.yaml").write_text(
+        "system_id: t\npack_id: test-pack\ninvolvement: autonomous\n"
+        "tools: [{name: calculator, permission: read}]\n"
+        "intended_use: Add numbers.\n",
+        encoding="utf-8",
+    )
     config = tmp_path / "c.yaml"
     config.write_text(
-        "run_id: ab1\nbenchmark_id: agentic-baseline\n"
+        "run_id: ab1\nbenchmark_id: agentic-baseline\nsystem: system.yaml\n"
         "benchmark_options:\n  pack: test-pack\n  scenarios: [add, broken]\n",
         encoding="utf-8",
     )

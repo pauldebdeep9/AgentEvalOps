@@ -24,6 +24,11 @@ resource_limits:
 benchmark_id: "agentic-baseline"
 benchmark_options:
   pack: seed
+# docs/adr/0005 D6 (R27): the system declaration, relative to this file.
+# It selects the scenarios and thresholds, sets repetitions and seed, and
+# is written into test_plan.json before the first task runs; the run
+# refuses to start without it.
+system: seed_system.yaml
 
 # docs/adr/0006 D13: the run configures these; each scenario declares which
 # of them apply to it. `policy` judges the pack's rules per task run from

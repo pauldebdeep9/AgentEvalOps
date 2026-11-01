@@ -979,3 +979,30 @@ def test_the_scan_flags_each_kind_of_real_looking_identifier(text: str) -> None:
 )
 def test_the_scan_accepts_synthetic_identifiers_and_plain_text(text: str) -> None:
     assert unsafe_identifiers(f"note {text} here") == []
+
+
+def test_the_pack_loads_on_pyyaml_pure_python_parser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``pack.py`` reads with libyaml's ``CSafeLoader`` when the wheel has it
+    and falls back to ``SafeLoader`` otherwise (R26); a wheel without
+    libyaml must read the same pack. Checked by forcing the fallback and
+    watching that every read used it."""
+    from agentevalops.domain_packs.seed import pack as pack_module
+
+    assert pack_module._SAFE_LOADER is getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+    used: list[Any] = []
+    original = yaml.load
+
+    def spy(stream: Any, Loader: Any) -> Any:  # noqa: N803 - PyYAML's own name
+        used.append(Loader)
+        return original(stream, Loader=Loader)
+
+    monkeypatch.setattr(pack_module, "_SAFE_LOADER", yaml.SafeLoader)
+    monkeypatch.setattr(pack_module.yaml, "load", spy)
+    fallback = SeedDomainPack()
+    # The pack's four data files, and the catalogue's own safe loads.
+    assert len(used) >= len(DATA_FILES)
+    assert all(loader is yaml.SafeLoader for loader in used)
+    assert list(fallback.scenarios()) == list(PACK.scenarios())
+    assert fallback.policy == PACK.policy

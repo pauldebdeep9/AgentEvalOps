@@ -27,6 +27,7 @@ from agentevalops.domain_packs.seed import SeedDomainPack
 from agentevalops.policy import basic_checker
 
 CONFIG = Path("configs/agentic_baseline_mock.yaml")
+SYSTEM = Path("configs/seed_system.yaml")
 PACK = SeedDomainPack()
 SCENARIOS = {s.scenario_id: s for s in PACK.scenarios()}
 POLICY_SCENARIOS = [sid for sid in SCENARIO_IDS if sid.startswith("PC")]
@@ -187,6 +188,7 @@ def test_the_known_bad_playback_fails_every_category_and_keeps_the_run_level_pas
     tmp_path: Path,
 ) -> None:
     doc = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    doc["system"] = str(SYSTEM.resolve())  # the copy lives in tmp_path (R27)
     doc["mock_trajectory"] = "known_bad"
     config = tmp_path / "bad.yaml"
     config.write_text(yaml.safe_dump(doc), encoding="utf-8")
@@ -211,6 +213,7 @@ def test_a_run_that_strays_outside_allowed_tool_ids_fails_the_policy_verdict(
     """Fail-first for the shipped config's allow-list: narrow it and the
     known-good exports in PC5 and the policy search elsewhere fail the run."""
     doc = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    doc["system"] = str(SYSTEM.resolve())  # the copy lives in tmp_path (R27)
     doc["policy"]["allowed_tool_ids"] = [
         "case_lookup",
         "status_update",

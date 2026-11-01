@@ -28,6 +28,7 @@ from agentevalops.domain_packs.seed import SeedDomainPack
 from agentevalops.reports.markdown import OUTCOME_LABELS, outcome_section, render_report
 
 CONFIG = Path("configs/agentic_baseline_mock.yaml")
+SYSTEM = Path("configs/seed_system.yaml")
 
 
 def _config(agent: str = "mock-agent-v1") -> RunConfig:
@@ -198,6 +199,7 @@ def test_the_shipped_run_fills_all_five_groups(tmp_path: Path) -> None:
 
 def test_a_run_of_one_scenario_reports_the_empty_groups(tmp_path: Path) -> None:
     doc = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    doc["system"] = str(SYSTEM.resolve())  # the copy lives in tmp_path (R27)
     doc["benchmark_options"]["scenarios"] = ["RB1"]
     doc["run_id"] = "one"
     config = tmp_path / "one.yaml"

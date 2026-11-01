@@ -18,14 +18,20 @@ Public API
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from agentevalops.config.system import load_system_declaration
 from agentevalops.core.errors import ConfigurationError
-from agentevalops.core.schemas import PolicySpec, ResourceLimits, RunConfig
+from agentevalops.core.schemas import (
+    PolicySpec,
+    ResourceLimits,
+    RunConfig,
+    SystemDeclaration,
+)
 from agentevalops.core.types import BACKEND_AWS, AgentId, BackendId, RunId
 
 # ---------------------------------------------------------------------------
@@ -101,6 +107,13 @@ class LoadedRunConfig:
         trajectory of that kind through the mock runner (docs/adr/0006
         D11); ``None`` keeps the mock's metadata-driven mode. Only valid
         with ``runner_id: mock`` and a benchmark that has scripts.
+    system, system_path:
+        The system declaration the run config's ``system:`` key names
+        (docs/adr/0005 D6; ROADMAP R27), loaded, and its resolved path;
+        ``None`` for a run without one. The agentic-baseline benchmark
+        requires one; no other benchmark accepts one. Its ``repetitions``
+        and ``seed`` are the run config's; a run without a declaration
+        may set both at the top level of the run config instead.
     """
 
     path: Path
@@ -115,6 +128,8 @@ class LoadedRunConfig:
     runner_id: str = "mock"
     evaluators: tuple[str, ...] = ("deterministic",)
     mock_trajectory: str | None = None
+    system: SystemDeclaration | None = None
+    system_path: Path | None = None
 
     @property
     def model(self) -> str | None:
@@ -199,6 +214,9 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         - ``mock_cost_per_task_usd`` is negative.
         - ``runner_id: azure-openai`` omits ``deployment`` or ``api_version``.
         - ``deployment``/``api_version`` are set for any other ``runner_id``.
+        - ``benchmark_id: agentic-baseline`` has no ``system:``, or any
+          other benchmark has one; the declaration does not load, or names
+          a different pack; ``repetitions``/``seed`` are set in both.
     """
     # ------------------------------------------------------------------
     # File-system checks
@@ -527,6 +545,62 @@ def load_run_config(path: Path) -> LoadedRunConfig:
                 f"(got runner_id: '{runner_id}')"
             )
 
+    # ------------------------------------------------------------------
+    # system declaration (docs/adr/0005 D6; ROADMAP R27)
+    # ------------------------------------------------------------------
+    # The seed pack never runs without a pre-registered plan, and the plan
+    # starts from the declaration: an agentic-baseline run without one
+    # refuses to start here, before anything is built. ``repetitions`` and
+    # ``seed`` live in one place -- the declaration when there is one, the
+    # run config's top level otherwise -- so a bundle's plan and its config
+    # cannot disagree about either.
+    system: SystemDeclaration | None = None
+    system_path: Path | None = None
+    system_raw = raw.get("system")
+    if system_raw is not None:
+        if not isinstance(system_raw, str) or not system_raw.strip():
+            raise ConfigurationError(
+                "system must be the path of a system declaration (system.yaml), "
+                f"relative to the run config, got {system_raw!r}"
+            )
+        if benchmark_id != "agentic-baseline":
+            raise ConfigurationError(
+                "system: is only valid with benchmark_id: agentic-baseline "
+                f"(got benchmark_id: '{benchmark_id}')"
+            )
+        candidate = Path(system_raw)
+        system_path = (
+            candidate if candidate.is_absolute() else path.parent / candidate
+        ).resolve()
+        system = load_system_declaration(system_path)
+        pack = str(benchmark_options.get("pack", ""))
+        if system.pack_id != pack:
+            raise ConfigurationError(
+                f"system declaration {system_path.name} is for pack "
+                f"'{system.pack_id}', but benchmark_options.pack is '{pack}'"
+            )
+        for key in ("repetitions", "seed"):
+            if key in raw:
+                raise ConfigurationError(
+                    f"{key} is set in the system declaration ({system_path.name}); "
+                    "remove it from the run config, which may not set it as well"
+                )
+        repetitions, seed = system.repetitions, system.seed
+    else:
+        if benchmark_id == "agentic-baseline":
+            raise ConfigurationError(
+                "benchmark_id: agentic-baseline requires system: the path of a "
+                "system declaration (see configs/seed_system.yaml); the pack "
+                "never runs without a pre-registered plan (docs/adr/0005 D6)"
+            )
+        repetitions = _as_int(raw.get("repetitions", 1), "repetitions")
+        if repetitions < 1:
+            raise ConfigurationError(
+                f"repetitions must be at least 1, got {repetitions}"
+            )
+        seed = _as_int(raw.get("seed", 0), "seed")
+    run_config = replace(run_config, repetitions=repetitions, seed=seed)
+
     return LoadedRunConfig(
         path=path,
         raw=raw,
@@ -540,4 +614,6 @@ def load_run_config(path: Path) -> LoadedRunConfig:
         runner_id=runner_id,
         evaluators=evaluators,
         mock_trajectory=mock_trajectory,
+        system=system,
+        system_path=system_path,
     )
