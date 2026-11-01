@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
 import typer
 
@@ -471,6 +471,96 @@ def validate_bundle(
 ) -> None:
     """Validate the structural integrity of a saved result bundle."""
     _run_validate_bundle(bundle)
+
+
+@app.command()
+def gate(
+    bundle: Path = typer.Option(
+        ...,
+        "--bundle",
+        "-b",
+        help="Path to a result bundle directory with a registered test plan.",
+    ),
+) -> None:
+    """Judge a bundle against its pre-registered plan; fails closed.
+
+    Exit 0 when every hard gate is met over scenarios that were all
+    evaluated; 1 when any hard gate is below its threshold, has a
+    not-evaluated scenario, or ran no scenario; 2 when the gate cannot
+    judge (no bundle, an invalid or tampered bundle, no registered plan,
+    no threshold, or a run that did not follow its plan). A comparative
+    threshold is reported and never gates (docs/adr/0005 D6; ROADMAP R27).
+    """
+    import json
+
+    from agentevalops.bundles.constants import TEST_PLAN_FILENAME
+    from agentevalops.bundles.validator import validate_bundle as _validate
+    from agentevalops.plans.gate import (
+        EXIT_CANNOT_JUDGE,
+        EXIT_FAIL,
+        EXIT_PASS,
+        GateError,
+        judge,
+    )
+
+    def cannot(reason: str) -> NoReturn:
+        typer.echo(f"GATE: CANNOT JUDGE -- {reason}", err=True)
+        raise typer.Exit(code=EXIT_CANNOT_JUDGE)
+
+    if not bundle.exists():
+        cannot(f"bundle path not found: {bundle}")
+    validation = _validate(bundle)
+    if not validation.valid:
+        for error in validation.errors:
+            typer.echo(f"  ! {error}", err=True)
+        cannot(f"the bundle does not validate ({len(validation.errors)} error(s))")
+    try:
+        metadata = json.loads((bundle / "metadata.json").read_text(encoding="utf-8"))
+        summary = json.loads((bundle / "summary.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        cannot(f"cannot read the bundle: {exc}")
+    plan_path = bundle / TEST_PLAN_FILENAME
+    registered = (
+        metadata.get("test_plan_sha256") if isinstance(metadata, dict) else None
+    )
+    if not isinstance(registered, str) or not plan_path.exists():
+        cannot(
+            f"no registered plan: the bundle has no {TEST_PLAN_FILENAME} whose "
+            "sha256 metadata.json records (docs/adr/0005 D6)"
+        )
+    try:
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        cannot(f"cannot read {TEST_PLAN_FILENAME}: {exc}")
+    if not isinstance(plan, dict) or not isinstance(summary, dict):
+        cannot("the plan and the summary must be JSON objects")
+    try:
+        result = judge(plan, summary)
+    except GateError as exc:
+        cannot(str(exc))
+    typer.echo(f"Bundle:  {bundle.resolve()}")
+    typer.echo(f"Run ID:  {metadata.get('run_id')}")
+    typer.echo(f"Plan:    {TEST_PLAN_FILENAME} (sha256 {registered[:12]}..., verified)")
+    width = max(len(line.category) for line in result.lines)
+    for line in result.lines:
+        observed = "-" if line.observed is None else f"{line.observed:.2f}"
+        typer.echo(
+            f"{line.category:<{width}}  {line.gate:<11}  "
+            f"min {line.min_pass_k} ({line.min_pass_k_source}"
+            + (
+                f", gate: {line.gate_source}"
+                if line.gate_source != line.min_pass_k_source
+                else ""
+            )
+            + f")  pass^k {observed} ({line.passed}/{line.scenarios})  {line.verdict}"
+        )
+    if result.passed:
+        typer.echo("GATE: PASS")
+        raise typer.Exit(code=EXIT_PASS)
+    for reason in result.reasons:
+        typer.echo(f"  ! {reason}")
+    typer.echo("GATE: FAIL")
+    raise typer.Exit(code=EXIT_FAIL)
 
 
 def _run_validate_bundle(bundle: Path) -> None:
