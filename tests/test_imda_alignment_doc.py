@@ -15,8 +15,8 @@ import re
 from collections import Counter
 from pathlib import Path
 
+import fast_yaml
 import pytest
-import yaml
 
 from agentevalops.catalogue import (
     CLASSIFICATIONS,
@@ -200,7 +200,7 @@ def _catalogue_with(
 ) -> Catalogue:
     """The shipped catalogue with one process entry changed, and its
     declared counts moved by *counts* so the loader still accepts it."""
-    raw = yaml.safe_load((DATA / "testing-framework-2025.yaml").read_text("utf-8"))
+    raw = fast_yaml.safe_load((DATA / "testing-framework-2025.yaml").read_text("utf-8"))
     (entry,) = [c for c in raw["controls"] if c["locator"] == locator]
     entry.update(change)
     for key in [k for k, v in entry.items() if v is None]:
@@ -208,7 +208,7 @@ def _catalogue_with(
     for name, delta in (counts or {}).items():
         raw["process_counts"][name] += delta
     edited = tmp_path / "testing-framework-2025.yaml"
-    edited.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    edited.write_text(fast_yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
     others = [p for p in sorted(DATA.glob("*.yaml")) if p.name != edited.name]
     return load_catalogue([*others, edited])
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import yaml
+import fast_yaml
 
 from agentevalops.catalogue import Catalogue, load_catalogue
 from agentevalops.core.schemas import (
@@ -222,7 +222,7 @@ def catalogue(tmp_path: Path, citations: int = 7) -> Catalogue:
     paths = []
     for name, content in (("a-doc.yaml", doc), ("b-tf.yaml", tf)):
         path = tmp_path / name
-        path.write_text(yaml.safe_dump(content, sort_keys=False), encoding="utf-8")
+        path.write_text(fast_yaml.safe_dump(content, sort_keys=False), encoding="utf-8")
         paths.append(path)
     return load_catalogue(paths)
 

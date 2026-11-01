@@ -15,8 +15,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import fast_yaml
 import pytest
-import yaml
 from flaky_runner import FlakyRunner, passes
 from test_agentic_baseline import _TestPack
 from test_bundle_0_5 import _Benchmark, _orchestrator, _task
@@ -493,14 +493,14 @@ def test_the_report_plan_section_lists_exclusions_and_not_evaluated_categories()
 
 
 def test_a_cli_run_with_repetitions_reports_pass_k_everywhere(tmp_path: Path) -> None:
-    system = yaml.safe_load(SYSTEM.read_text(encoding="utf-8"))
+    system = fast_yaml.safe_load(SYSTEM.read_text(encoding="utf-8"))
     system["repetitions"] = 2
-    (tmp_path / "system.yaml").write_text(yaml.safe_dump(system), encoding="utf-8")
-    run = yaml.safe_load(RUN_CONFIG.read_text(encoding="utf-8"))
+    (tmp_path / "system.yaml").write_text(fast_yaml.safe_dump(system), encoding="utf-8")
+    run = fast_yaml.safe_load(RUN_CONFIG.read_text(encoding="utf-8"))
     run["system"] = "system.yaml"
     run["benchmark_options"]["scenarios"] = ["TE1", "TC1", "PC1", "RB1"]
     config = tmp_path / "run.yaml"
-    config.write_text(yaml.safe_dump(run), encoding="utf-8")
+    config.write_text(fast_yaml.safe_dump(run), encoding="utf-8")
     out = tmp_path / "bundle"
     result = CliRunner().invoke(
         app, ["run", "--config", str(config), "--output", str(out)]

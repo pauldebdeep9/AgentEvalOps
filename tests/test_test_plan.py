@@ -15,8 +15,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import fast_yaml
 import pytest
-import yaml
 from test_seed_domain import _edited
 from typer.testing import CliRunner
 
@@ -505,7 +505,7 @@ def test_the_declared_intended_use_and_business_metrics_appear_unchanged(
         {"name": m.name, "definition": m.definition}
         for m in DECLARATION.business_metrics
     ]
-    shipped = yaml.safe_load(SHIPPED_SYSTEM.read_text(encoding="utf-8"))
+    shipped = fast_yaml.safe_load(SHIPPED_SYSTEM.read_text(encoding="utf-8"))
     assert system["intended_use"] == shipped["intended_use"].strip()
     assert system["business_metrics"][0]["definition"] == (
         shipped["business_metrics"][0]["definition"].strip()
@@ -527,14 +527,14 @@ def _cli_config(
     mutate_run: Any = lambda d: None,
     mutate_system: Any = lambda d: None,
 ) -> Path:
-    system = yaml.safe_load(SHIPPED_SYSTEM.read_text(encoding="utf-8"))
+    system = fast_yaml.safe_load(SHIPPED_SYSTEM.read_text(encoding="utf-8"))
     mutate_system(system)
-    (tmp_path / "system.yaml").write_text(yaml.safe_dump(system), encoding="utf-8")
-    run = yaml.safe_load(RUN_CONFIG.read_text(encoding="utf-8"))
+    (tmp_path / "system.yaml").write_text(fast_yaml.safe_dump(system), encoding="utf-8")
+    run = fast_yaml.safe_load(RUN_CONFIG.read_text(encoding="utf-8"))
     run["system"] = "system.yaml"
     mutate_run(run)
     path = tmp_path / "run.yaml"
-    path.write_text(yaml.safe_dump(run), encoding="utf-8")
+    path.write_text(fast_yaml.safe_dump(run), encoding="utf-8")
     return path
 
 

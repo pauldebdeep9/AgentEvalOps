@@ -19,8 +19,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import fast_yaml
 import pytest
-import yaml
 from typer.testing import CliRunner
 
 from agentevalops.bundles.constants import TEST_PLAN_FILENAME
@@ -208,14 +208,14 @@ def _config(
     mutate_run: Any = lambda d: None,
     mutate_system: Any = lambda d: None,
 ) -> Path:
-    system = yaml.safe_load(SYSTEM.read_text(encoding="utf-8"))
+    system = fast_yaml.safe_load(SYSTEM.read_text(encoding="utf-8"))
     mutate_system(system)
-    (tmp_path / "system.yaml").write_text(yaml.safe_dump(system), encoding="utf-8")
-    run = yaml.safe_load(RUN_CONFIG.read_text(encoding="utf-8"))
+    (tmp_path / "system.yaml").write_text(fast_yaml.safe_dump(system), encoding="utf-8")
+    run = fast_yaml.safe_load(RUN_CONFIG.read_text(encoding="utf-8"))
     run["system"] = "system.yaml"
     mutate_run(run)
     path = tmp_path / "run.yaml"
-    path.write_text(yaml.safe_dump(run), encoding="utf-8")
+    path.write_text(fast_yaml.safe_dump(run), encoding="utf-8")
     return path
 
 

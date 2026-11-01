@@ -10,8 +10,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import fast_yaml
 import pytest
-import yaml
 from typer.testing import CliRunner
 
 from agentevalops.cli import app
@@ -29,14 +29,14 @@ RUN_CONFIG = Path("configs/agentic_baseline_mock.yaml")
 
 
 def _shipped() -> dict[str, Any]:
-    doc = yaml.safe_load(SHIPPED.read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load(SHIPPED.read_text(encoding="utf-8"))
     assert isinstance(doc, dict)
     return doc
 
 
 def _write(tmp_path: Path, doc: Any, name: str = "system.yaml") -> Path:
     path = tmp_path / name
-    path.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+    path.write_text(fast_yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
     return path
 
 
@@ -326,7 +326,7 @@ def test_thresholds_parsed_with_their_source_left_to_the_plan(tmp_path: Path) ->
 
 
 def _run_doc() -> dict[str, Any]:
-    doc = yaml.safe_load(RUN_CONFIG.read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load(RUN_CONFIG.read_text(encoding="utf-8"))
     assert isinstance(doc, dict)
     return doc
 
@@ -386,7 +386,9 @@ def test_declaration_pack_must_match_the_run_config(tmp_path: Path) -> None:
 
 def test_declaration_only_with_the_agentic_baseline(tmp_path: Path) -> None:
     _write(tmp_path, _shipped(), "seed_system.yaml")
-    doc = yaml.safe_load(Path("configs/toy_smoke.yaml").read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load(
+        Path("configs/toy_smoke.yaml").read_text(encoding="utf-8")
+    )
     doc["system"] = "seed_system.yaml"
     path = _write(tmp_path, doc, "toy.yaml")
     with pytest.raises(ConfigurationError, match="system"):

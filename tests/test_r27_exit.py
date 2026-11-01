@@ -14,8 +14,8 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
+import fast_yaml
 import pytest
-import yaml
 from flaky_runner import FlakyRunner, passes
 from test_gate import _bundle, _config, _gate
 from test_r24_exit import _evaluators
@@ -111,7 +111,7 @@ def test_a_declared_intended_use_and_business_metric_appear_unchanged_in_the_pla
     """Criterion 3 (testing-framework 3.7.1): recorded verbatim, never
     evaluated -- in the plan the run registered, and repeated by the
     report."""
-    shipped = yaml.safe_load(SYSTEM.read_text(encoding="utf-8"))
+    shipped = fast_yaml.safe_load(SYSTEM.read_text(encoding="utf-8"))
     bundle = _bundle(tmp_path, _config(tmp_path))
     plan = read_plan(bundle)
     assert plan is not None

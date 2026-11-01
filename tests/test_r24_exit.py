@@ -12,8 +12,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
+import fast_yaml
 import pytest
-import yaml
 from typer.testing import CliRunner
 
 from agentevalops.agents.mock_runner import MockAgentRunner
@@ -176,7 +176,7 @@ def test_a_defective_known_good_is_an_environment_defect_never_an_agent_failure(
     reported as the agent's failure."""
     copy = tmp_path / "data"
     shutil.copytree(DATA_DIR, copy)
-    doc = yaml.safe_load((copy / "scenarios.yaml").read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load((copy / "scenarios.yaml").read_text(encoding="utf-8"))
     (te1,) = [s for s in doc["scenarios"] if s["scenario_id"] == "TE1"]
     # Well-formed to the loader, but decides the case wrongly.
     te1["known_good"] = [
@@ -192,7 +192,7 @@ def test_a_defective_known_good_is_an_environment_defect_never_an_agent_failure(
         {"finish": "C1: approved (ELIG-OK)"},
     ]
     (copy / "scenarios.yaml").write_text(
-        yaml.safe_dump(doc, sort_keys=False), encoding="utf-8"
+        fast_yaml.safe_dump(doc, sort_keys=False), encoding="utf-8"
     )
 
     summary, _, _, spy = _seed("known_good", pack=SeedDomainPack(copy), repetitions=2)
@@ -412,12 +412,12 @@ def test_the_shipped_config_runs_the_pack_through_the_cli(tmp_path: Path) -> Non
 
 
 def test_the_known_bad_playback_fails_every_task(tmp_path: Path) -> None:
-    doc = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
     doc["system"] = str(SYSTEM.resolve())  # the copy lives in tmp_path (R27)
     doc["mock_trajectory"] = "known_bad"
     doc["run_id"] = "agentic-baseline-mock-bad"
     config = tmp_path / "bad.yaml"
-    config.write_text(yaml.safe_dump(doc), encoding="utf-8")
+    config.write_text(fast_yaml.safe_dump(doc), encoding="utf-8")
     out = tmp_path / "bundle"
     result = CliRunner().invoke(
         app, ["run", "--config", str(config), "--output", str(out)]

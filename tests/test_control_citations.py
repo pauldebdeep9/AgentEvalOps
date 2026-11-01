@@ -13,8 +13,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+import fast_yaml
 import pytest
-import yaml
 
 from agentevalops.benchmarks.agentic_baseline import AgenticBaselineBenchmark
 from agentevalops.catalogue import SCENARIO_CLASSES, load_catalogue
@@ -78,9 +78,9 @@ def _edited_scenarios(tmp_path: Path, mutate: Any) -> Path:
     copy = tmp_path / "data"
     shutil.copytree(DATA_DIR, copy)
     path = copy / "scenarios.yaml"
-    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load(path.read_text(encoding="utf-8"))
     mutate(doc)
-    path.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+    path.write_text(fast_yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
     return copy
 
 

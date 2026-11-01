@@ -9,7 +9,7 @@ import inspect
 import json
 from pathlib import Path
 
-import yaml
+import fast_yaml
 from test_r24_exit import EVALUATIONS, GOOD_CALLS, SCENARIO_IDS, N, _seed
 from typer.testing import CliRunner
 
@@ -188,11 +188,11 @@ def test_the_shipped_config_produces_verdicts_in_three_categories(
 def test_the_known_bad_playback_fails_every_category_and_keeps_the_run_level_pass(
     tmp_path: Path,
 ) -> None:
-    doc = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
     doc["system"] = str(SYSTEM.resolve())  # the copy lives in tmp_path (R27)
     doc["mock_trajectory"] = "known_bad"
     config = tmp_path / "bad.yaml"
-    config.write_text(yaml.safe_dump(doc), encoding="utf-8")
+    config.write_text(fast_yaml.safe_dump(doc), encoding="utf-8")
     out = tmp_path / "bundle"
     result = CliRunner().invoke(
         app, ["run", "--config", str(config), "--output", str(out)]
@@ -213,7 +213,7 @@ def test_a_run_that_strays_outside_allowed_tool_ids_fails_the_policy_verdict(
 ) -> None:
     """Fail-first for the shipped config's allow-list: narrow it and the
     known-good exports in PC5 and the policy search elsewhere fail the run."""
-    doc = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
     doc["system"] = str(SYSTEM.resolve())  # the copy lives in tmp_path (R27)
     doc["policy"]["allowed_tool_ids"] = [
         "case_lookup",
@@ -222,7 +222,7 @@ def test_a_run_that_strays_outside_allowed_tool_ids_fails_the_policy_verdict(
         "refer_to_officer",
     ]
     config = tmp_path / "narrow.yaml"
-    config.write_text(yaml.safe_dump(doc), encoding="utf-8")
+    config.write_text(fast_yaml.safe_dump(doc), encoding="utf-8")
     out = tmp_path / "bundle"
     result = CliRunner().invoke(
         app, ["run", "--config", str(config), "--output", str(out)]

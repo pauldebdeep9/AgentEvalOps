@@ -11,8 +11,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
+import fast_yaml
 import pytest
-import yaml
 
 from agentevalops.agents.mock_runner import MockAgentRunner
 from agentevalops.core.errors import ConfigurationError
@@ -195,10 +195,10 @@ def test_a_denied_call_still_matches_its_self_report() -> None:
 def _edited(tmp_path: Path, mutate: Any) -> Path:
     copy = tmp_path / "data"
     shutil.copytree(DATA_DIR, copy)
-    doc = yaml.safe_load((copy / "scenarios.yaml").read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load((copy / "scenarios.yaml").read_text(encoding="utf-8"))
     mutate(doc)
     (copy / "scenarios.yaml").write_text(
-        yaml.safe_dump(doc, sort_keys=False), encoding="utf-8"
+        fast_yaml.safe_dump(doc, sort_keys=False), encoding="utf-8"
     )
     return copy
 

@@ -6,8 +6,8 @@ import datetime as dt
 from pathlib import Path
 from typing import Any
 
+import fast_yaml
 import pytest
-import yaml
 
 from agentevalops.catalogue import CatalogueError, load_catalogue
 from agentevalops.catalogue.loader import (
@@ -60,7 +60,7 @@ def _write(
 ) -> Path:
     path = tmp_path / name
     path.write_text(
-        yaml.safe_dump({"source": source, "controls": controls}), encoding="utf-8"
+        fast_yaml.safe_dump({"source": source, "controls": controls}), encoding="utf-8"
     )
     return path
 
@@ -321,7 +321,8 @@ def test_file_without_source_block_is_rejected(tmp_path: Path) -> None:
 def test_controls_must_be_a_list(tmp_path: Path) -> None:
     path = tmp_path / "bad.yaml"
     path.write_text(
-        yaml.safe_dump({"source": _source(), "controls": {"a": 1}}), encoding="utf-8"
+        fast_yaml.safe_dump({"source": _source(), "controls": {"a": 1}}),
+        encoding="utf-8",
     )
     with pytest.raises(CatalogueError, match="list"):
         load_catalogue([path])
@@ -330,7 +331,7 @@ def test_controls_must_be_a_list(tmp_path: Path) -> None:
 def test_each_control_must_be_a_mapping(tmp_path: Path) -> None:
     path = tmp_path / "bad.yaml"
     path.write_text(
-        yaml.safe_dump({"source": _source(), "controls": ["doc:1.1"]}),
+        fast_yaml.safe_dump({"source": _source(), "controls": ["doc:1.1"]}),
         encoding="utf-8",
     )
     with pytest.raises(CatalogueError, match="mapping"):
@@ -377,13 +378,13 @@ _TF_COUNTS = {
 
 
 def _tf_raw() -> dict[str, Any]:
-    raw: dict[str, Any] = yaml.safe_load(_TF_FILE.read_text(encoding="utf-8"))
+    raw: dict[str, Any] = fast_yaml.safe_load(_TF_FILE.read_text(encoding="utf-8"))
     return raw
 
 
 def _tf_write(tmp_path: Path, raw: dict[str, Any]) -> Path:
     path = tmp_path / "testing-framework.yaml"
-    path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    path.write_text(fast_yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
     return path
 
 

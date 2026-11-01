@@ -11,8 +11,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
+import fast_yaml
 import pytest
-import yaml
 
 from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.schemas import FAULT_KINDS, NEGATIVE_OUTCOMES, ToolSpec
@@ -219,10 +219,10 @@ def _edited(tmp_path: Path, mutate: Any) -> Path:
     copy = Path(tempfile.mkdtemp(prefix="data", dir=tmp_path))
     shutil.rmtree(copy)
     shutil.copytree(DATA_DIR, copy)
-    doc = yaml.safe_load((copy / "scenarios.yaml").read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load((copy / "scenarios.yaml").read_text(encoding="utf-8"))
     mutate(doc)
     (copy / "scenarios.yaml").write_text(
-        yaml.safe_dump(doc, sort_keys=False), encoding="utf-8"
+        fast_yaml.safe_dump(doc, sort_keys=False), encoding="utf-8"
     )
     return copy
 

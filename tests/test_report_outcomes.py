@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-import yaml
+import fast_yaml
 from typer.testing import CliRunner
 
 from agentevalops.cli import app
@@ -198,12 +198,12 @@ def test_the_shipped_run_fills_all_five_groups(tmp_path: Path) -> None:
 
 
 def test_a_run_of_one_scenario_reports_the_empty_groups(tmp_path: Path) -> None:
-    doc = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    doc = fast_yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
     doc["system"] = str(SYSTEM.resolve())  # the copy lives in tmp_path (R27)
     doc["benchmark_options"]["scenarios"] = ["RB1"]
     doc["run_id"] = "one"
     config = tmp_path / "one.yaml"
-    config.write_text(yaml.safe_dump(doc), encoding="utf-8")
+    config.write_text(fast_yaml.safe_dump(doc), encoding="utf-8")
     out = tmp_path / "bundle"
     result = CliRunner().invoke(
         app, ["run", "--config", str(config), "--output", str(out)]
