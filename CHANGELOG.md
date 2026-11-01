@@ -7,6 +7,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+---
+
+## [0.2.0] — 2026-11-01
+
+Tagged `v0.2.0` on `869ac6a`, four weeks ahead of its Nov 29 slot: the tool
+environment and runner seam (R23), bundle format 0.5 and the
+`agentic-baseline` benchmark on the seed domain (R24), and the
+policy-compliance category (R25). Everything below landed since v0.1.0.
+
 ### Added
 
 - **R25 built — policy-compliance category** (2026-11-01; ADR-0006 D5,
