@@ -85,6 +85,7 @@ class AgenticBaselineBenchmark:
                     "pack_version": self._pack.pack_version,
                     "category": s.category,
                     "control_ids": list(s.control_ids),
+                    "outcome_group": s.outcome_group,
                 },
                 applicable_evaluators=s.applicable_evaluators,
             )

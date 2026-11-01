@@ -16,6 +16,7 @@ from agentevalops.core.schemas import (
 )
 from agentevalops.core.types import TaskId
 from agentevalops.environments.approver import Approver, ScriptedApprover
+from agentevalops.environments.faults import ScriptedFaults, garble
 
 #: A tool's implementation: arguments in, the text the agent sees out.
 #: Raising is allowed -- the environment turns it into a recorded error.
@@ -41,6 +42,11 @@ class InProcessToolEnvironment:
     taken and why, and the record says ``executed: false`` with the
     approval it got. With no approver given, nothing irreversible is
     approved.
+
+    Scheduled ``faults`` (D6) apply after the gate: a timeout or transient
+    error stops the call before the handler, a malformed result lets the
+    handler run and garbles what the agent sees; every fault is written to
+    the record's ``fault`` field.
     """
 
     def __init__(
@@ -52,6 +58,7 @@ class InProcessToolEnvironment:
         repetition: int = 0,
         end_state: Callable[[], EndState] | None = None,
         approver: Approver | None = None,
+        faults: ScriptedFaults | None = None,
     ) -> None:
         names = [spec.name for spec in specs]
         reserved = sorted(set(names) & RESERVED_TOOL_NAMES)
@@ -73,6 +80,8 @@ class InProcessToolEnvironment:
         self._handlers = dict(handlers)
         self._end_state = end_state
         self._approver: Approver = approver or ScriptedApprover()
+        self._faults = faults or ScriptedFaults()
+        self._calls: dict[str, int] = {}
         self._records: list[ToolCallRecord] = []
 
     async def list_tools(self) -> Sequence[ToolSpec]:
@@ -83,20 +92,36 @@ class InProcessToolEnvironment:
         handler = self._handlers.get(name)
         executed = False
         approval: ToolApproval = "not_required"
+        fault: str | None = None
+        self._calls[name] = self._calls.get(name, 0) + 1
         if spec is None or handler is None:
             content, error = f"error: unknown tool '{name}'", True
-        elif spec.permission == "irreversible" and (
-            approval := self._approver.decide(name, arguments)
-        ) != "approved":
+        elif (
+            spec.permission == "irreversible"
+            and (approval := self._approver.decide(name, arguments)) != "approved"
+        ):
             # docs/adr/0006 D5: nothing unapproved runs.
             why = "timed out" if approval == "timed_out" else "denied"
             content, error = f"error: {name} was not taken: approval {why}", True
+        elif (fault := self._faults.fault_for(name, self._calls[name])) in (
+            "timeout",
+            "transient_error",
+        ):
+            # docs/adr/0006 D6: the call never reaches the handler.
+            what = (
+                "timed out"
+                if fault == "timeout"
+                else "is temporarily unavailable; try again"
+            )
+            content, error = f"error: {name} {what}", True
         else:
             executed = True
             try:
                 content, error = await handler(dict(arguments)), False
             except Exception as exc:  # noqa: BLE001 - recorded, never raised
                 content, error = f"error: {exc}", True
+            if fault == "malformed_result" and not error:
+                content = garble(content)
         self._records.append(
             ToolCallRecord(
                 task_id=self._task_id,
@@ -110,6 +135,7 @@ class InProcessToolEnvironment:
                 result=content,
                 error=error,
                 approval=approval,
+                fault=fault,
             )
         )
         return ToolResult(content=content, error=error)

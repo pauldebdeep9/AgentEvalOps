@@ -24,7 +24,12 @@ from agentevalops.core.identifiers import (
     is_synthetic_phone,
     unsafe_identifiers,
 )
-from agentevalops.core.schemas import POLICY_RULES, Scenario
+from agentevalops.core.schemas import (
+    FAULT_KINDS,
+    NEGATIVE_OUTCOMES,
+    POLICY_RULES,
+    Scenario,
+)
 from agentevalops.core.scripts import ScriptStep, parse_script
 from agentevalops.core.types import TaskId
 from agentevalops.domain_packs import DomainPackError
@@ -51,7 +56,7 @@ OUTCOMES: tuple[str, ...] = ("approve", "reject", "refer")
 AMBIGUITIES: frozenset[str] = frozenset({"missing", "conflict"})
 GENDERS: frozenset[str] = frozenset({"female", "male"})
 CATEGORIES: frozenset[str] = frozenset(
-    {"task_execution", "tool_calling", "policy_compliance"}
+    {"task_execution", "tool_calling", "policy_compliance", "robustness"}
 )
 #: The roles the policy rules name; every one maps to a seed tool.
 POLICY_ROLES: tuple[str, ...] = ("lookup", "decide", "notify", "refer", "export")
@@ -391,7 +396,17 @@ def _approvals(raw: Any, where: str) -> dict[str, tuple[str, ...]]:
                 f"{where}: approvals names '{tool}', which is not an irreversible "
                 f"seed tool ({sorted(_IRREVERSIBLE)})"
             )
-        given = _strings(answers, where, f"approvals.{tool}")
+        # Answers may repeat ([approve, approve] is two approvals), so this
+        # is not _strings, which refuses repeats.
+        if (
+            not isinstance(answers, list)
+            or not answers
+            or not all(isinstance(a, str) for a in answers)
+        ):
+            raise DomainPackError(
+                f"{where}: approvals.{tool} must be a non-empty list of strings"
+            )
+        given = tuple(answers)
         unknown = sorted(set(given) - APPROVAL_ANSWERS)
         if unknown:
             raise DomainPackError(
@@ -406,7 +421,7 @@ def _policy_block(raw: Any, where: str, case: Case, policy: Policy) -> dict[str,
     """The scenario's ``policy`` expectation: its rules, plus what the
     ``policy`` evaluator needs to apply them to this pack and case."""
     block = _mapping(raw, where, "expected.policy")
-    unknown = sorted(set(block) - {"rules", "allowed_tools"})
+    unknown = sorted(set(block) - {"rules", "allowed_tools", "call_budget"})
     if unknown:
         raise DomainPackError(f"{where}: expected.policy has unknown key(s) {unknown}")
     rules = _strings(block.get("rules"), where, "expected.policy.rules")
@@ -440,6 +455,18 @@ def _policy_block(raw: Any, where: str, case: Case, policy: Policy) -> dict[str,
             f"{where}: expected.policy.allowed_tools goes with the least_privilege "
             "rule: declare both or neither"
         )
+    if ("call_budget" in rules) != ("call_budget" in block):
+        raise DomainPackError(
+            f"{where}: expected.policy.call_budget goes with the call_budget rule: "
+            "declare both or neither"
+        )
+    if "call_budget" in block:
+        budget = block["call_budget"]
+        if isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
+            raise DomainPackError(
+                f"{where}: expected.policy.call_budget must be a positive integer"
+            )
+        result["call_budget"] = budget
     if "allowed_tools" in block:
         allowed = _strings(
             block["allowed_tools"], where, "expected.policy.allowed_tools"
@@ -452,6 +479,31 @@ def _policy_block(raw: Any, where: str, case: Case, policy: Policy) -> dict[str,
             )
         result["allowed_tools"] = list(allowed)
     return result
+
+
+def _faults(raw: Any, where: str) -> list[dict[str, Any]]:
+    """The scenario's scheduled faults (docs/adr/0006 D6): each names a
+    seed tool, a positive call number and a fault kind."""
+    schedule: list[dict[str, Any]] = []
+    for position, item in enumerate(_items(raw, where, "faults") if raw else []):
+        tool = _text(item.get("tool"), where, f"faults[{position}].tool")
+        if tool not in _TOOL_NAMES:
+            raise DomainPackError(
+                f"{where}: faults[{position}] names '{tool}', which is not a seed tool"
+            )
+        kind = _text(item.get("kind"), where, f"faults[{position}].kind")
+        if kind not in FAULT_KINDS:
+            raise DomainPackError(
+                f"{where}: faults[{position}] has unknown kind '{kind}'; the kinds are "
+                f"{sorted(FAULT_KINDS)}"
+            )
+        call = item.get("call", 1)
+        if isinstance(call, bool) or not isinstance(call, int) or call < 1:
+            raise DomainPackError(
+                f"{where}: faults[{position}].call must be a positive integer"
+            )
+        schedule.append({"tool": tool, "call": call, "kind": kind})
+    return schedule
 
 
 def _scenarios(
@@ -473,6 +525,11 @@ def _scenarios(
         if category not in CATEGORIES:
             raise DomainPackError(
                 f"{here}: category must be one of {sorted(CATEGORIES)}"
+            )
+        outcome_group = _text(item.get("outcome_group"), here, "outcome_group")
+        if outcome_group not in NEGATIVE_OUTCOMES:
+            raise DomainPackError(
+                f"{here}: outcome_group must be one of {list(NEGATIVE_OUTCOMES)}"
             )
         case_id = _text(item.get("case_id"), here, "case_id")
         if case_id not in cases:
@@ -498,6 +555,7 @@ def _scenarios(
             raise DomainPackError(f"{here}: known_good must end with 'finish'")
         known_bad = _script(item.get("known_bad"), here, "known_bad")
         approvals = _approvals(item.get("approvals", {}), here)
+        faults = _faults(item.get("faults"), here)
 
         expected = _mapping(item.get("expected"), here, "expected")
         unknown_keys = sorted(set(expected) - _EXPECTED_KEYS)
@@ -578,7 +636,8 @@ def _scenarios(
                 applicable_evaluators=evaluators,
                 control_ids=control_ids,
                 expected={"case_id": case_id, **expected},
-                environment={"approvals": approvals},
+                environment={"approvals": approvals, "faults": faults},
+                outcome_group=outcome_group,
             )
         )
     return tuple(scenarios)
@@ -658,6 +717,7 @@ class SeedDomainPack:
             self._cases,
             self._policy,
             approvals=scenario.environment.get("approvals"),
+            faults=scenario.environment.get("faults"),
         )
 
     # -- the data, for tests and later rows -------------------------------

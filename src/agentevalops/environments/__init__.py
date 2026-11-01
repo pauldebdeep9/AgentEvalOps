@@ -12,6 +12,7 @@ from agentevalops.environments.approver import (
     ScriptedApprover,
 )
 from agentevalops.environments.crosscheck import Mismatch, cross_check
+from agentevalops.environments.faults import FaultSchedule, ScriptedFaults, garble
 from agentevalops.environments.inprocess import (
     InProcessToolEnvironment,
     ToolEnvironmentError,
@@ -28,12 +29,15 @@ __all__ = [
     "ApprovalSchedule",
     "Approver",
     "CALCULATOR_TOOL_SPEC",
+    "FaultSchedule",
     "InProcessToolEnvironment",
     "Mismatch",
     "ScriptedApprover",
+    "ScriptedFaults",
     "ToolEnvironmentError",
     "ToolHandler",
     "cross_check",
+    "garble",
     "run_calculator",
     "toy_environment",
 ]

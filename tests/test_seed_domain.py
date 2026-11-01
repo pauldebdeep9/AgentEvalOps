@@ -416,11 +416,12 @@ def test_scenarios_across_the_three_categories() -> None:
         "TC3",
         "TC4",
     ]
-    assert all(sid.startswith("PC") for sid in list(SCENARIOS)[10:])
+    assert all(sid[:2] in ("PC", "RB") for sid in list(SCENARIOS)[10:])
     by_prefix = {
         "TE": "task_execution",
         "TC": "tool_calling",
         "PC": "policy_compliance",
+        "RB": "robustness",
     }
     for scenario in SCENARIOS.values():
         assert scenario.category == by_prefix[scenario.scenario_id[:2]], (
@@ -460,11 +461,13 @@ def test_every_known_good_runs_clean_and_reaches_its_expected_end_state() -> Non
         assert events[-1].kind == TraceEventKind.AGENT_TERMINAL
         assert events[-1].payload["success"] is True, s.scenario_id
         assert cross_check(env.records(), events) == [], s.scenario_id
-        # A refusal by the approver is scripted, not an error of the run.
+        # A refusal by the approver, or a scheduled fault, is scripted, not
+        # an error of the run.
         refused = ("denied", "timed_out")
-        assert not any(r.error and r.approval not in refused for r in env.records()), (
-            s.scenario_id
-        )
+        assert not any(
+            r.error and r.approval not in refused and r.fault is None
+            for r in env.records()
+        ), s.scenario_id
         if "expected_end_state" in s.expected:
             assert _contains(s.expected["expected_end_state"], _snapshot(env)), (
                 s.scenario_id
@@ -859,7 +862,7 @@ def _dup(key: str) -> Callable[[dict[str, Any]], None]:
         ),
         (
             "scenarios.yaml",
-            _set("scenarios.TE1.category", "robustness"),
+            _set("scenarios.TE1.category", "resilience"),
             "category must be",
         ),
         ("scenarios.yaml", _set("scenarios.TE1.expected.bonus", 1), "unknown key"),

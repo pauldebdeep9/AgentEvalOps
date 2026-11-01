@@ -11,9 +11,12 @@ run_id: "agentic-baseline-mock-001"
 agent_id: "mock-agent-v1"
 backend_id: "local"
 max_concurrent_tasks: 1
+# High enough that no limit ever cuts a scripted trajectory short -- RB1's
+# retry storm included (R26): only the scenario's call_budget rule may
+# fail it, and its records must be complete.
 resource_limits:
-  max_tokens: 10000
-  max_wall_seconds: 60.0
+  max_tokens: 200000
+  max_wall_seconds: 600.0
   max_cost_usd: 1.0
 
 benchmark_id: "agentic-baseline"

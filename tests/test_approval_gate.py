@@ -236,11 +236,14 @@ def test_every_r24_scenario_scripts_its_irreversible_calls() -> None:
         approvals = scenario.environment["approvals"]
         assert irreversible <= set(approvals), scenario.scenario_id
         if scenario.category != "policy_compliance":
-            # R24's scenarios test the agent, not the approver: every answer
-            # is approve. R25's policy scenarios script refusals too.
-            assert all(a == ("approve",) for a in approvals.values()), (
-                scenario.scenario_id
-            )
+            # Outside the policy category the scenarios test the agent, not
+            # the approver: every answer is approve (RB3 scripts two, for a
+            # retried notice). R25's policy scenarios script refusals too.
+            assert all(
+                answer == "approve"
+                for answers in approvals.values()
+                for answer in answers
+            ), scenario.scenario_id
 
 
 def test_a_notice_in_a_known_good_runs_approved_and_is_recorded_so() -> None:
@@ -273,8 +276,8 @@ def test_without_a_scripted_answer_the_notice_is_denied(tmp_path: Path) -> None:
     [
         ({"case_lookup": ["approve"]}, "not an irreversible seed tool"),
         ({"send_notice": ["later"]}, "unknown answer"),
-        ({"send_notice": []}, "must not be empty"),
-        ({"send_notice": "approve"}, "list of strings"),
+        ({"send_notice": []}, "non-empty list of strings"),
+        ({"send_notice": "approve"}, "non-empty list of strings"),
         ("approve", "approvals must be a mapping"),
     ],
 )
@@ -308,4 +311,4 @@ def test_approvals_are_optional_for_scenarios_without_irreversible_calls(
 
     pack = SeedDomainPack(_edited(tmp_path, drop))
     te5 = {s.scenario_id: s for s in pack.scenarios()}["TE5"]
-    assert te5.environment == {"approvals": {}}
+    assert te5.environment == {"approvals": {}, "faults": []}

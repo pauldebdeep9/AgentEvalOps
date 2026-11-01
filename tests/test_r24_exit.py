@@ -379,6 +379,20 @@ def test_the_shipped_config_runs_the_pack_through_the_cli(tmp_path: Path) -> Non
         "state_based",
         "policy",
     }
+    # R26: a storm's records are complete -- no limit cut RB1's known-good
+    # short, and every scheduled fault is in them.
+    records = [
+        json.loads(line) for line in (out / "tool_calls.jsonl").read_text().splitlines()
+    ]
+    rb1 = [r for r in records if r["task_id"] == "RB1"]
+    assert [r["fault"] for r in rb1] == ["timeout", "timeout", None, None, None]
+    # R26: a storm's records are complete -- no limit cut RB1's known-good
+    # short, and every scheduled fault is in them.
+    records = [
+        json.loads(line) for line in (out / "tool_calls.jsonl").read_text().splitlines()
+    ]
+    rb1 = [r for r in records if r["task_id"] == "RB1"]
+    assert [r["fault"] for r in rb1] == ["timeout", "timeout", None, None, None]
     end_states = [
         json.loads(line) for line in (out / "end_states.jsonl").read_text().splitlines()
     ]

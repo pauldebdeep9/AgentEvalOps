@@ -170,7 +170,7 @@ def test_the_shipped_config_produces_verdicts_in_three_categories(
         f"  {category:<17}  {n}/{n} evaluated passed (0 not evaluated)"
         for category, n in counts.items()
     ]
-    assert list(counts) == ["task_execution", "tool_calling", "policy_compliance"]
+    assert list(counts)[:3] == ["task_execution", "tool_calling", "policy_compliance"]
     summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     assert (summary["passed_tasks"], summary["failed_tasks"]) == (N, 0)
     assert "category" not in summary["task_results"][0]  # CLI-only until 0.6
@@ -199,7 +199,7 @@ def test_the_known_bad_playback_fails_every_category_and_keeps_the_run_level_pas
     assert all(
         "0/" in line and "evaluated passed (0 not evaluated)" in line for line in lines
     )
-    assert len(lines) == 3
+    assert len(lines) == len({s.category for s in PACK.scenarios()})
     # Every known-bad stays within the pack's six tools, so the run-level
     # allow-list passes; a stray tool would fail it.
     assert "Policy  : PASS" in result.output
