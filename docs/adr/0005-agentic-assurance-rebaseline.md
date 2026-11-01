@@ -35,6 +35,18 @@ is narrowed as above, D6's list is replaced, and D9's seed domain gains a
 refer-to-officer tool. The same review amended rows R22, R24–R28, R30, R31
 and R34 (`ROADMAP.md` §0).
 
+**D6 built in part — 2026-11-01 (R27 slices 1–2, `9d3795c`, `9be6d18`).**
+`test_plan.json` is built from a system declaration (`system.yaml`) and
+written and hashed before the first task runs; `validate-bundle` holds
+the file to the hash `metadata.json` records. Owner's decision: the file
+is **optional under format 0.5** -- the required set is unchanged, so the
+bump stays with R28's 0.6, where it becomes required -- and the
+agentic-baseline benchmark refuses to start without a declaration, so a
+seed-pack bundle always carries a plan. "Exact file formats are
+ADR-0007's" holds for the rest of the evidence pack; the plan's format is
+recorded in ADR-0006's R27 notes, which ADR-0007 lifts. The `gate`
+command and pass^k follow in R27's later slices.
+
 **Release week moved — 2026-10-31 (owner decision, W25 checkpoint).** v0.5
 moves from Jan 4–10 to **Jan 25–31, 2027**, so D2's "the target week (Jan
 4–10, 2027) is unchanged" no longer holds. At the checkpoint R22 was only

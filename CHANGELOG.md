@@ -9,6 +9,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **R27 slice 2 — the pre-registered test plan** (2026-11-01; ADR-0005
+  D6; testing-framework 3.6.1, 3.7.1; `9be6d18`). A new `plans/` package
+  builds `test_plan.json` from the system declaration and the domain
+  pack: the scenarios the declaration selects, with the rule that
+  excluded each other one (an undeclared tool, nobody to answer
+  approvals, an unreachable outcome group); the thresholds, the pack's
+  (`data/thresholds.yaml`, through a new optional `Thresholded`
+  protocol) tightened by the owner and never loosened, each value with
+  its source; every (task, repetition) seed; the declaration itself with
+  the intended use, out-of-scope uses and business metrics unchanged. The
+  CLI writes and hashes it before the orchestrator starts, refuses to run
+  when it cannot, and runs only the selected scenarios. The hash is
+  `metadata.json`'s `test_plan_sha256`; the manifest checksums the file;
+  `validate-bundle` fails a bundle whose plan was edited or removed after
+  the run, whatever the manifest says. Optional under format 0.5, the
+  required set unchanged; required from 0.6 (R28). Every guard has a
+  fail-first test.
+
 - **R27 slice 1 — the system declaration, and the YAML path for
   repetitions and seed** (2026-11-01; ADR-0005 D6, ADR-0006 D18;
   `9d3795c`). `configs/seed_system.yaml` is the scoping step: the tools

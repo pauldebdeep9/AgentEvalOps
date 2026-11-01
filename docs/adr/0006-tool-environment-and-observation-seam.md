@@ -23,6 +23,36 @@ below:
   registered (`pyproject.toml` publishes the built-in toy benchmark) is
   skipped quietly; a different object shadowed by a name still warns.
 
+**R27 notes — 2026-11-01 (slices 1–2, `9d3795c`, `9be6d18`): the test
+plan's format** (ADR-0005 D6 leaves file formats to ADR-0007; the owner
+asked for the plan's to be recorded here, for ADR-0007 to lift).
+`test_plan.json` is one JSON object, `plan_version` `"1"`, optional under
+format 0.5 and required from 0.6:
+- `run_id`, `config_name`, `created_at` (UTC ISO 8601), `platform_version`;
+- `system`: the declaration as loaded from `system.yaml` -- `system_id`,
+  `pack_id`, `involvement` (this project's own labels for MGF-Agentic
+  §1.1.3's levels: `human_approves`, `human_monitors`, `autonomous`),
+  `tools` (each with `permission`, `data_class`, `reversible`,
+  `external`), `intended_use`, `out_of_scope`, `business_metrics`
+  (`name`, `definition`), `repetitions`, `seed`, `thresholds` (the owner's
+  overrides), `sha256` of the YAML bytes -- and `system_path` as the run
+  config named it, `system_sha256` lifted beside it;
+- `pack`: `pack_id`, `pack_version`, `scenarios_sha256` (the pack's
+  scenarios as loaded, canonical JSON);
+- `repetitions`, `seed`, and `seeds`: every (task, repetition) seed D6
+  derives, by scenario id;
+- `evaluators`; `requested` (the run config's own subset, or null);
+  `selected` and `excluded` (`scenario_id`, `reason`:
+  `undeclared_tool:<names>`, `no_approver`, `unreachable:<group>`), in the
+  pack's order; `uncovered_tools` (declared, not modelled by the pack);
+- `thresholds`: per category `min_pass_k`, `min_pass_k_source`, `gate`,
+  `gate_source`, each source `pack` or `owner`.
+The sha256 of the file's bytes is registered before the orchestrator
+starts and written to `metadata.json` as `test_plan_sha256`; the manifest
+checksums the file when present. D18's YAML path and D6's seeds in the
+plan are built; the pack's thresholds arrive through an optional
+`Thresholded` protocol, checked like `Perturbing`.
+
 **R26 built — 2026-11-01** (`ae2b0ec` … `4bb7ff7`; ROADMAP R26 met). D6
 is built: declarative fault and injection schedules in
 `Scenario.environment`, applied by the in-process environment and written
@@ -709,6 +739,7 @@ the `Scorer` protocol (finding 2).**
 | `EvaluationResult.applicable` (owner's change, 2026-11-01) | `evaluations.json`, `summary.json` | D13 |
 | `RunSummary.preflight` (owner's change, 2026-11-01) | `summary.json` | D16 |
 | `evaluations.json` holds one entry per evaluator per task run | `evaluations.json` | D13 |
+| `test_plan.json` (new, **optional**; required from 0.6) and `ResultBundleMetadata.test_plan_sha256` (R27, 2026-11-01) | new; `metadata.json` | ADR-0005 D6 |
 
 All additive except `ScoreResult.failed_tasks`'s meaning, which is why it
 waits for the version bump.
