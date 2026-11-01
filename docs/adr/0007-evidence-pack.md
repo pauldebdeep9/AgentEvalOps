@@ -2,6 +2,33 @@
 
 ## Status
 
+**R28 (b2) built — 2026-11-02** (`9161d38`, `ba52628`, `3a2d0bc`; ROADMAP
+R28 met). The 0.6 bump reached `main` as one squashed commit (40 files).
+Where the build adds to the text and the decisions:
+- **D3:** the orchestrator adds the `evaluator.score` events where every
+  task run passes -- after `_run_task`, and for a scenario whose preflight
+  found it defective -- through the trace store, so the streamed
+  `traces.jsonl` carries them too. The replay verifier counts them for a
+  bundle whose manifest declares 0.6 or later.
+- **D2:** `plans.plan_from_document` reads a plan document back into a
+  `RunPlan` (versions "1" and "2"); the regeneration test re-renders
+  `evidence_report.md` from `controls.json`, `test_plan.json` and the
+  shipped catalogue and gets the same bytes.
+- **D15:** the validator reads through `BundleReader`; when a malformed
+  optional file stops that, it records the reader's error and runs the
+  core cross-file checks on the core files.
+- **D8:** a 0.6 bundle's drift check never calls git: it compares
+  `package_sha256` with `validator._current_package_sha256()`, which the
+  tests inject. Up to 0.5 the invocation git comparison is unchanged.
+- **Decision 7:** `EvidenceInputs` lives in `plans/coverage.py`; the 25
+  direct writer calls in the tests pass `tests/bundle_inputs.minimal_evidence()`.
+  The runner fields (`runner_id`, `mock_trajectory`, `evaluators`) keep
+  defaults that record `null` -- the CLI always passes them.
+- **IP check** (all three PDFs, the 0.6 seed run's two reports as extra
+  text): 16 overlaps of 1406 texts, every one an identifier or a cited
+  name -- a check id beside the scope words, principle 10's heading, the
+  three source titles in Sources.
+
 **Amended — 2026-11-02 (owner decisions before R28 (b2)).**
 - **Decision 7 changes: the evidence argument is required.**
   `BundleWriter.write()` takes it with no default; leaving it out is a

@@ -7,7 +7,38 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed (bundle format)
+
+- **Bundle format 0.6, the evidence pack** (2026-11-02, `3a2d0bc`; ROADMAP
+  R28; ADR-0007). `BUNDLE_FORMAT_VERSION` is `"0.6"`; 0.1 to 0.5 still
+  validate and read. Every bundle now carries `test_plan.json` (plan
+  version 2: a run with no declaration registers one that says so, and
+  the gate cannot judge it), `controls.json` (every catalogue control in
+  one of five coverage states with each citing scenario's pass^k, never an
+  aggregate) and `evidence_report.md` (the testing framework's 112 checks
+  with evidence pointers, the organisation's answers left blank).
+  `metadata.json` adds `package_sha256` and the invocation's git, and its
+  `git_sha` now means the package's own source tree. `config.json` records
+  `runner_id`, `mock_trajectory` and the evaluators; the reports call a run
+  scripted by `runner_id`. Each task run's trace ends with one
+  `evaluator.score` event per evaluation result; `TraceEventKind.POLICY_VERDICT`
+  is removed (no bundle ever carried one) and the policy's trace ceiling
+  counts agent events only. `manifest.json.sig` is recognised and reported
+  as not yet verified. `validate-bundle` adds the 0.6 cross-file checks,
+  reads through one reader (a malformed file is a finding, never a crash)
+  and judges drift by package hash for 0.6 bundles.
+- **`BundleWriter.write()` requires `evidence=EvidenceInputs(...)`** (the
+  catalogue and every pack scenario's descriptor): leaving it out is a
+  `TypeError`, never a silent "not in pack". Library callers must pass it.
+
 ### Added
+
+- **A real format 0.5 bundle as a legacy fixture**
+  (`tests/fixtures/bundles/seed-narrow-0.5`, `ba52628`): it must keep
+  validating, reading and gating unchanged; `.gitattributes` and the
+  pre-commit config leave `tests/fixtures/` byte-for-byte alone.
+- `plans.plan_from_document`, the inverse of `to_document`, for reading a
+  bundle's plan back (the evidence report re-renders from it byte for byte).
 
 - **R28 (b1): everything the 0.6 bump needs, as library code** (2026-11-02;
   ADR-0007, amended with eight owner decisions the same day). Bundles are

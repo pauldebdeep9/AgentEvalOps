@@ -24,9 +24,12 @@ domain pack (six tools, eight seeded cases, twenty-six scenarios in the four
 MGF-Agentic §2.3.2 categories: task execution, tool calling, policy
 compliance, robustness); four evaluators; a system declaration that scopes a
 run into a `test_plan.json` hashed before the first task; repetitions with
-pass^k; a fail-closed `gate`; bundle format 0.5; and a report grouped by
-kind of harm. Every exit criterion of rows R24 to R27 is a test, and CI
-runs on every push.
+pass^k; a fail-closed `gate`; and a report grouped by kind of harm. Since
+v0.3.0, on `main`: bundle format 0.6, the evidence pack (R28) -- every
+bundle registers a plan, records the package's own hash, and carries
+`controls.json` and `evidence_report.md` over the testing framework's 112
+checks. Every exit criterion of rows R24 to R28 is a test, and CI runs on
+every push.
 
 **All evidence so far comes from scripted trajectories.** The mock runner
 plays each scenario's known-good or known-bad trajectory through the real
@@ -36,10 +39,6 @@ exist behind the `llm` extra; the first live run is R30.
 
 Planned next, in [ROADMAP.md](ROADMAP.md):
 
-- **R28** — the evidence pack: bundle format 0.6 with `controls.json`
-  (control coverage computed from executed scenarios) and
-  `evidence_report.md` (every check listed, the organisation's answers left
-  blank).
 - **R29** — signing (`manifest.json.sig`) and `rescore`, an evaluation-layer
   re-run over a bundle's own records.
 - **R30** — catalogue v1 and one live run on a real model, committed to the
@@ -136,19 +135,19 @@ flowchart TB
     end
     runner -.-> r30["live run on a real model,<br/>cost reconciled (R30)"]
     evals --> scoring["pass^k scorer + policy checker"]
-    scoring --> bundle["bundle, format 0.5<br/>(11 files + test_plan.json)"]
+    scoring --> bundle["bundle, format 0.6<br/>(14 files)"]
     bundle --> validate["validate-bundle"]
     bundle --> gate["gate (fails closed)"]
-    bundle -.-> r28["evidence report +<br/>controls.json (R28)"]
+    bundle --> evidence["evidence report +<br/>controls.json"]
     bundle -.-> r29["signature + rescore (R29)"]
     classDef built fill:#e3efe4,stroke:#5e8a62,color:#1b1f23
     classDef loop fill:none,stroke:#5e8a62,stroke-dasharray:2 3,color:#1b1f23
     classDef planned fill:#f4f4f4,stroke:#8a8a8a,color:#1b1f23,stroke-dasharray:5 5
     classDef verdict fill:#dde7f3,stroke:#5b7396,color:#1b1f23
-    class inputs,plan,resolve,preflight,env,runner,records,snapshot,evals,scoring,bundle built
+    class inputs,plan,resolve,preflight,env,runner,records,snapshot,evals,scoring,bundle,evidence built
     class loop loop
     class validate,gate verdict
-    class r28,r29,r30 planned
+    class r29,r30 planned
 ```
 
 Each scenario is first proved solvable by its known-good trajectory, then
@@ -176,6 +175,7 @@ agentevalops run --config configs/toy_smoke.yaml --output runs/toy-smoke
 ```
 
 ```
+Test plan registered: runs/toy-smoke/test_plan.json (sha256 daf53f3ed1e2...); no system declared, 2 tasks
 Run ID  : toy-smoke-001
 Tasks   : 2/2 evaluated passed (0 not evaluated), 2 attempted
 Failed  : 0
@@ -193,7 +193,7 @@ agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/agent
 ```
 
 ```
-Test plan registered: runs/agentic-baseline/test_plan.json (sha256 1cddcbf5ad05...); 26 of 26 scenarios selected
+Test plan registered: runs/agentic-baseline/test_plan.json (sha256 3ce2e4156b1c...); 26 of 26 scenarios selected
 Run ID  : agentic-baseline-mock-001
 Tasks   : 26/26 evaluated passed (0 not evaluated), 26 attempted
 Failed  : 0
@@ -213,13 +213,14 @@ agentevalops validate-bundle --bundle runs/agentic-baseline
 ```
 
 ```
+Bundle:        runs/agentic-baseline
 Run ID:        agentic-baseline-mock-001
-Format:        0.5
+Format:        0.6
 Manifest:      PASS
-Trace events:  264
+Trace events:  336
 Evaluations:   72
 Policy:        PASS
-Files checked: 11
+Files checked: 13
 Status:        PASS
 ```
 
@@ -228,7 +229,9 @@ agentevalops gate --bundle runs/agentic-baseline
 ```
 
 ```
-Plan:    test_plan.json (sha256 1cddcbf5ad05..., verified)
+Bundle:  runs/agentic-baseline
+Run ID:  agentic-baseline-mock-001
+Plan:    test_plan.json (sha256 3ce2e4156b1c..., verified)
 task_execution     hard         min 0.9 (pack)  pass^k 1.00 (6/6)  met
 tool_calling       hard         min 1.0 (pack)  pass^k 1.00 (4/4)  met
 policy_compliance  hard         min 1.0 (pack)  pass^k 1.00 (8/8)  met
@@ -242,8 +245,8 @@ fails under each evaluator that applies, and the gate exits 1 naming the
 three hard gates. The declaration also sets `repetitions`; at k = 2 the
 category lines read `pass^2`. `gate` exits 0 when every hard gate is met
 over scenarios that were all evaluated, 1 when any hard gate is below its
-threshold or has a not-evaluated scenario, and 2 when it cannot judge (no
-registered plan, an invalid or tampered bundle). A comparative threshold is
+threshold or has a not-evaluated scenario, and 2 when it cannot judge (a
+run that declared no system, an invalid or tampered bundle). A comparative threshold is
 reported and never gates. `report --run-id <id>` prints a bundle's
 `report.md`; `replay` is a deprecated alias of `validate-bundle`.
 
@@ -260,14 +263,15 @@ call a real model, cost money, and need `ANTHROPIC_API_KEY` or
 
 ## The bundle
 
-`--output <dir>` writes a bundle at format 0.5. Content files are written
-first and `manifest.json` last, so its checksums cover them all.
+`--output <dir>` writes a bundle at format 0.6: thirteen content files and
+`manifest.json`. Content files are written first and `manifest.json` last,
+so its checksums cover them all.
 
 | File | Holds |
 |------|-------|
-| `metadata.json` | Format version, run id, timestamp, task count, status (`sealed`, `interrupted`, `partial`), git sha and dirty flag, platform version, the registered `test_plan_sha256` |
-| `config.json` | The resolved run config, the policy spec, benchmark id and options |
-| `traces.jsonl` | Every trace event, one JSON object per line, each stamped with its task and repetition |
+| `metadata.json` | Format version, run id, timestamp, task count, status (`sealed`, `interrupted`, `partial`), platform version, the registered `test_plan_sha256`; `package_sha256`, the hash of the package's `.py` and `.yaml` files; `git_sha` and `git_dirty` of the package's own source tree (an editable install's checkout, else `unavailable`); `invocation_git_sha` and `invocation_git_dirty` of the directory the run started in |
+| `config.json` | The resolved run config, the policy spec, benchmark id and options; `runner_id`, `mock_trajectory` (set when the mock runner played a script) and the evaluators configured |
+| `traces.jsonl` | Every trace event, one JSON object per line, each stamped with its task and repetition; each task run's stream ends with one `evaluator.score` event per evaluation result |
 | `tool_calls.jsonl` | Every tool call as the environment recorded it: arguments, result, approval, fault, injections |
 | `end_states.jsonl` | Each task run's end state, snapshotted before the evaluators ran |
 | `evaluations.json` | One entry per evaluator per task run, with the records it cites |
@@ -276,10 +280,14 @@ first and `manifest.json` last, so its checksums cover them all.
 | `report.md` | Task results, repeatability, outcomes by kind of harm, the pre-registered plan, policy checks, a trace summary |
 | `replay_command.txt` | The invocation that produced the bundle and the code provenance, for a human to judge drift |
 | `manifest.json` | Format version, the required-file list, each file's size and sha256, writer version |
-| `test_plan.json` | Optional under 0.5, always present for a seed-pack run: the declaration, the selected and excluded scenarios with reasons, thresholds with sources, every seed |
+| `test_plan.json` | Registered before the first task: the declaration, the selected and excluded scenarios with reasons, thresholds with sources, every seed, the pack's scenario and data hashes. A run with no declaration registers a plan that says so (`declared: false`), which the gate cannot judge |
+| `controls.json` | Every catalogue control in one of five states (covered, partly covered, uncovered, not in plan, not in pack) with each citing scenario's pass^k and its records, never an aggregate; the sources and catalogue files it was resolved against; every pack scenario, selected or excluded |
+| `evidence_report.md` | The testing framework's 112 checks by principle, with evidence pointers where a citing scenario ran and the organisation's Implemented and Elaboration columns left blank; a Scenarios table; the MGF-Agentic and Starter Kit controls; the pinned sources |
+| `manifest.json.sig` | Optional: a detached signature over `manifest.json`, recognised and reported as not verified until R29 signs it |
 
-Bundles at formats 0.1 to 0.4 are still read and validated; a reader
-treats what they lack as the documented default.
+Bundles at formats 0.1 to 0.5 are still read and validated; a reader
+treats what they lack as the documented default, and a 0.5 bundle's
+`git_sha` keeps its old meaning, the invocation's checkout.
 
 `validate-bundle` checks: the path is a directory; the required files for
 the bundle's declared format are present; `manifest.json` parses and
@@ -291,8 +299,16 @@ hashes to the value `metadata.json` registered before the first task; the
 manifest's required-file list agrees with the format; and the files agree
 with each other (run id in metadata and summary, non-empty traces and
 evaluations, per-task event counts summing to the trace count, the task
-count matching the task runs evaluated). A code-drift warning is printed
-when the current checkout differs from the one recorded; it never fails
+count matching the task runs evaluated). At 0.6 it also checks that
+`controls.json` is tied to the registered plan and selects exactly the
+plan's scenarios, that every end-state pointer in it is a real line of
+`end_states.jsonl`, and that there is one `evaluator.score` event per
+entry in `evaluations.json`; a malformed file is a finding, never a crash.
+A code-drift warning is printed when the code differs from the code that
+wrote the bundle -- for a 0.6 bundle, the running package's hash against
+`package_sha256`; for older ones, the current checkout against the
+recorded `git_sha`; a `manifest.json.sig` is reported as not yet verified.
+Neither ever fails
 the bundle. Checksums detect tampering and corruption; they are not a
 signature (R29).
 

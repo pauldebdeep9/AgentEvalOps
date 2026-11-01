@@ -100,9 +100,9 @@ Every evaluation run produces a **result bundle** — a self-contained, portable
 
 ```
 result_bundle/
-├── metadata.json          # schema version, run_id, timestamps, platform version, git_sha/git_dirty, status
-├── config.json            # the resolved RunConfig (and PolicySpec) that produced this run
-├── traces.jsonl           # one TraceEvent per line
+├── metadata.json          # schema version, run_id, timestamps, platform version, status, package_sha256, git_sha/git_dirty (package tree), invocation git
+├── config.json            # the resolved RunConfig (and PolicySpec) that produced this run; runner_id, mock_trajectory, evaluators
+├── traces.jsonl           # one TraceEvent per line; one evaluator.score per evaluation result
 ├── evaluations.json       # per-task EvaluationResult objects
 ├── policy.json            # PolicyVerdict, or null if no policy was specified
 ├── summary.json           # RunSummary: passed / failed / not_evaluated, cost, tokens
@@ -114,14 +114,14 @@ result_bundle/
 ├── tool_calls.jsonl       # every tool call, as the harness recorded it
 ├── end_states.jsonl       # each task run's tool-environment end state
 │
-│   # added at format 0.6 — ADR-0005 D6, ADR-0007 (accepted 2026-11-01; built in R28 (b))
+│   # added at format 0.6 — ADR-0005 D6, ADR-0007 (R28)
 ├── test_plan.json         # every bundle (plan version 2; an undeclared run writes a minimal one); hashed before the run
 ├── controls.json          # control coverage, computed from executed, evaluated scenarios
 ├── evidence_report.md     # every testing-framework check: evidence pointers; answers left to the organisation
 └── manifest.json.sig      # optional until R29 signs it: detached signature over manifest.json
 ```
 
-(Before ADR-0005 this tree listed `config.yaml`, `trace.jsonl`, `scores.json`, `artifacts/`, `logs/`, `cost_report.json` and `failure_analysis.md` — a target that was never built. The list above is the bundle as built, plus format 0.6's additions, whose names and formats ADR-0007 fixes; ADR-0006 replaced the planned `env_state/` folder with `end_states.jsonl`. From format 0.6, `metadata.json`'s `git_sha` is the package's own source tree, not the caller's working directory, and `package_sha256` identifies the code on any install (ADR-0007 D8).)
+(Before ADR-0005 this tree listed `config.yaml`, `trace.jsonl`, `scores.json`, `artifacts/`, `logs/`, `cost_report.json` and `failure_analysis.md` — a target that was never built. The list above is the bundle as built, at format 0.6; ADR-0006 replaced the planned `env_state/` folder with `end_states.jsonl`. From format 0.6, `metadata.json`'s `git_sha` is the package's own source tree, not the caller's working directory, and `package_sha256` identifies the code on any install (ADR-0007 D8).)
 
 The bundle is the unit of portability. A user can hand the bundle to a colleague, attach it to a GitHub issue, store it in S3 for compliance, or feed it back into the platform for comparison against a later run. The bundle format is versioned and backwards-compatible within a major version.
 

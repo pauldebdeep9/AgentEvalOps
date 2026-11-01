@@ -23,8 +23,8 @@ point at a different interpreter than the one the project is installed into.
 | Type-check | `$ENV/bin/python -m mypy src` |
 | Import layer contracts | `$ENV/bin/lint-imports` — **only the console script works.** `python -m importlinter.cli lint-imports` exits 0 with zero output regardless of contract state (`importlinter/cli.py` has no `if __name__ == "__main__":` guard); it silently checks nothing. |
 | Test | `$ENV/bin/python -m pytest -q --cov=agentevalops --cov-report=term-missing` |
-| Smoke | `$ENV/bin/agentevalops run --config configs/toy_smoke.yaml --output runs/tmp` then `validate-bundle` / `replay` on the same dir |
-| Smoke, seed pack | `$ENV/bin/agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/tmp-pack` then `validate-bundle` / `replay` on the same dir (the plan is registered first, 26 of 26 scenarios selected; 26 scenarios pass under the four evaluators with the summary's four category lines, each ending in its pass^k, and the report's five outcome groups, repeatability table and pre-registered plan; `mock_trajectory: known_bad` fails every one), then `gate --bundle` on the same dir: `GATE: PASS`, exit 0; on the known-bad bundle `GATE: FAIL` with the three hard gates named, exit 1; on a toy bundle `GATE: CANNOT JUDGE`, exit 2 |
+| Smoke | `$ENV/bin/agentevalops run --config configs/toy_smoke.yaml --output runs/tmp` then `validate-bundle` / `replay` on the same dir (format 0.6, 13 files checked; the run registers a plan that declares nothing, so `gate` says `CANNOT JUDGE`, exit 2) |
+| Smoke, seed pack | `$ENV/bin/agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/tmp-pack` then `validate-bundle` / `replay` on the same dir (format 0.6, 13 files checked, `controls.json` and `evidence_report.md` among them; the plan is registered first, 26 of 26 scenarios selected; 26 scenarios pass under the four evaluators with the summary's four category lines, each ending in its pass^k, and the report's five outcome groups, repeatability table and pre-registered plan; `mock_trajectory: known_bad` fails every one), then `gate --bundle` on the same dir: `GATE: PASS`, exit 0; on the known-bad bundle `GATE: FAIL` with the three hard gates named, exit 1; on a toy bundle `GATE: CANNOT JUDGE`, exit 2 |
 
 The `Makefile` targets invoke bare executables and are therefore only safe with
 the env already activated. Prefer the absolute-path commands above.
@@ -107,7 +107,7 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-02, Sai2608, clean checkout at `334f1c0`)
+## Baseline (verified 2026-11-02, Sai2608, clean checkout at `3a2d0bc`)
 
 - ruff: clean
 - mypy: clean (77 source files) — dedicated `anthropic.*` and `openai.*`
@@ -126,19 +126,17 @@ in this repo.
   proven against an injected violation first; R28 (a)'s `plans` →
   `catalogue` import is the middle tier reaching the low tier, so no
   contract changed)
-- pytest: 1506 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1560 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  98.15% branch coverage on a clean checkout (`334f1c0`, R28 (b1)). The suite
-  takes about 80 seconds without coverage and under three minutes with it on
-  this machine, 35-65 seconds per CI job: tests read and write YAML through
-  `tests/fast_yaml.py` (libyaml), which halved it on 2026-11-02. The exit tests replay the whole
-  seed pack through the orchestrator several times, and the pack loader uses
-  PyYAML's C parser when the wheel has it. Any untracked *or uncommitted*
-  change raises it: tests reach the code-drift "inconclusive" warning
-  (`bundles/validator.py`, `cli.py`) only through this checkout's own git
-  state (`ROADMAP.md` §0, 2026-10-10 finding). Measure the baseline only
-  after committing — on 2026-10-31 a pre-commit run was recorded as clean
-  and had to be corrected. Compare against the clean-checkout figure.
+  98.11% branch coverage on a clean checkout (`3a2d0bc`, the 0.6 bump). The
+  suite takes about 90 seconds without coverage and about three minutes with
+  it on this machine, under two minutes per CI job; tests read and write
+  YAML through `tests/fast_yaml.py` (libyaml). Since the 0.6 bump the
+  coverage figure no longer depends on the checkout's state (`ROADMAP.md`
+  §0, the 2026-10-10 finding, closed): a 0.6 bundle's drift check compares
+  package hashes, and the 0.5 branch is tested with an injected git probe
+  -- a dirty tree measured the same 80 missed lines as the clean one.
+  Still measure the baseline only after committing, on a clean tree.
 - CI floor: `--cov-fail-under=94`
 
 ## CI — watch every push
@@ -149,10 +147,11 @@ push, and don't end a session while CI on `main` is red. CI ran red from
 passed on macOS by thread timing and nobody looked at the Actions runs
 (`ROADMAP.md` §0, 2026-10-31; the W8 entry there is the same pattern). A
 local green gate is not CI: CI runs Linux and installs only `.[dev]`.
-- Bundle format: `BUNDLE_FORMAT_VERSION = "0.5"` (`bundles/constants.py`;
-  0.5 since `36fec5b`, ADR-0006 D21, with `"0.4"` in the legacy set);
-  `"0.1"` bundles (incl. `runs/toy-smoke*` on disk) still validate/read —
-  see `docs/adr/0002-outcome-taxonomy.md`
+- Bundle format: `BUNDLE_FORMAT_VERSION = "0.6"` (`bundles/constants.py`;
+  0.6 since `3a2d0bc`, ADR-0007, with `"0.1"`-`"0.5"` in the legacy set);
+  `tests/fixtures/bundles/seed-narrow-0.5` is a real 0.5 bundle that must
+  keep validating; `"0.1"` bundles (incl. `runs/toy-smoke*` on disk) still
+  validate/read — see `docs/adr/0002-outcome-taxonomy.md`
 
 ## Optional extras
 
