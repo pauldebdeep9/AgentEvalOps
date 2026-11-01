@@ -15,7 +15,7 @@ The **core layer** (`src/agentevalops/core/`) defines protocols, schemas, and er
 
 The **adapter layer** contains concrete implementations of the core protocols: `agents/` (`AgentRunner`), `benchmarks/` (`BenchmarkAdapter`), `evaluators/` (`Evaluator`), `scorers/` (`Scorer`), `stores/` (`TraceStore`), `reports/` (`ReportGenerator`), `policy/` (`PolicyChecker`), and, from R24, `domain_packs/` (`DomainPack`, docs/adr/0006 D23 -- the seed domain is its first pack; the registry resolves packs by name for the generic `agentic-baseline` benchmark, so no adapter family imports another). `cloud/` (`CloudBackend`) is planned but not yet created — nothing submits cloud jobs yet, so there is no real `CloudBackend` implementation, only a test-only mock. `observability/` exists as of the W9 scaffold (see §8) but instruments nothing yet. Adapters depend on the core; the core never depends on adapters. New benchmarks, agents, clouds, and evaluators are added by writing new adapters.
 
-Three more packages sit alongside the adapters and don't map to a single protocol: `orchestration/` (the eval loop; wires all the protocols together for a run), `bundles/` (result-bundle read/write/validate), and `replay/` (bundle verification — narrower than §7 describes; see the callout there). `registry.py` and `config/` are top-level, not nested under `core/`, despite earlier drafts of this document describing them that way (see §4).
+Four more packages sit alongside the adapters and don't map to a single protocol: `orchestration/` (the eval loop; wires all the protocols together for a run), `bundles/` (result-bundle read/write/validate), `replay/` (bundle verification — narrower than §7 describes; see the callout there), and, from R27, `plans/` (the pre-registered test plan, ADR-0005 D6: selection and thresholds from a system declaration, written and hashed before the first task runs; imports `core` and `bundles` only). `registry.py` and `config/` are top-level, not nested under `core/`, despite earlier drafts of this document describing them that way (see §4).
 
 Between the adapters and the core sits a **low tier** of shared data and machinery that the adapters build on and that imports only the core: `catalogue/` (the control catalogue, R22) and, from R23, `environments/` (the harness-owned tool environment). The two are independent of each other, and each is held to `core` by its own import contract (docs/adr/0006-tool-environment-and-observation-seam.md, D8).
 
@@ -436,7 +436,12 @@ AgentEvalOps/
 │       │                           #   not re-execution; see the callout in §7
 │       │
 │       ├── config/
-│       │   └── loader.py           # YAML RunConfig loader
+│       │   ├── loader.py           # YAML RunConfig loader
+│       │   └── system.py           # system.yaml -> SystemDeclaration (ADR-0005 D6; R27)
+│       │
+│       ├── plans/                  # the pre-registered test plan (ADR-0005 D6; R27)
+│       │   ├── builder.py          # selection rules, thresholds with sources, seeds
+│       │   └── io.py               # test_plan.json: write (hashed), read
 │       │
 │       ├── agents/                 # AgentRunner adapters
 │       │   ├── __init__.py
@@ -457,7 +462,7 @@ AgentEvalOps/
 │       │       ├── environment.py  # six tools over InProcessToolEnvironment
 │       │       ├── pack.py         # SeedDomainPack: loads and validates data/
 │       │       ├── schema.py
-│       │       └── data/           # policy, names, cases, scenarios (YAML)
+│       │       └── data/           # policy, names, cases, scenarios, thresholds (YAML)
 │       │
 │       ├── evaluators/             # Evaluator adapters
 │       │   ├── __init__.py
