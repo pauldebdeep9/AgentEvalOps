@@ -572,3 +572,28 @@ def test_the_shipped_source_title_carries_the_publishers_own_name() -> None:
     source = load_catalogue().sources["testing-framework"]
     assert "AI Verify" in source.title
     assert "AI Verify" in source.publisher
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"principles": ["Transparency"]}, "'principles' must be a mapping"),
+        ({"principles": {"one": "Transparency"}}, "is not an int"),
+        ({"process_counts": {"total": "112"}}, "must map names to ints"),
+        ({"process_counts": [112]}, "must map names to ints"),
+    ],
+)
+def test_malformed_principles_or_counts_are_rejected(
+    tmp_path: Path, change: dict[str, Any], message: str
+) -> None:
+    raw = _tf_raw()
+    raw.update(change)
+    with pytest.raises(CatalogueError, match=message):
+        load_catalogue([_tf_write(tmp_path, raw)])
+
+
+def test_an_empty_principle_label_is_rejected(tmp_path: Path) -> None:
+    raw = _tf_raw()
+    raw["principles"][4] = "  "
+    with pytest.raises(CatalogueError, match="principle 4 has no label"):
+        load_catalogue([_tf_write(tmp_path, raw)])

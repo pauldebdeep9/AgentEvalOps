@@ -18,6 +18,7 @@ each classification, which the loader holds the entries to.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -142,6 +143,9 @@ class Catalogue:
     #: Source id -> principle number -> this project's short label, for a
     #: source of ``process`` entries.
     principles: dict[str, dict[int, str]] = field(default_factory=dict)
+    #: Each data file's name and the sha256 of its bytes, in load order:
+    #: which catalogue a bundle resolved its ids against (docs/adr/0007 D9).
+    files: tuple[tuple[str, str], ...] = ()
 
     def control(self, control_id: str) -> Control:
         try:
@@ -187,6 +191,8 @@ _SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 class _File:
     """One data file as parsed, before the catalogue-wide checks."""
 
+    name: str
+    sha256: str
     source: Source
     controls: list[Control]
     principles: dict[int, str]
@@ -217,7 +223,8 @@ def _counts(raw: Any, name: str) -> dict[str, int] | None:
 
 
 def _parse_file(path: Path) -> _File:
-    raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_SAFE_LOADER)
+    data = path.read_bytes()
+    raw = yaml.load(data.decode("utf-8"), Loader=_SAFE_LOADER)
     if not isinstance(raw, dict) or not isinstance(raw.get("source"), dict):
         raise CatalogueError(f"{path.name}: needs a 'source' mapping")
     s = raw["source"]
@@ -266,6 +273,8 @@ def _parse_file(path: Path) -> _File:
             )
         )
     return _File(
+        name=path.name,
+        sha256=hashlib.sha256(data).hexdigest(),
         source=source,
         controls=controls,
         principles=_principles(raw.get("principles"), path.name),
@@ -494,4 +503,5 @@ def load_catalogue(paths: Iterable[Path] | None = None) -> Catalogue:
         sources={f.source.id: f.source for f in files},
         controls={c.id: c for f in files for c in f.controls},
         principles={f.source.id: f.principles for f in files if f.principles},
+        files=tuple((f.name, f.sha256) for f in files),
     )
