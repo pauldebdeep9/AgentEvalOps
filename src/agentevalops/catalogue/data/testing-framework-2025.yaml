@@ -173,7 +173,7 @@ controls:
     principle: 1
     scope: both
     technical_test: false
-    label: Public statement of the organisation's AI governance
+    label: Public statement of how the organisation governs AI
     classification: organisational
 
   - id: testing-framework:1.7.2

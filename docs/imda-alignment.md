@@ -86,7 +86,7 @@ One table per principle, in the framework's order. *Applies to* is the framework
 | 1.4.1 | Both | Public privacy notice on the system's personal-data handling | Organisational | — | — |
 | 1.5.1 | Both | Notify end users when incidents occur | Organisational | — | — |
 | 1.6.1 | Both | Harm-reporting channel that protects whistleblowers | Organisational | — | — |
-| 1.7.1 | Both | Public statement of the organisation's AI governance | Organisational | — | — |
+| 1.7.1 | Both | Public statement of how the organisation governs AI | Organisational | — | — |
 | 1.7.2 | Both | Publish an accessible system card where trust calls for it | Supporting | Testing approach and known limitations from the evidence report | R28 |
 
 ### 2. Explainability
