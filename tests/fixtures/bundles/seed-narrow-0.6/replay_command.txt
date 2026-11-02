@@ -1,0 +1,35 @@
+# replay_command.txt -- structural provenance for this bundle.
+#
+# This does NOT re-execute the run (no agents, models, tools,
+# or benchmarks). It is what `agentevalops validate-bundle`
+# reads to check whether this bundle's own files are still
+# internally consistent, plus enough provenance for a human to
+# judge whether the code that produced it has since changed.
+# Behavioral replay is not yet implemented -- see
+# docs/adr/0003-replay-semantics.md.
+#
+# Reconstructable invocation (point --output at a NEW,
+# empty directory -- do not overwrite this bundle):
+#
+#   agentevalops run --config seed_narrow.yaml --output <new-directory>
+#
+# The resolved configuration that actually produced this run
+# is recorded in this bundle's own config.json, not duplicated
+# here -- a YAML file on disk can be edited after the fact;
+# config.json cannot.
+
+run_id: seed-narrow-0.6
+platform_version: 0.3.0
+# platform_version alone is too coarse to answer "did the code
+# change": every bundle this repo has produced records the same
+# value across dozens of commits. package_sha256 answers it on
+# any install: the hash of the package's .py and .yaml files.
+# From format 0.6 git_sha is the package's own source tree (an
+# editable install's checkout, else unavailable); invocation_*
+# is the directory the run was started from (docs/adr/0007 D8).
+package_sha256: a9bcfba083b671c98795758871dd958cfde1f9271c112765263b1a8d0aed29aa
+git_sha: 40da4b7a9936a177452d2339c8f427b3ea75013d
+git_dirty: False
+invocation_git_sha: unavailable
+invocation_git_dirty: unknown
+test_plan_sha256: 29f11f74e948fe733ca22a66e7f9bbab2e363eb515ba0fe424ab26cb092c8a9a

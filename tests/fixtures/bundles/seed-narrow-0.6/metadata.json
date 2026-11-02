@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.6",
+  "run_id": "seed-narrow-0.6",
+  "created_at": "2026-11-02T16:08:04.448807+00:00",
+  "platform_version": "0.3.0",
+  "backend_id": "local",
+  "task_count": 4,
+  "sealed": true,
+  "status": "sealed",
+  "git_sha": "40da4b7a9936a177452d2339c8f427b3ea75013d",
+  "git_dirty": false,
+  "test_plan_sha256": "29f11f74e948fe733ca22a66e7f9bbab2e363eb515ba0fe424ab26cb092c8a9a",
+  "package_sha256": "a9bcfba083b671c98795758871dd958cfde1f9271c112765263b1a8d0aed29aa",
+  "invocation_git_sha": "unavailable",
+  "invocation_git_dirty": null
+}

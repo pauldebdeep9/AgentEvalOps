@@ -1,0 +1,51 @@
+{
+  "config_name": "seed_narrow.yaml",
+  "run_config": {
+    "run_id": "seed-narrow-0.6",
+    "agent_id": "mock-agent-v1",
+    "backend_id": "local",
+    "max_concurrent_tasks": 1,
+    "resource_limits": {
+      "max_tokens": 200000,
+      "max_wall_seconds": 600.0,
+      "max_cost_usd": 1.0
+    },
+    "model": null,
+    "deployment": null,
+    "api_version": null,
+    "repetitions": 1,
+    "seed": 2026
+  },
+  "policy_spec": {
+    "policy_id": "default",
+    "max_cost_usd": 1.0,
+    "max_trace_events": null,
+    "allowed_tool_ids": [
+      "case_lookup",
+      "status_update",
+      "send_notice",
+      "records_export",
+      "policy_search",
+      "refer_to_officer"
+    ],
+    "deny_tool_ids": []
+  },
+  "benchmark_id": "agentic-baseline",
+  "benchmark_options": {
+    "pack": "seed",
+    "scenarios": [
+      "TE3",
+      "TC1",
+      "PC5",
+      "RB5"
+    ]
+  },
+  "runner_id": "mock",
+  "mock_trajectory": "known_good",
+  "evaluators": [
+    "deterministic",
+    "tool_use",
+    "state_based",
+    "policy"
+  ]
+}

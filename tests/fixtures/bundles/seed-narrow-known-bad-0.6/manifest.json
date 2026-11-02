@@ -1,0 +1,83 @@
+{
+  "bundle_format_version": "0.6",
+  "files": {
+    "config.json": {
+      "sha256": "ac82bbec304398f4b3739ab2cb701e0d7dedfe82e13eb9362cc0257a8c109684",
+      "size_bytes": 1047
+    },
+    "controls.json": {
+      "sha256": "361fccd5e1cba009034f2c9ccd232b9ef0c4eee61160c2f62e424698b31c8615",
+      "size_bytes": 112199
+    },
+    "end_states.jsonl": {
+      "sha256": "f50fb3bcc70e6390834cf07383caeee529bf222fb05cbe03b9ce7dcd6d3e2a7a",
+      "size_bytes": 1651
+    },
+    "evaluations.json": {
+      "sha256": "e4858073e0a984bc780b3d1e1f32a83f93fde1d1e43abcae1d72d893c1d6b9a6",
+      "size_bytes": 7557
+    },
+    "evidence_report.md": {
+      "sha256": "0de10fe63736e26fe50fe84c06cbb22dd3ab1ce4a096ee823a537aa734fcbbfa",
+      "size_bytes": 25020
+    },
+    "metadata.json": {
+      "sha256": "a2d3b8e58cf2775766794022aad9276a10f55592599087f718252396ecd73183",
+      "size_bytes": 566
+    },
+    "policy.json": {
+      "sha256": "0c172f8b57e50d8c79012e4d3732674052b560db07418fdc0d7389549c19ef06",
+      "size_bytes": 150
+    },
+    "replay_command.txt": {
+      "sha256": "bf8e1a554cf28d37e80a1d5690b47f166f775b37b904cb6eb86adbde83a24447",
+      "size_bytes": 1652
+    },
+    "report.md": {
+      "sha256": "ff3264540f09900d088af82e0509a02e4bbe3a37f5c90459d673d4548870e329",
+      "size_bytes": 5099
+    },
+    "summary.json": {
+      "sha256": "79a1510e9146013b39dad00fa829f126cc6fbddd0b4c243dc89330dd80fc27fe",
+      "size_bytes": 20819
+    },
+    "test_plan.json": {
+      "sha256": "6e59fdb65b66cb2c26e14c44a8a928fe28f886f1d61c5ec049a64c3518c40ac2",
+      "size_bytes": 3731
+    },
+    "tool_calls.jsonl": {
+      "sha256": "8f070ea1fa8c3d95731947fc8ba94234f14655db4ab90d1f695db74297ec9288",
+      "size_bytes": 6782
+    },
+    "traces.jsonl": {
+      "sha256": "b6871f2a47a3c5bcad66885fb12a5c49c51463bb10d2de9b239c92a9807bef7e",
+      "size_bytes": 19149
+    }
+  },
+  "generated_at": "2026-11-02T16:08:06.029468+00:00",
+  "manifest_filename": "manifest.json",
+  "required_files": [
+    "config.json",
+    "controls.json",
+    "end_states.jsonl",
+    "evaluations.json",
+    "evidence_report.md",
+    "metadata.json",
+    "policy.json",
+    "replay_command.txt",
+    "report.md",
+    "summary.json",
+    "test_plan.json",
+    "tool_calls.jsonl",
+    "traces.jsonl"
+  ],
+  "run": {
+    "benchmark": "agentic-baseline",
+    "config_name": "seed_narrow_known_bad.yaml",
+    "run_id": "seed-narrow-known-bad-0.6"
+  },
+  "writer": {
+    "name": "agentevalops",
+    "version": "0.3.0"
+  }
+}
