@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, NoReturn
+from typing import TYPE_CHECKING, Annotated, Any, Literal, NoReturn
 
 import typer
 
@@ -504,9 +504,52 @@ def validate_bundle(
         "-b",
         help="Path to a result bundle directory.",
     ),
+    allowed_signers: Annotated[
+        Path | None,
+        typer.Option(
+            "--allowed-signers",
+            help="An ssh-keygen allowed-signers file: verify manifest.json.sig "
+            "against it; a missing or bad signature fails validation.",
+        ),
+    ] = None,
 ) -> None:
     """Validate the structural integrity of a saved result bundle."""
-    _run_validate_bundle(bundle)
+    _run_validate_bundle(bundle, allowed_signers=allowed_signers)
+
+
+@app.command()
+def sign(
+    bundle: Path = typer.Option(
+        ..., "--bundle", "-b", help="Path to a valid result bundle directory."
+    ),
+    key: Path = typer.Option(
+        ...,
+        "--key",
+        help="The signing key: a private key file, or a .pub file whose key is "
+        "in ssh-agent. Never defaulted.",
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Replace an existing manifest.json.sig."
+    ),
+) -> None:
+    """Sign a bundle's manifest with ssh-keygen (docs/adr/0008 S1-S4).
+
+    Writes manifest.json.sig, a detached signature over manifest.json in the
+    namespace agentevalops-bundle. Refuses an invalid bundle, and an
+    existing signature unless --force. Exit 0 when signed, 1 otherwise.
+    """
+    from agentevalops.bundles.constants import SIGNING_NAMESPACE
+    from agentevalops.bundles.signing import SigningError, sign_manifest
+
+    if not bundle.is_dir():
+        typer.echo(f"Bundle path not found: {bundle}", err=True)
+        raise typer.Exit(code=1)
+    try:
+        signature = sign_manifest(bundle, key, force=force)
+    except SigningError as exc:
+        typer.echo(f"Not signed: {exc}", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"Signed: {signature} (namespace {SIGNING_NAMESPACE})")
 
 
 @app.command()
@@ -517,6 +560,21 @@ def gate(
         "-b",
         help="Path to a result bundle directory with a registered test plan.",
     ),
+    require_signature: Annotated[
+        bool,
+        typer.Option(
+            "--require-signature",
+            help="Judge only a bundle whose manifest.json.sig verifies against "
+            "--allowed-signers.",
+        ),
+    ] = False,
+    allowed_signers: Annotated[
+        Path | None,
+        typer.Option(
+            "--allowed-signers",
+            help="An ssh-keygen allowed-signers file to verify the signature with.",
+        ),
+    ] = None,
 ) -> None:
     """Judge a bundle against its pre-registered plan; fails closed.
 
@@ -526,6 +584,8 @@ def gate(
     judge (no bundle, an invalid or tampered bundle, no registered plan,
     no threshold, or a run that did not follow its plan). A comparative
     threshold is reported and never gates (docs/adr/0005 D6; ROADMAP R27).
+    With --require-signature, a bundle whose signature does not verify
+    against --allowed-signers cannot be judged either (docs/adr/0008 V2).
     """
     import json
 
@@ -545,7 +605,9 @@ def gate(
 
     if not bundle.exists():
         cannot(f"bundle path not found: {bundle}")
-    validation = _validate(bundle)
+    if require_signature and allowed_signers is None:
+        cannot("--require-signature needs --allowed-signers")
+    validation = _validate(bundle, allowed_signers=allowed_signers)
     if not validation.valid:
         for error in validation.errors:
             typer.echo(f"  ! {error}", err=True)
@@ -577,6 +639,11 @@ def gate(
     typer.echo(f"Bundle:  {bundle.resolve()}")
     typer.echo(f"Run ID:  {metadata.get('run_id')}")
     typer.echo(f"Plan:    {TEST_PLAN_FILENAME} (sha256 {registered[:12]}..., verified)")
+    if validation.signer is not None:
+        typer.echo(
+            f"Signer:  {validation.signer.principal} "
+            f"({validation.signer.fingerprint}, verified)"
+        )
     width = max(len(line.category) for line in result.lines)
     for line in result.lines:
         observed = "-" if line.observed is None else f"{line.observed:.2f}"
@@ -599,7 +666,7 @@ def gate(
     raise typer.Exit(code=EXIT_FAIL)
 
 
-def _run_validate_bundle(bundle: Path) -> None:
+def _run_validate_bundle(bundle: Path, *, allowed_signers: Path | None = None) -> None:
     """Shared body for ``validate-bundle`` and its ``replay`` alias.
 
     Kept as one function (not two commands each calling ``validate_bundle``
@@ -613,7 +680,7 @@ def _run_validate_bundle(bundle: Path) -> None:
         typer.echo(f"Bundle path not found: {bundle}", err=True)
         raise typer.Exit(code=1)
 
-    result = _validate(bundle)
+    result = _validate(bundle, allowed_signers=allowed_signers)
     _print_validation_result(bundle, result)
     if not result.valid:
         raise typer.Exit(code=1)
@@ -771,6 +838,11 @@ def _print_validation_result(bundle: Path, result: BundleValidationResult) -> No
     if result.policy_verdict is not None:
         typer.echo(f"Policy:        {result.policy_verdict.upper()}")
     typer.echo(f"Files checked: {result.checked_files}")
+    if result.signer is not None:
+        typer.echo(
+            f"Signature:     verified -- {result.signer.principal} "
+            f"({result.signer.fingerprint})"
+        )
     status = "PASS" if result.valid else "FAIL"
     typer.echo(f"Status:        {status}")
     for warning in result.warnings:

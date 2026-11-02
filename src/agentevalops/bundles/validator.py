@@ -52,6 +52,7 @@ from agentevalops.bundles.constants import (
 )
 from agentevalops.bundles.provenance import package_sha256
 from agentevalops.bundles.reader import BundleReader, LoadedBundle
+from agentevalops.bundles.signing import Signer, SigningError, verify_manifest
 from agentevalops.bundles.writer import _GIT_SHA_UNAVAILABLE, _capture_git_provenance
 from agentevalops.core.errors import BundleError
 from agentevalops.replay.local import LocalReplayVerifier
@@ -188,13 +189,18 @@ class BundleValidationResult:
     trace_event_count: int = 0
     evaluation_count: int = 0
     policy_verdict: str | None = None
+    #: Set when ``allowed_signers`` was given and the signature verified
+    #: (docs/adr/0008 V1).
+    signer: Signer | None = None
 
 
 def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def validate_bundle(bundle_path: Path) -> BundleValidationResult:
+def validate_bundle(
+    bundle_path: Path, *, allowed_signers: Path | None = None
+) -> BundleValidationResult:
     """Validate the bundle at *bundle_path* and return a structured result.
 
     All checks are read-only.  The bundle is never mutated.
@@ -576,10 +582,18 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
             "config.json records no runner_id: neither report can say whether "
             "the run's trajectories were scripted"
         )
-    if at_0_6 and (bundle_path / MANIFEST_SIGNATURE_FILENAME).exists():
+    # docs/adr/0008 V1: asked to verify, a missing or bad signature -- or
+    # no usable ssh-keygen -- is an error; not asked, a signature is noted.
+    signer: Signer | None = None
+    if allowed_signers is not None:
+        try:
+            signer = verify_manifest(bundle_path, allowed_signers)
+        except SigningError as exc:
+            errors.append(f"Signature not verified: {exc}")
+    elif at_0_6 and (bundle_path / MANIFEST_SIGNATURE_FILENAME).exists():
         warnings.append(
-            f"{MANIFEST_SIGNATURE_FILENAME} is present but not verified: "
-            "signature checking arrives in R29 (pass --allowed-signers)"
+            f"{MANIFEST_SIGNATURE_FILENAME} is present but not verified: pass "
+            "--allowed-signers to verify it"
         )
 
     # ------------------------------------------------------------------ #
@@ -643,4 +657,5 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
         trace_event_count=trace_event_count,
         evaluation_count=evaluation_count,
         policy_verdict=policy_verdict,
+        signer=signer,
     )

@@ -107,6 +107,11 @@ EVIDENCE_REPORT_FILENAME: str = "evidence_report.md"
 #: manifest and never checksummed -- it signs the manifest itself.
 MANIFEST_SIGNATURE_FILENAME: str = "manifest.json.sig"
 
+#: The namespace every bundle signature is made and verified under
+#: (docs/adr/0008 S3): a signature made for anything else with the same key
+#: does not verify as a bundle's.
+SIGNING_NAMESPACE: str = "agentevalops-bundle"
+
 #: Files required by format "0.5" -- the 0.4 set plus the harness streams.
 REQUIRED_BUNDLE_FILES_0_5: tuple[str, ...] = (
     *REQUIRED_BUNDLE_FILES_0_4,
