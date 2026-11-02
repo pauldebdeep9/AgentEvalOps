@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping
-from datetime import datetime, timezone
 from typing import Any
 
 from agentevalops.bundles.constants import (
@@ -93,8 +92,14 @@ def render_report(
     scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
     plan: RunPlan | None = None,
     runner_id: str | None = None,
+    created_at: str | None = None,
 ) -> str:
     """Return a plain Markdown report string for a completed run.
+
+    *created_at* is the run's own timestamp, as ``metadata.json`` records
+    it, and dates the report's ``Generated:`` line; the report reads no
+    clock, so two renders of one bundle are byte-identical (ADR-0008
+    decision 9). Without it the line says the time is not recorded.
 
     *runner_id* is the runner that produced the run (``config.json``,
     docs/adr/0007 D4); ``"mock"`` marks it scripted.
@@ -108,14 +113,17 @@ def render_report(
     R26; the bundle gains it with format 0.6).
     """
     lines: list[str] = []
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     total = summary.total_tasks
 
     # ---- header ----------------------------------------------------------
     lines.append(f"# AgentEvalOps Run Report — {summary.run_id}")
     lines.append("")
-    lines.append(f"Generated: {now}")
+    lines.append(
+        f"Generated: {created_at} (the run's created_at, from metadata.json)"
+        if created_at
+        else "Generated: not recorded"
+    )
     lines.append("")
     if runner_id is None:
         lines.append(f"**{RUNNER_NOT_RECORDED}**")
@@ -503,8 +511,16 @@ class MarkdownReportGenerator:
         scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
         plan: RunPlan | None = None,
         runner_id: str | None = None,
+        created_at: str | None = None,
     ) -> str:
         """Produce a report.  Returns the report content as a string."""
         return render_report(
-            run_config, summary, trace, config_name, scenario_info, plan, runner_id
+            run_config,
+            summary,
+            trace,
+            config_name,
+            scenario_info,
+            plan,
+            runner_id,
+            created_at,
         )

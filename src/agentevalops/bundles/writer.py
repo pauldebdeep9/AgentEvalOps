@@ -260,7 +260,14 @@ class BundleWriter:
         self._write_policy(summary)
         self._write_summary(summary)
         self._write_report(
-            run_config, summary, all_events, config_name, scenario_info, plan, runner_id
+            run_config,
+            summary,
+            all_events,
+            config_name,
+            scenario_info,
+            plan,
+            runner_id,
+            created_at.isoformat(),
         )
         # docs/adr/0007 D5-D7: coverage from the plan, the summary, the
         # scenarios and the catalogue; the report rendered from it, dated by
@@ -414,11 +421,14 @@ class BundleWriter:
         scenario_info: Mapping[str, Mapping[str, Any]] | None = None,
         plan: RunPlan | None = None,
         runner_id: str | None = None,
+        created_at: str | None = None,
     ) -> None:
         """report.md. *scenario_info* (R26) is the tasks' outcome groups and
         variants from the benchmark, for the outcomes section; *plan* (R27)
         the pre-registered plan, for the report to repeat -- content in the
-        report, never a change to the bundle's shape."""
+        report, never a change to the bundle's shape. *created_at* dates it,
+        the run's own timestamp, as metadata.json records it (ADR-0008
+        decision 9)."""
         generator = MarkdownReportGenerator()
         report = asyncio.run(
             generator.render(
@@ -429,6 +439,7 @@ class BundleWriter:
                 scenario_info,
                 plan,
                 runner_id,
+                created_at,
             )
         )
         path = self._dir / "report.md"
