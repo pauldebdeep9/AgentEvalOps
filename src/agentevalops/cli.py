@@ -63,10 +63,9 @@ def run(
     from agentevalops.core.schemas import RunPlan, RunSummary
     from agentevalops.orchestration.local import LocalOrchestrator
     from agentevalops.registry import (
-        KIND_EVALUATOR,
-        KIND_POLICY,
         build_benchmark,
-        default_registry,
+        build_evaluators,
+        build_policy_checker,
         discover_all,
     )
     from agentevalops.stores.local import LocalTraceStore
@@ -151,10 +150,8 @@ def run(
             evaluators=loaded.evaluators,
         )
     # docs/adr/0006 D13: every evaluator the run configures, in order.
-    evaluators = [
-        default_registry.get(KIND_EVALUATOR, name)() for name in loaded.evaluators
-    ]
-    policy_cls = default_registry.get(KIND_POLICY, "basic")
+    evaluators = build_evaluators(loaded.evaluators)
+    policy_checker = build_policy_checker()
 
     try:
         runner = _build_runner(loaded, benchmark)
@@ -227,7 +224,7 @@ def run(
         runner=runner,
         trace_store=store,
         evaluator=evaluators,
-        policy_checker=policy_cls(),
+        policy_checker=policy_checker,
         policy_spec=loaded.policy_spec,
     )
 

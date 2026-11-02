@@ -30,6 +30,7 @@ Design notes
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from typing import Any, Callable
@@ -391,6 +392,25 @@ def build_benchmark(benchmark_id: str, options: dict[str, Any]) -> Any:
         ) from None
 
 
+#: The policy checker every run uses: no config names another, and no
+#: bundle records one, so the run and ``rescore`` both build this one.
+POLICY_CHECKER = "basic"
+
+
+def build_evaluators(kinds: Sequence[str]) -> list[Any]:
+    """The evaluators *kinds* -- a run's configured evaluator kinds, in
+    order (docs/adr/0006 D13) -- as a run builds them and as ``rescore``
+    rebuilds them from ``config.json``. Raises ``UnknownComponentError``
+    for one that is not installed."""
+    return [default_registry.get(KIND_EVALUATOR, kind)() for kind in kinds]
+
+
+def build_policy_checker() -> Any:
+    """The run-level policy checker, as a run builds it and as ``rescore``
+    rebuilds it."""
+    return default_registry.get(KIND_POLICY, POLICY_CHECKER)()
+
+
 def names(kind: str) -> tuple[str, ...]:
     """Return the names of *kind* registered in :data:`default_registry`."""
     return default_registry.names(kind)
@@ -418,10 +438,14 @@ __all__ = [
     "KIND_EVALUATOR",
     "KIND_POLICY",
     "KIND_RUNNER",
+    "POLICY_CHECKER",
     "Registry",
     "RegistryEntry",
     "UnknownComponentError",
+    "build_benchmark",
     "build_default_registry",
+    "build_evaluators",
+    "build_policy_checker",
     "default_registry",
     "discover_all",
     "discover_entry_points",

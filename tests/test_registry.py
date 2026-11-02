@@ -264,3 +264,27 @@ def test_module_discover_proxy_returns_tuple(
         lambda *, group: [],
     )
     assert discover_entry_points() == ()
+
+
+# ---------------------------------------------------------------------------
+# The builders a run and rescore share (R29 (b2) Part 2)
+# ---------------------------------------------------------------------------
+
+
+def test_build_evaluators_builds_the_configured_kinds_in_order() -> None:
+    from agentevalops.registry import build_evaluators
+
+    built = build_evaluators(["policy", "deterministic", "tool_use"])
+    assert [e.evaluator_kind for e in built] == ["policy", "deterministic", "tool_use"]
+    ids = ["policy-v1", "deterministic-v1", "tool-use-v1"]
+    assert [e.evaluator_id for e in built] == ids
+    with pytest.raises(UnknownComponentError):
+        build_evaluators(["deterministic", "no-such-evaluator"])
+
+
+def test_build_policy_checker_builds_the_basic_checker() -> None:
+    from agentevalops.policy.basic_checker import BasicPolicyChecker
+    from agentevalops.registry import POLICY_CHECKER, build_policy_checker
+
+    assert POLICY_CHECKER == "basic"
+    assert isinstance(build_policy_checker(), BasicPolicyChecker)

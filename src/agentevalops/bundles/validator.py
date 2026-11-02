@@ -570,8 +570,8 @@ def validate_bundle(
 
     # ------------------------------------------------------------------ #
     # 12b. Format 0.6: the evidence pack agrees with the plan and the
-    # streams (docs/adr/0007 D1), and a signature is recognised, not yet
-    # verified (R29).
+    # streams (docs/adr/0007 D1); a signature is verified against
+    # --allowed-signers, or noted as present (docs/adr/0008 V1).
     # ------------------------------------------------------------------ #
     format_tuple = _version(fmt_version) if fmt_version is not None else None
     at_0_6 = format_tuple is not None and format_tuple >= _PACKAGE_HASH_FROM
