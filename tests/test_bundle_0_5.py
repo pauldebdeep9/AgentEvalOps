@@ -39,7 +39,8 @@ from agentevalops.core.schemas import (
 from agentevalops.core.types import BACKEND_LOCAL, AgentId, RunId, TaskId
 from agentevalops.environments import toy_environment
 from agentevalops.evaluators.deterministic import DeterministicEvaluator
-from agentevalops.orchestration.local import LocalOrchestrator, _verdict
+from agentevalops.orchestration.local import LocalOrchestrator
+from agentevalops.orchestration.verdicts import verdict as _verdict
 from agentevalops.policy.basic_checker import BasicPolicyChecker
 from agentevalops.scorers.simple import SimpleScorer
 from agentevalops.stores.memory import InMemoryTraceStore

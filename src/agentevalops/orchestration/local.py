@@ -19,7 +19,6 @@ from agentevalops.core.protocols import (
     KnownGoodSource,
     Perturbing,
     PolicyChecker,
-    Scorer,
     ToolEnvironment,
     TraceStore,
 )
@@ -28,7 +27,6 @@ from agentevalops.core.schemas import (
     AgentOutput,
     EndStateRecord,
     EnvHandle,
-    EvaluationResult,
     EvaluatorContext,
     NotEvaluatedCause,
     PolicySpec,
@@ -43,8 +41,16 @@ from agentevalops.core.schemas import (
     TraceEventKind,
 )
 from agentevalops.core.types import RunId
-from agentevalops.scorers.pass_k import pass_k_by_category, pass_k_results
-from agentevalops.scorers.simple import SimpleScorer
+from agentevalops.orchestration.verdicts import (
+    aggregate,
+    applicable,
+    categories_of,
+    combined_output,
+    not_evaluated,
+    tally,
+    unconfigured,
+    verdict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,21 +59,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _combined_output(summary: RunSummary) -> AgentOutput:
-    """Synthesise an AgentOutput that represents the whole run.
-
-    Used as the *output* argument to ``PolicyChecker.check`` so cost and
-    success span all tasks, not just the last one.
-    """
-    all_success = bool(summary.task_results) and all(
-        r.output.success for r in summary.task_results
-    )
-    return AgentOutput(
-        success=all_success,
-        termination_reason=TerminationReason.COMPLETED,
-        total_cost_usd=summary.total_cost_usd,
-        total_tokens=summary.total_tokens,
-    )
 
 
 def _output_from_terminal(terminal: TraceEvent | None) -> AgentOutput:
@@ -98,75 +89,10 @@ def _cause_of(exc: Exception) -> NotEvaluatedCause:
     return "configuration" if isinstance(exc, ConfigurationError) else "infrastructure"
 
 
-def _applicable(
-    task: TaskSpec, evaluators: Sequence[Evaluator]
-) -> tuple[list[Evaluator], list[str]]:
-    """The configured evaluators that apply to *task*, and any kind the task
-    declares that the run did not configure (docs/adr/0006 D13)."""
-    if not task.applicable_evaluators:
-        return list(evaluators), []
-    declared = set(task.applicable_evaluators)
-    chosen = [e for e in evaluators if e.evaluator_kind in declared]
-    configured = {e.evaluator_kind for e in evaluators}
-    return chosen, sorted(declared - configured)
 
 
-def _not_evaluated(
-    evaluator_id: str, evaluator_kind: str, cause: NotEvaluatedCause, detail: str
-) -> EvaluationResult:
-    return EvaluationResult(
-        evaluator_id=evaluator_id,
-        evaluator_kind=evaluator_kind,
-        score=0.0,
-        passed=False,
-        evaluated=False,
-        not_evaluated_cause=cause,
-        notes=f"not evaluated: {cause} ({detail})",
-    )
 
 
-def _verdict(results: Sequence[EvaluationResult]) -> EvaluationResult:
-    """A task run's verdict from its evaluators' results (docs/adr/0006 D13).
-
-    Results an evaluator marked not applicable are not counted. If any
-    counted evaluator ran and failed, the task failed -- a real failure is
-    never downgraded. Otherwise, if any could not evaluate, the task is not
-    evaluated. Otherwise it passed. With exactly one counted result, that
-    result is the verdict.
-    """
-    counted = [r for r in results if r.applicable]
-    if len(counted) == 1:
-        return counted[0]
-    if not counted:
-        return _not_evaluated(
-            "task-verdict", "verdict", "configuration", "no evaluator applied"
-        )
-    failed = [r for r in counted if r.evaluated and not r.passed]
-    unevaluated = [r for r in counted if not r.evaluated]
-    notes = "; ".join(
-        f"{r.evaluator_kind}: "
-        + ("not evaluated" if not r.evaluated else "passed" if r.passed else "failed")
-        for r in counted
-    )
-    refs = [ref for r in counted for ref in r.refs]
-    if failed:
-        return EvaluationResult(
-            "task-verdict", "verdict", 0.0, False, notes=notes, refs=refs
-        )
-    if unevaluated:
-        return EvaluationResult(
-            "task-verdict",
-            "verdict",
-            0.0,
-            False,
-            evaluated=False,
-            not_evaluated_cause=unevaluated[0].not_evaluated_cause,
-            notes=notes,
-            refs=refs,
-        )
-    return EvaluationResult(
-        "task-verdict", "verdict", 1.0, True, notes=notes, refs=refs
-    )
 
 
 def _not_evaluated_result(
@@ -194,14 +120,14 @@ def _not_evaluated_result(
         termination_reason=TerminationReason.INFRA_FAILURE,
         error=detail,
     )
-    chosen, missing = _applicable(task, evaluators)
+    chosen, missing = applicable(task, evaluators)
     evaluations = [
-        _not_evaluated(e.evaluator_id, e.evaluator_kind, cause, detail) for e in chosen
-    ] + [_not_evaluated(kind, kind, cause, detail) for kind in missing]
+        not_evaluated(e.evaluator_id, e.evaluator_kind, cause, detail) for e in chosen
+    ] + [not_evaluated(kind, kind, cause, detail) for kind in missing]
     return TaskRunResult(
         task_id=task.task_id,
         output=output,
-        evaluation=_verdict(evaluations),
+        evaluation=verdict(evaluations),
         event_count=len(events),
         evaluations=evaluations,
         repetition=repetition,
@@ -347,17 +273,7 @@ class LocalOrchestrator:
             raise
 
         for result, events in results:
-            summary.task_results.append(result)
-            if not result.evaluation.evaluated:
-                summary.not_evaluated_tasks += 1
-                cause = result.evaluation.not_evaluated_cause or "unknown"
-                summary.not_evaluated_by_cause[cause] = (
-                    summary.not_evaluated_by_cause.get(cause, 0) + 1
-                )
-            elif result.evaluation.passed:
-                summary.passed_tasks += 1
-            summary.total_cost_usd += result.output.total_cost_usd
-            summary.total_tokens += result.output.total_tokens
+            tally(summary, result)
             all_events.extend(events)
 
         await self._trace_store.finalize(self._config.run_id)
@@ -367,29 +283,11 @@ class LocalOrchestrator:
         # not_evaluated == total. failed_tasks now means a genuine,
         # evaluated merit-based failure -- it no longer silently absorbs
         # tasks that were never evaluated at all (not_evaluated_tasks does).
-        summary.failed_tasks = (
-            summary.total_tasks - summary.passed_tasks - summary.not_evaluated_tasks
-        )
-        summary.trace_event_count = len(all_events)
-
-        scorer: Scorer = SimpleScorer(self._config.run_id)
-        summary.score_result = scorer.summarize(
-            [r.evaluation for r in summary.task_results]
-        )
         # ROADMAP R27 (docs/adr/0006 D18, D20): pass^k per scenario over its
         # repetitions, and per category for the tasks that carry one.
-        summary.pass_k = pass_k_results(summary.task_results)
-        summary.pass_k_by_category = pass_k_by_category(
-            summary.pass_k,
-            {
-                str(t.task_id): str(t.metadata["category"])
-                for t in tasks
-                if isinstance(t.metadata.get("category"), str)
-                and t.metadata["category"]
-            },
-        )
+        aggregate(summary, categories_of(tasks), len(all_events))
 
-        combined = _combined_output(summary)
+        combined = combined_output(summary)
         summary.policy_verdict = await self._policy_checker.check(
             self._policy_spec,
             combined,
@@ -564,7 +462,7 @@ class LocalOrchestrator:
             # benchmark's own official grading and is reserved for future
             # use when an upstream benchmark's deterministic test suite
             # needs to run post-hoc.
-            chosen, missing = _applicable(task, self._evaluators)
+            chosen, missing = applicable(task, self._evaluators)
             context = EvaluatorContext(
                 records=records,
                 end_states=(end_state,),
@@ -576,12 +474,7 @@ class LocalOrchestrator:
                 await evaluator.evaluate(task, output, events, context)
                 for evaluator in chosen
             ] + [
-                _not_evaluated(
-                    kind,
-                    kind,
-                    "configuration",
-                    f"the task declares '{kind}', which this run does not configure",
-                )
+                unconfigured(kind)
                 for kind in missing
             ]
 
@@ -589,7 +482,7 @@ class LocalOrchestrator:
                 TaskRunResult(
                     task_id=task.task_id,
                     output=output,
-                    evaluation=_verdict(evaluations),
+                    evaluation=verdict(evaluations),
                     event_count=len(events),
                     evaluations=evaluations,
                     repetition=repetition,
@@ -652,26 +545,21 @@ class LocalOrchestrator:
                 repetition=0,
                 applicable_evaluators=task.applicable_evaluators,
             )
-            chosen, missing = _applicable(task, self._evaluators)
+            chosen, missing = applicable(task, self._evaluators)
             output = _output_from_terminal(terminal)
             evaluations = [
                 await e.evaluate(task, output, events, context) for e in chosen
             ] + [
-                _not_evaluated(
-                    kind,
-                    kind,
-                    "configuration",
-                    f"the task declares '{kind}', which this run does not configure",
-                )
+                unconfigured(kind)
                 for kind in missing
             ]
-            verdict = _verdict(evaluations)
-            if verdict.evaluated and verdict.passed:
+            outcome = verdict(evaluations)
+            if outcome.evaluated and outcome.passed:
                 return PreflightResult(task.task_id, True), False
-            if not verdict.evaluated and verdict.not_evaluated_cause == "configuration":
+            if not outcome.evaluated and outcome.not_evaluated_cause == "configuration":
                 return (
                     PreflightResult(
-                        task.task_id, False, f"known-good trajectory {verdict.notes}"
+                        task.task_id, False, f"known-good trajectory {outcome.notes}"
                     ),
                     False,
                 )
@@ -679,7 +567,7 @@ class LocalOrchestrator:
                 PreflightResult(
                     task.task_id,
                     False,
-                    f"known-good trajectory did not pass: {verdict.notes}",
+                    f"known-good trajectory did not pass: {outcome.notes}",
                 ),
                 True,
             )
