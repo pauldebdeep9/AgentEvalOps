@@ -2,6 +2,34 @@
 
 ## Status
 
+**Accepted — 2026-11-02 (owner).** Decisions 1 to 8 (Open questions, "For
+the owner") accepted as recommended, with two additions, and three new
+decisions:
+- **To 3 (`CODE_CHANGED`, R2):** the `MATCH` claims paragraph names what is
+  not compared -- dependency versions, the Python version, and a plugin
+  evaluator whose code changed without a new `evaluator_id`.
+- **To 8 (C1):** the check also covers the `evaluator.score` events in
+  `traces.jsonl`, so all three records of each evaluation result must agree.
+  It catches an inconsistent edit, not a careful forger who edits all three
+  and re-seals the manifest: only a signature, or `rescore`, catches that.
+- **9. `report.md` is dated by the bundle, not the clock.** Its
+  `Generated:` line is the run's `created_at` from `metadata.json`, as the
+  evidence report's header is (ADR-0007 D7). `rescore` then compares
+  `report.md` byte for byte, with no exception; R3 below and ADR-0003 Q3's
+  exclusion of the line no longer apply to bundles written from R29.
+- **10. Signing tests never skip in CI.** Locally they skip, with a reason
+  naming what is missing, when `ssh-keygen` is absent or older than 8.2. In
+  CI the workflow sets `AGENTEVALOPS_REQUIRE_SSH_KEYGEN=1`, which turns that
+  skip into a failure.
+- **11. The allowlist holds identifiers only.** The first word of this
+  project's label for 8.3.2 changes, so the borderline entry `3 2 generative
+  ai detect` leaves `scripts/ip_allowlist.yaml`.
+
+R29 builds in two sessions: **(a)** the small fixes (decisions 9 and 11),
+the structural check (C1) and signing (S1-S4, V1, V2, T1); **(b)** rescore
+(R1-R6) and the close-out, where the claims paragraphs (E) go into the
+README.
+
 Proposed — 2026-11-02. Documentation only: no code accompanies this ADR.
 Two spikes ran in `/tmp` against a real format 0.6 bundle and the installed
 package, never the repository (see Context). Eight decisions are put to the
@@ -223,9 +251,9 @@ task run the bundle evaluated: each evaluation's `evaluated`, `passed`,
 they differ but do not decide); the summary's passed, failed and
 not-evaluated counts, pass^k per scenario and per category; the policy
 verdict and its refs; every control's state and verdicts in
-`controls.json`. `evidence_report.md` is not compared separately (it is
-rendered from `controls.json`) and `report.md` is excluded (its `Generated:`
-line; ADR-0003 Q3). `MATCH`: code unchanged and all equal. `DIFFER`: code
+`controls.json`; and, byte for byte, `evidence_report.md` and `report.md`
+(decision 9: both are dated by the bundle, so a re-render with the same
+code gives the same bytes). `MATCH`: code unchanged and all equal. `DIFFER`: code
 unchanged and anything unequal.
 
 **R4. Exit codes.** 0 `MATCH`, 1 `DIFFER`, 2 cannot rescore (an invalid
@@ -247,11 +275,15 @@ exists, is carried and excluded from a `MATCH` (ADR-0005 D7).
 
 ### D. A structural check the spike found missing
 
-**C1. `evaluations.json` must equal the summary's per-run evaluations.** A
-cross-file check in `LocalReplayVerifier` (`replay/local.py`) for 0.6
-bundles: today an edited verdict with the manifest re-sealed leaves the two
-files disagreeing and passes `validate-bundle`. Not a format change: both
-files already hold the same results.
+**C1. The three records of each evaluation result must agree** (amended at
+acceptance): the entry in `evaluations.json`, the same result in
+`summary.json`'s task results, and its `evaluator.score` event in
+`traces.jsonl`. A cross-file check in `LocalReplayVerifier`
+(`replay/local.py`) for 0.6 bundles: today an edited verdict with the
+manifest re-sealed leaves the files disagreeing and passes
+`validate-bundle`. It catches an inconsistent edit, not a careful forger
+who edits all three and re-seals: only a signature or `rescore` does. Not
+a format change: all three already hold the same results.
 
 ### E. Claims, for the README and the reports
 
@@ -272,16 +304,21 @@ calls, end states and agent events. It does not say that those records
 truthfully describe what the agent did (the harness recorded them; a
 signature says they are unchanged since signing), that the agent would act
 the same way again (the behavioural layer, not built), anything about
-model-judged results, or anything beyond the tested domain pack.
+model-judged results, or anything beyond the tested domain pack. Nor does
+it compare everything that could change a result: the versions of the
+package's dependencies and of Python are not compared, and an evaluator
+installed as a plugin whose code changed without a new `evaluator_id` is
+not detected.
 
 ### F. Testing and format
 
 **T1. Tests.** Keys are made per test in `tmp_path` (`ssh-keygen -t
 ed25519 -N ''`), with `SSH_AUTH_SOCK` unset and `HOME` pointed at
 `tmp_path` for every subprocess, so no test can touch a real key or agent.
-Signing tests skip when `ssh-keygen` lacks `-Y` (a capability probe:
-`ssh-keygen -Y check-novalidate` on a known signature), and one test fails
-instead of skipping when `CI` is set, so CI never passes by skipping.
+Signing tests skip locally, with a reason naming what is missing, when
+`ssh-keygen` is absent or older than 8.2; when the workflow sets
+`AGENTEVALOPS_REQUIRE_SSH_KEYGEN=1`, as CI does, the same condition fails
+them instead (decision 10), so CI never passes by skipping.
 Signatures are never compared as bytes (spike 1); rescore output has no
 clock, so it is compared exactly. The two golden fixtures R29 names (a
 passing and a failing seed run, both narrowed, under `tests/replay/fixtures/`,
@@ -357,17 +394,21 @@ nothing into a bundle. `BUNDLE_FORMAT_VERSION` stays `"0.6"`.
 
 ## Consequences
 
-By slice, for R29 (Jan 4–10):
-1. **Signing** (S1-S4): `bundles/signing.py`, the `sign` command, the
-   namespace constant; tests with throwaway keys (T1).
-2. **Verifying** (V1, V2): `validate-bundle --allowed-signers`, `gate
-   --require-signature`; the validator's warning text updated.
-3. **C1**: the cross-file check, fail-first on a flipped verdict.
-4. **Rescore** (R1-R6): `replay/rescore.py`, the `rescore` command and the
-   `MATCH`/`DIFFER`/`CODE_CHANGED` vocabulary, built with its producer
-   (ADR-0003); the two golden fixtures.
-5. **Close-out**: the claims paragraphs (E) in the README and both reports'
-   "What this report does not say", ROADMAP R29, CHANGELOG.
+By session and slice, for R29 (Jan 4–10; amended at acceptance):
+
+**(a)** 1. The 8.3.2 label (decision 11), catalogue and alignment doc
+together; the allowlist entry dropped. 2. `report.md` dated by the bundle
+(decision 9). 3. **C1**, fail-first on a flipped verdict in each of the
+three records. 4. **Signing and verifying** (S1-S4, V1, V2):
+`bundles/signing.py`, the `sign` command, the namespace constant,
+`validate-bundle --allowed-signers`, `gate --require-signature`; tests with
+throwaway keys (T1); the CI workflow's `AGENTEVALOPS_REQUIRE_SSH_KEYGEN=1`.
+
+**(b)** 5. **Rescore** (R1-R6): `replay/rescore.py`, the `rescore` command
+and the `MATCH`/`DIFFER`/`CODE_CHANGED` vocabulary, built with its
+producer (ADR-0003); the two golden fixtures. 6. **Close-out**: the claims
+paragraphs (E) in the README and both reports' "What this report does not
+say", ROADMAP R29, CHANGELOG.
 
 No import-linter contract changes: `replay/` and `bundles/` are in the
 middle tier; `replay/rescore.py` imports `bundles`, `plans`, `catalogue`,
