@@ -110,10 +110,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-02, Sai2608, clean checkout at `a733ebc`)
+## Baseline (verified 2026-11-03, Sai2608, clean checkout at `26c0658`)
 
 - ruff: clean
-- mypy: clean (78 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (80 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -128,17 +128,18 @@ in this repo.
   `plans` joined the middle tier and every forbidden contract -- each edit
   proven against an injected violation first; R28 (a)'s `plans` →
   `catalogue` import is the middle tier reaching the low tier, so no
-  contract changed)
-- pytest: 1619 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+  contract changed; nor did R29 (b1)'s `replay` → `orchestration` and
+  `replay` → `registry` imports, all middle tier)
+- pytest: 1674 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  98.01% branch coverage on a clean checkout (`a733ebc`, R29 (a)). The
+  97.94% branch coverage on a clean checkout (`26c0658`, R29 (b1)). The
   signing tests (`tests/test_signing.py`) need `ssh-keygen` from OpenSSH 8.2
   or newer: locally they skip, naming what is missing; with
   `AGENTEVALOPS_REQUIRE_SSH_KEYGEN=1`, as CI sets it, they fail instead.
   They make throwaway keys in their own temp dirs and never touch `~/.ssh`
   or a running agent. The
-  suite takes about 90 seconds without coverage and about three minutes with
-  it on this machine, under two minutes per CI job; tests read and write
+  suite takes about two and a half minutes without coverage and three and a
+  half with it on this machine, under two minutes per CI job; tests read and write
   YAML through `tests/fast_yaml.py` (libyaml). Since the 0.6 bump the
   coverage figure no longer depends on the checkout's state (`ROADMAP.md`
   §0, the 2026-10-10 finding, closed): a 0.6 bundle's drift check compares
@@ -158,7 +159,9 @@ local green gate is not CI: CI runs Linux and installs only `.[dev]`.
 - Bundle format: `BUNDLE_FORMAT_VERSION = "0.6"` (`bundles/constants.py`;
   0.6 since `3a2d0bc`, ADR-0007, with `"0.1"`-`"0.5"` in the legacy set);
   `tests/fixtures/bundles/seed-narrow-0.5` is a real 0.5 bundle that must
-  keep validating; `"0.1"` bundles (incl. `runs/toy-smoke*` on disk) still
+  keep validating; `seed-narrow-0.6` and `seed-narrow-known-bad-0.6` are the
+  golden 0.6 bundles rescore is tested against, regenerated only for an
+  intended format change (ADR-0003 Q5); `"0.1"` bundles (incl. `runs/toy-smoke*` on disk) still
   validate/read — see `docs/adr/0002-outcome-taxonomy.md`
 
 ## Optional extras
