@@ -37,7 +37,7 @@ ip = _load_script()
 
 def test_the_shipped_allowlist_keeps_its_rules() -> None:
     entries = ip.load_allowlist()
-    assert len(entries) == 32
+    assert len(entries) == 31
     assert ip.allowlist_problems(entries, CATALOGUE) == []
     assert {e.kind for e in entries} == set(ip.KINDS)
 

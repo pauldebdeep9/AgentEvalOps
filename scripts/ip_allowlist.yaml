@@ -13,7 +13,9 @@
 #   source-citation     a run of a source's id, title and publisher, as the
 #                       Sources table cites them
 # Recorded 2026-11-02 from a format 0.6 seed run's evidence_report.md and
-# report.md against all three PDFs: 16 texts, 32 runs.
+# report.md against all three PDFs: 16 texts, 32 runs. 31 since ADR-0008
+# decision 11 changed the first word of 8.3.2's label, which one run took:
+# every entry is now an identifier or a cited name.
 allowed:
   # The evidence report's principle tables: check id, then its scope.
   - {run: 1 1 3 generative ai, kind: check-id-and-scope, reason: check 1.1.3 and its scope}
@@ -28,7 +30,6 @@ allowed:
   - {run: 7 6 1 traditional ai, kind: check-id-and-scope, reason: check 7.6.1 and its scope}
   - {run: 7 7 1 traditional ai, kind: check-id-and-scope, reason: check 7.7.1 and its scope}
   - {run: 8 3 2 generative ai, kind: check-id-and-scope, reason: check 8.3.2 and its scope}
-  - {run: 3 2 generative ai detect, kind: check-id-and-scope, reason: "check 8.3.2, its scope and the first word of this project's label for it"}
   # The evidence report's heading for principle 10.
   - {run: 10 human agency and oversight, kind: principle-name, reason: principle 10's number and label}
   # The Sources table: each source's id, title and publisher.

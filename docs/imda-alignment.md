@@ -63,7 +63,7 @@ The review made four kinds of change:
 | 4.10.1 | Test-and-validation record: ground truth and adversarial tests | Partial | A pre-registered plan, scoring against seeded ground truth, adversarial scenarios, and a solvability check (a known-good trajectory) per scenario | R24, R26, R27 | Measurement-error and construct-validity arguments for its own metrics |
 | 5.9.1 | Release gated on security testing | Partial | `gate` fails a run with any unevaluated task in a gated category; security scenarios (injection, least privilege) in the evidence; the pack is hashed and signed | R25, R26, R27, R29 | The release decision and procedure; signature checks on model artefacts |
 | 7.2.1 | Benchmark and red-team for harm to people or groups | Partial | Counterfactual pairs: the same case with one protected attribute changed must reach the same decision and end state | R26 | Bias and toxicity benchmarks on the model; deciding whether the scores are acceptable |
-| 8.3.2 | Detect personal or sensitive data in outputs | Partial | A detector for NRIC/FIN numbers (S, T, F, G and M prefixes, checksum-validated), phone numbers and e-mail addresses in every outbound message, notice and export. In a run it catches the seeded identifiers, which use a test-only scheme (risk 9); its own tests cover the real prefixes and checksum-invalid look-alikes | R25 | Other kinds of personal or sensitive data; anonymisation and privacy-enhancing measures |
+| 8.3.2 | Find personal or sensitive data in outputs | Partial | A detector for NRIC/FIN numbers (S, T, F, G and M prefixes, checksum-validated), phone numbers and e-mail addresses in every outbound message, notice and export. In a run it catches the seeded identifiers, which use a test-only scheme (risk 9); its own tests cover the real prefixes and checksum-invalid look-alikes | R25 | Other kinds of personal or sensitive data; anonymisation and privacy-enhancing measures |
 | 9.9.2 | Understand a third-party model's data, evaluation and weak spots | Partial | Where the agent fails, scenario by scenario, when it runs on a third-party model | R30 | The model's training data and the vendor's own evaluation |
 | 10.3.2 | Escalate uncertain decisions; track overrides | Partial | Seeded ambiguous cases whose only correct outcome is referral to a human officer, and approval gates before irreversible actions, tested for approve, deny and timeout | R24, R25 | Uncertainty signals from the model itself; monitoring overrides in production (v0.7) |
 
@@ -192,7 +192,7 @@ One table per principle, in the framework's order. *Applies to* is the framework
 | 8.1.1 | Both | Data quality, rights and safety checks | Organisational | — | — |
 | 8.2.1 | Both | Data lineage and provenance record | Organisational | — | — |
 | 8.3.1 | Both | Lawful data collection, use and retention | Organisational | — | — |
-| 8.3.2 | GenAI | Detect personal or sensitive data in outputs | Partial | A detector for Singapore identifiers, phone numbers and e-mail addresses in outbound messages, notices and exports | R25 |
+| 8.3.2 | GenAI | Find personal or sensitive data in outputs | Partial | A detector for Singapore identifiers, phone numbers and e-mail addresses in outbound messages, notices and exports | R25 |
 | 8.4.1 | Both | Data-governance roles and training | Organisational | — | — |
 | 8.5.1 | Both | Third-party rights and IP in data | Supporting | PII-detector results on test outputs (watching live output is v0.7) | R25 |
 

@@ -229,13 +229,13 @@ def test_every_class_appears_in_the_comparison() -> None:
 def test_a_one_letter_change_to_a_label_in_the_document_fails() -> None:
     text = DOC.read_text(encoding="utf-8")
     edited = text.replace(
-        "| 8.3.2 | GenAI | Detect personal or sensitive data in outputs |",
-        "| 8.3.2 | GenAI | Detect personal or sensitive data in output |",
+        "| 8.3.2 | GenAI | Find personal or sensitive data in outputs |",
+        "| 8.3.2 | GenAI | Find personal or sensitive data in output |",
     )
     assert edited != text
     assert differences(edited, load_catalogue()) == [
-        "§4 8.3.2 label: doc 'Detect personal or sensitive data in output', "
-        "catalogue 'Detect personal or sensitive data in outputs'"
+        "§4 8.3.2 label: doc 'Find personal or sensitive data in output', "
+        "catalogue 'Find personal or sensitive data in outputs'"
     ]
 
 

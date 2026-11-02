@@ -892,7 +892,7 @@ controls:
     principle: 8
     scope: generative
     technical_test: false
-    label: Detect personal or sensitive data in outputs
+    label: Find personal or sensitive data in outputs
     classification: partial
     evidence: [scenarios]
     rows: [R25]
