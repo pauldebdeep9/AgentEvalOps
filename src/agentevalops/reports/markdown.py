@@ -106,6 +106,15 @@ def format_pass_rate(summary: RunSummary) -> str:
     )
 
 
+def run_created_line(created_at: str | None) -> str:
+    """The line that dates both reports: when the run was created, as
+    ``metadata.json`` records it -- not when the report was rendered, which
+    no report records (ADR-0008 decision 9)."""
+    if not created_at:
+        return "Run created: not recorded"
+    return f"Run created: {created_at} (`created_at` in `metadata.json`)"
+
+
 def render_report(
     run_config: RunConfig,
     summary: RunSummary,
@@ -119,7 +128,7 @@ def render_report(
     """Return a plain Markdown report string for a completed run.
 
     *created_at* is the run's own timestamp, as ``metadata.json`` records
-    it, and dates the report's ``Generated:`` line; the report reads no
+    it, and dates the report (``run_created_line``); the report reads no
     clock, so two renders of one bundle are byte-identical (ADR-0008
     decision 9). Without it the line says the time is not recorded.
 
@@ -141,11 +150,7 @@ def render_report(
     # ---- header ----------------------------------------------------------
     lines.append(f"# AgentEvalOps Run Report — {summary.run_id}")
     lines.append("")
-    lines.append(
-        f"Generated: {created_at} (the run's created_at, from metadata.json)"
-        if created_at
-        else "Generated: not recorded"
-    )
+    lines.append(run_created_line(created_at))
     lines.append("")
     if runner_id is None:
         lines.append(f"**{RUNNER_NOT_RECORDED}**")

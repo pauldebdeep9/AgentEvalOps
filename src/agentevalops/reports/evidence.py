@@ -33,6 +33,7 @@ from agentevalops.reports.markdown import (
     RUNNER_NOT_RECORDED,
     SCRIPTED_RUNNER,
     plan_section,
+    run_created_line,
 )
 
 SCRIPTED_SENTENCE = (
@@ -195,7 +196,7 @@ def _header(
     run_id = controls["run_id"]
     lines = [f"# Evidence report — {run_id}", ""]
     lines.append(f"- Run: `{run_id}`")
-    lines.append(f"- Created: {created_at} (the run's, from `metadata.json`)")
+    lines.append(f"- {run_created_line(created_at)}")
     if plan is not None and plan.system is not None:
         lines.append(f"- System: `{plan.system.system_id}`")
         lines.append(f"- Pack: `{plan.pack_id}` {plan.pack_version}")

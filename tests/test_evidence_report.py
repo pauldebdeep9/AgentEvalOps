@@ -237,7 +237,7 @@ def test_two_renders_are_byte_identical() -> None:
 
 def test_created_at_is_the_runs_own() -> None:
     header = _render().split("\n## ", 1)[0]
-    assert f"- Created: {inputs.CREATED_AT}" in header
+    assert f"- Run created: {inputs.CREATED_AT}" in header
     assert "Generated" not in _render()
 
 

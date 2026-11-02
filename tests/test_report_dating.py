@@ -43,7 +43,7 @@ def test_the_same_bundle_renders_the_same_bytes_at_two_clock_times() -> None:
     time.sleep(1.1)
     second = render_report(_config(), summary, [], "c.yaml", created_at=CREATED_AT)
     assert first.encode("utf-8") == second.encode("utf-8")
-    assert f"Generated: {CREATED_AT}" in first
+    assert f"Run created: {CREATED_AT}" in first
 
 
 def test_the_renderer_reads_no_clock() -> None:
@@ -63,7 +63,7 @@ def test_the_renderer_reads_no_clock() -> None:
 
 def test_without_a_timestamp_the_line_says_so() -> None:
     report = render_report(_config(), RunSummary(run_id=RunId("dated")), [])
-    assert "Generated: not recorded" in report
+    assert "Run created: not recorded" in report
 
 
 def test_a_written_report_carries_the_bundles_created_at(tmp_path: Path) -> None:
@@ -75,6 +75,27 @@ def test_a_written_report_carries_the_bundles_created_at(tmp_path: Path) -> None
     assert result.exit_code == 0, result.output
     created_at = json.loads((out / "metadata.json").read_text("utf-8"))["created_at"]
     report = (out / "report.md").read_text("utf-8")
-    assert f"Generated: {created_at} (the run's created_at" in report
+    line = f"Run created: {created_at} (`created_at` in `metadata.json`)"
+    assert line in report.splitlines()
     evidence = (out / "evidence_report.md").read_text("utf-8")
-    assert f"- Created: {created_at}" in evidence
+    assert f"- {line}" in evidence.splitlines()
+
+
+def test_both_reports_label_the_date_as_the_runs_creation(tmp_path: Path) -> None:
+    """Fail-first: report.md called the run's created_at "Generated:", a time
+    no report records, and the evidence report called it "Created:"."""
+    out = tmp_path / "toy"
+    result = CliRunner().invoke(
+        app,
+        ["run", "--config", str(ROOT / "configs/toy_smoke.yaml"), "--output", str(out)],
+    )
+    assert result.exit_code == 0, result.output
+    report = (out / "report.md").read_text("utf-8")
+    evidence = (out / "evidence_report.md").read_text("utf-8")
+    dated = [
+        [line.removeprefix("- ") for line in text.splitlines() if "created_at" in line]
+        for text in (report, evidence)
+    ]
+    assert dated[0] == dated[1] and len(dated[0]) == 1
+    assert dated[0][0].startswith("Run created: ")
+    assert "Generated" not in report and "Created:" not in evidence
