@@ -106,13 +106,20 @@ def scenario_descriptors(pack: DomainPack) -> dict[str, dict[str, Any]]:
     }
 
 
+def benchmark_pack(benchmark: Any) -> Any:
+    """The domain pack a run's benchmark runs on, or ``None`` for a
+    benchmark without one (the toy). What the plan records as its pack,
+    declared or not, and what rescore compares (docs/adr/0008 R2)."""
+    return getattr(benchmark, "pack", None)
+
+
 def benchmark_descriptors(benchmark: Any) -> dict[str, dict[str, Any]]:
     """The scenario descriptors of a run's benchmark, built before it is
     narrowed to the plan's selection: every scenario of its domain pack
     when it has one (``scenario_descriptors``), else each task's own
     metadata -- a task cites the control ids it names, if any. What the CLI
     gives the writer and what rescore rebuilds (docs/adr/0007 D5)."""
-    pack = getattr(benchmark, "pack", None)
+    pack = benchmark_pack(benchmark)
     if pack is not None:
         return scenario_descriptors(pack)
     descriptors: dict[str, dict[str, Any]] = {}

@@ -25,6 +25,7 @@ from agentevalops.plans.coverage import (
     COVERAGE_STATES,
     EvidenceInputs,
     benchmark_descriptors,
+    benchmark_pack,
     control_coverage,
     scenario_descriptors,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "COVERAGE_STATES",
     "EvidenceInputs",
     "benchmark_descriptors",
+    "benchmark_pack",
     "GateError",
     "GateResult",
     "build_plan",

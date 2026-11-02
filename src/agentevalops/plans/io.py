@@ -33,7 +33,8 @@ def to_document(plan: RunPlan) -> dict[str, Any]:
     as data, with the pack's identity and data hash gathered under ``pack``
     and the declaration's own hash lifted to ``system_sha256``. An
     undeclared plan (``declared: false``, plan version "2") has ``null``
-    for ``system``, ``system_path``, ``system_sha256`` and ``pack``. Plain
+    for ``system``, ``system_path`` and ``system_sha256``, and for ``pack``
+    when its benchmark has none (R29 (b2)). Plain
     JSON types only, so the file is readable without this package."""
     data = dataclasses.asdict(plan)
     pack = {

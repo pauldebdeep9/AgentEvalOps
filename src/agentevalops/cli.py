@@ -91,7 +91,11 @@ def run(
     # first -- what the declaration selects, against which thresholds -- and
     # the benchmark runs only the selected scenarios. A declaration that
     # contradicts the pack, or selects nothing, stops the run here.
-    from agentevalops.plans import benchmark_descriptors, undeclared_plan
+    from agentevalops.plans import (
+        benchmark_descriptors,
+        benchmark_pack,
+        undeclared_plan,
+    )
 
     plan: RunPlan | None = None
     # docs/adr/0007 D5 (decision 5 of 2026-11-02): every scenario of the
@@ -99,10 +103,10 @@ def run(
     # the plan's selection; a benchmark without a pack is described from
     # its own tasks.
     descriptors = benchmark_descriptors(benchmark)
+    pack = benchmark_pack(benchmark)
     if loaded.system is not None:
         from agentevalops.plans import build_plan
 
-        pack = getattr(benchmark, "pack", None)
         if (
             pack is None
             or not hasattr(benchmark, "scenarios")
@@ -142,12 +146,14 @@ def run(
         benchmark = benchmark.narrowed(plan.selected)
     else:
         # docs/adr/0007 D2: a run with no declaration registers a plan that
-        # says so, selecting the tasks it will run.
+        # says so, selecting the tasks it will run, and recording the pack
+        # they come from when the benchmark has one.
         plan = undeclared_plan(
             loaded.run_config,
             [str(t.task_id) for t in benchmark.list_tasks()],
             config_name=str(config),
             evaluators=loaded.evaluators,
+            pack=pack,
         )
     # docs/adr/0006 D13: every evaluator the run configures, in order.
     evaluators = build_evaluators(loaded.evaluators)

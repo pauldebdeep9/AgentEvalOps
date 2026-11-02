@@ -287,12 +287,19 @@ def undeclared_plan(
     *,
     config_name: str = "",
     evaluators: Sequence[str] = (),
+    pack: DomainPack | None = None,
 ) -> RunPlan:
     """The plan of a run with no system declaration (docs/adr/0007 D2): it
-    says nothing was declared -- no system, no pack, no threshold -- and
-    selects the tasks the run will execute, in the benchmark's order, with
-    their seeds. Registered before the first task like any plan, so every
-    0.6 bundle has one; the gate cannot judge it."""
+    says nothing was declared -- no system, no threshold -- and selects the
+    tasks the run will execute, in the benchmark's order, with their seeds.
+    Registered before the first task like any plan, so every 0.6 bundle has
+    one; the gate cannot judge it.
+
+    A run with no declaration still runs on its benchmark's *pack*, when it
+    has one: the plan records it, as a declared plan does, so that rescore
+    can tell whether the pack it rebuilds is the one the run used
+    (docs/adr/0008 R2). Only a benchmark without a pack -- the toy --
+    records none."""
     repetitions = max(1, run_config.repetitions)
     selected = tuple(str(t) for t in task_ids)
     return RunPlan(
@@ -303,9 +310,9 @@ def undeclared_plan(
         platform_version=__version__,
         system=None,
         system_path=None,
-        pack_id=None,
-        pack_version=None,
-        scenarios_sha256=None,
+        pack_id=None if pack is None else pack.pack_id,
+        pack_version=None if pack is None else pack.pack_version,
+        scenarios_sha256=None if pack is None else scenarios_sha256(pack),
         repetitions=repetitions,
         seed=run_config.seed,
         evaluators=tuple(evaluators),
@@ -321,5 +328,5 @@ def undeclared_plan(
         thresholds=(),
         uncovered_tools=(),
         declared=False,
-        data_sha256=None,
+        data_sha256=None if pack is None else pack_data_sha256(pack),
     )
