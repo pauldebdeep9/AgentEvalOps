@@ -110,10 +110,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-02, Sai2608, clean checkout at `3a2d0bc`)
+## Baseline (verified 2026-11-02, Sai2608, clean checkout at `a733ebc`)
 
 - ruff: clean
-- mypy: clean (77 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (78 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -129,9 +129,14 @@ in this repo.
   proven against an injected violation first; R28 (a)'s `plans` →
   `catalogue` import is the middle tier reaching the low tier, so no
   contract changed)
-- pytest: 1560 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1619 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  98.11% branch coverage on a clean checkout (`3a2d0bc`, the 0.6 bump). The
+  98.01% branch coverage on a clean checkout (`a733ebc`, R29 (a)). The
+  signing tests (`tests/test_signing.py`) need `ssh-keygen` from OpenSSH 8.2
+  or newer: locally they skip, naming what is missing; with
+  `AGENTEVALOPS_REQUIRE_SSH_KEYGEN=1`, as CI sets it, they fail instead.
+  They make throwaway keys in their own temp dirs and never touch `~/.ssh`
+  or a running agent. The
   suite takes about 90 seconds without coverage and about three minutes with
   it on this machine, under two minutes per CI job; tests read and write
   YAML through `tests/fast_yaml.py` (libyaml). Since the 0.6 bump the

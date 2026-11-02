@@ -2,6 +2,17 @@
 
 ## Status
 
+**R29 (a) built — 2026-11-02** (`199ddee`, `111e0f0`, `230f51b`, `a733ebc`).
+Where the build adds to the text: the version check reads `ssh -V` beside
+`ssh-keygen` (no version flag on `ssh-keygen` itself); every `ssh-keygen`
+call runs detached from any terminal with askpass off and a 30 s timeout,
+because a passphrase-protected key would otherwise read the manifest on
+stdin as its passphrase -- it now fails at once with a hint to use
+`ssh-agent`; the signature is written to a partial file and renamed into
+place; `--require-signature` without `--allowed-signers` cannot judge
+(exit 2); a direct `report.md` render without a timestamp says "Generated:
+not recorded". (b) is open.
+
 **Accepted — 2026-11-02 (owner).** Decisions 1 to 8 (Open questions, "For
 the owner") accepted as recommended, with two additions, and three new
 decisions:

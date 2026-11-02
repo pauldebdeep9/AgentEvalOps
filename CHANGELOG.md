@@ -7,7 +7,31 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Signing a bundle** (2026-11-02, `a733ebc`; ROADMAP R29 (a); ADR-0008).
+  `agentevalops sign --bundle DIR --key PATH [--force]` writes
+  `manifest.json.sig`, a detached `ssh-keygen -Y sign` signature over
+  `manifest.json` in the namespace `agentevalops-bundle`. The key is always
+  an explicit path (a `.pub` path signs with `ssh-agent`); an invalid
+  bundle, or an existing signature without `--force`, is refused.
+  `validate-bundle --allowed-signers FILE` verifies it and names the signer
+  and key fingerprint; a missing or bad signature is an error.
+  `gate --require-signature --allowed-signers FILE` cannot judge an
+  unverified bundle (exit 2). Needs OpenSSH 8.2 or newer; no Python
+  dependency is added.
+- **The three records of each evaluation result must agree** (`230f51b`):
+  `validate-bundle` compares `evaluations.json`, the summary's task results
+  and the `evaluator.score` events. This catches an inconsistent edit, not
+  a careful forger who edits all three: a signature, or rescore, does.
+
 ### Changed
+
+- **`report.md` is dated by the bundle** (`111e0f0`): its `Generated:` line
+  is the run's `created_at` from `metadata.json`, not the time it was
+  rendered, so a bundle renders to the same bytes at any time.
+- **8.3.2's label starts "Find"** (`199ddee`), and the IP allowlist holds
+  identifiers and cited names only (31 runs): 16 known overlaps, 0 new.
 
 - **`BundleWriter.write()` requires `runner_id` and `mock_trajectory`**
   (2026-11-02, `e39b824`), like `evidence`: pass `None` when a value is
