@@ -15,11 +15,102 @@ of one CLI command.
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from agentevalops.bundles.reader import LoadedBundle
 
 #: The first format whose traces carry one ``evaluator.score`` event per
 #: evaluation result (docs/adr/0007 D3).
 _SCORE_EVENTS_FROM = (0, 6)
+
+
+#: The fields every record of an evaluation result carries -- its entry in
+#: evaluations.json, its place in summary.json's task results and its
+#: evaluator.score event (docs/adr/0008 C1).
+_RESULT_FIELDS = (
+    "evaluator_id",
+    "evaluator_kind",
+    "applicable",
+    "evaluated",
+    "passed",
+    "score",
+    "not_evaluated_cause",
+    "refs",
+)
+
+Run = tuple[str, int]
+
+
+def _by_run(items: list[tuple[Run, dict[str, Any]]]) -> dict[Run, list[dict[str, Any]]]:
+    grouped: dict[Run, list[dict[str, Any]]] = {}
+    for run, item in items:
+        grouped.setdefault(run, []).append(item)
+    return grouped
+
+
+def _three_records(bundle: LoadedBundle) -> list[str]:
+    """ADR-0008 C1: each evaluation result is recorded three times -- in
+    evaluations.json, in summary.json's task results and as an
+    evaluator.score event -- and the three must agree, run by run and in
+    order. This catches an inconsistent edit; a careful edit of all three
+    with the manifest re-sealed is a signature's or rescore's to catch."""
+    entries = _by_run(
+        [
+            ((str(e.get("task_id")), int(e.get("repetition", 0))), e)
+            for e in bundle.evaluations
+            if isinstance(e, dict)
+        ]
+    )
+    summary: list[tuple[Run, dict[str, Any]]] = []
+    for result in bundle.summary.get("task_results") or []:
+        if not isinstance(result, dict):
+            continue
+        run = (str(result.get("task_id")), int(result.get("repetition", 0)))
+        evaluations = result.get("evaluations") or [result.get("evaluation") or {}]
+        summary += [(run, e) for e in evaluations if isinstance(e, dict)]
+    events = _by_run(
+        [
+            (
+                (str(e.get("task_id")), int(e.get("repetition", 0))),
+                e.get("payload") or {},
+            )
+            for e in bundle.traces
+            if e.get("kind") == "evaluator.score"
+        ]
+    )
+    records = {
+        "evaluations.json": entries,
+        "summary.json": _by_run(summary),
+        "traces.jsonl": events,
+    }
+    errors: list[str] = []
+    runs = sorted(set().union(*records.values()))
+    for task_id, repetition in runs:
+        lists = {
+            name: by_run.get((task_id, repetition), [])
+            for name, by_run in records.items()
+        }
+        counts = {name: len(items) for name, items in lists.items()}
+        where = f"{task_id}/{repetition}"
+        if len(set(counts.values())) != 1:
+            errors.append(
+                f"evaluation results disagree at {where}: "
+                + ", ".join(f"{n} in {name}" for name, n in counts.items())
+            )
+            continue
+        for position in range(counts["evaluations.json"]):
+            row = {name: items[position] for name, items in lists.items()}
+            for field in _RESULT_FIELDS:
+                values = {name: item.get(field) for name, item in row.items()}
+                if len({json.dumps(v, sort_keys=True) for v in values.values()}) > 1:
+                    evaluator = row["evaluations.json"].get("evaluator_id")
+                    errors.append(
+                        f"evaluation results disagree at {where} ({evaluator}): "
+                        f"{field} is "
+                        + ", ".join(f"{v!r} in {name}" for name, v in values.items())
+                    )
+    return errors
 
 
 def _version(value: object) -> tuple[int, ...] | None:
@@ -69,8 +160,7 @@ class LocalReplayVerifier:
         summary_run_id = str(self._bundle.summary.get("run_id", ""))
         if meta_run_id and summary_run_id and meta_run_id != summary_run_id:
             errors.append(
-                f"run_id mismatch: metadata='{meta_run_id}', "
-                f"summary='{summary_run_id}'"
+                f"run_id mismatch: metadata='{meta_run_id}', summary='{summary_run_id}'"
             )
 
         # ---- traces not empty -------------------------------------------
@@ -124,6 +214,7 @@ class LocalReplayVerifier:
             scores = sum(
                 1 for e in self._bundle.traces if e.get("kind") == "evaluator.score"
             )
+            errors.extend(_three_records(self._bundle))
             if scores != eval_count:
                 errors.append(
                     f"evaluator.score event count mismatch: {scores} in "

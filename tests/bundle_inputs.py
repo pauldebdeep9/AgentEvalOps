@@ -64,8 +64,13 @@ def with_score_events(
                     kind=TraceEventKind.EVALUATOR_SCORE,
                     payload={
                         "evaluator_id": evaluation.evaluator_id,
+                        "evaluator_kind": evaluation.evaluator_kind,
+                        "applicable": evaluation.applicable,
                         "evaluated": evaluation.evaluated,
                         "passed": evaluation.passed,
+                        "score": evaluation.score,
+                        "not_evaluated_cause": evaluation.not_evaluated_cause,
+                        "refs": list(evaluation.refs),
                     },
                     task_id=result.task_id,
                     repetition=result.repetition,
