@@ -45,11 +45,14 @@ from agentevalops.orchestration.verdicts import (
     aggregate,
     applicable,
     categories_of,
-    combined_output,
+    check_policy,
+    evaluate,
+    new_summary,
     not_evaluated,
     output_from_terminal,
+    score_events,
     tally,
-    unconfigured,
+    task_runs,
     verdict,
 )
 
@@ -176,17 +179,12 @@ class LocalOrchestrator:
         basis before the exception propagates, so partially-streamed traces are
         still persisted.
         """
-        summary = RunSummary(run_id=self._config.run_id)
         tasks = list(self._benchmark.list_tasks())
         self._order = {str(t.task_id): i for i, t in enumerate(tasks)}
         # docs/adr/0006 D18: the orchestrator owns repetitions; task_id
         # stays the scenario's id and each run carries its repetition.
-        runs = [
-            (task, repetition)
-            for task in tasks
-            for repetition in range(max(1, self._config.repetitions))
-        ]
-        summary.total_tasks = len(runs)
+        runs = task_runs(tasks, self._config.repetitions)
+        summary = new_summary(self._config.run_id, runs)
 
         # docs/adr/0006 D16: prove each scenario solvable before the agent
         # runs it. A scenario whose known-good script fails is defective:
@@ -256,15 +254,13 @@ class LocalOrchestrator:
         # repetitions, and per category for the tasks that carry one.
         aggregate(summary, categories_of(tasks), len(all_events))
 
-        combined = combined_output(summary)
-        summary.policy_verdict = await self._policy_checker.check(
+        summary.policy_verdict = await check_policy(
+            self._policy_checker,
             self._policy_spec,
-            combined,
+            summary,
             all_events,
-            EvaluatorContext(
-                records=tuple(self.tool_call_records),
-                end_states=tuple(self.end_states),
-            ),
+            self.tool_call_records,
+            self.end_states,
         )
 
         return summary
@@ -279,26 +275,7 @@ class LocalOrchestrator:
         not-evaluated ones, so the trace says what ``evaluations.json``
         says. ``step_index`` continues the task's own stream."""
         run_id: RunId = self._config.run_id
-        step = max((e.step_index for e in events), default=-1) + 1
-        evaluations = result.evaluations or [result.evaluation]
-        for offset, evaluation in enumerate(evaluations):
-            event = TraceEvent(
-                run_id=run_id,
-                step_index=step + offset,
-                kind=TraceEventKind.EVALUATOR_SCORE,
-                payload={
-                    "evaluator_id": evaluation.evaluator_id,
-                    "evaluator_kind": evaluation.evaluator_kind,
-                    "applicable": evaluation.applicable,
-                    "evaluated": evaluation.evaluated,
-                    "passed": evaluation.passed,
-                    "score": evaluation.score,
-                    "not_evaluated_cause": evaluation.not_evaluated_cause,
-                    "refs": list(evaluation.refs),
-                },
-                task_id=result.task_id,
-                repetition=result.repetition,
-            )
+        for event in score_events(result, run_id, events):
             await self._trace_store.append(run_id, event)
             events.append(event)
         result.event_count = len(events)
@@ -431,7 +408,6 @@ class LocalOrchestrator:
             # benchmark's own official grading and is reserved for future
             # use when an upstream benchmark's deterministic test suite
             # needs to run post-hoc.
-            chosen, missing = applicable(task, self._evaluators)
             context = EvaluatorContext(
                 records=records,
                 end_states=(end_state,),
@@ -439,10 +415,9 @@ class LocalOrchestrator:
                 repetition=repetition,
                 applicable_evaluators=task.applicable_evaluators,
             )
-            evaluations = [
-                await evaluator.evaluate(task, output, events, context)
-                for evaluator in chosen
-            ] + [unconfigured(kind) for kind in missing]
+            evaluations = await evaluate(
+                task, output, events, context, self._evaluators
+            )
 
             return (
                 TaskRunResult(
@@ -511,11 +486,10 @@ class LocalOrchestrator:
                 repetition=0,
                 applicable_evaluators=task.applicable_evaluators,
             )
-            chosen, missing = applicable(task, self._evaluators)
             output = output_from_terminal(terminal)
-            evaluations = [
-                await e.evaluate(task, output, events, context) for e in chosen
-            ] + [unconfigured(kind) for kind in missing]
+            evaluations = await evaluate(
+                task, output, events, context, self._evaluators
+            )
             outcome = verdict(evaluations)
             if outcome.evaluated and outcome.passed:
                 return PreflightResult(task.task_id, True), False

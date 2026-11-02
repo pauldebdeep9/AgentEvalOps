@@ -7,24 +7,34 @@ evaluators apply to a task (docs/adr/0006 D13), the not-evaluated result,
 a task run's output from its terminal event, a task run's verdict from its
 evaluators' results, the run-level output the policy checker judges, and
 the summary's counts, score result and pass^k (docs/adr/0002 Axis 3;
-docs/adr/0006 D18, D20). No second copy of any of these rules exists.
+docs/adr/0006 D18, D20). Moved too (R29 (b2)): the order of a run's task
+runs, how one task run is judged, its ``evaluator.score`` events, the
+run-level policy check, and which task runs are carried rather than
+evaluated. No second copy of any of these rules exists.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from agentevalops.core.protocols import Evaluator, Scorer
+from agentevalops.core.protocols import Evaluator, PolicyChecker, Scorer
 from agentevalops.core.schemas import (
     AgentOutput,
+    EndStateRecord,
     EvaluationResult,
+    EvaluatorContext,
     NotEvaluatedCause,
+    PolicySpec,
+    PolicyVerdict,
     RunSummary,
     TaskRunResult,
     TaskSpec,
     TerminationReason,
+    ToolCallRecord,
     TraceEvent,
+    TraceEventKind,
 )
+from agentevalops.core.types import RunId
 from agentevalops.scorers.pass_k import pass_k_by_category, pass_k_results
 from agentevalops.scorers.simple import SimpleScorer
 
@@ -199,3 +209,99 @@ def categories_of(tasks: Sequence[TaskSpec]) -> dict[str, str]:
         for t in tasks
         if isinstance(t.metadata.get("category"), str) and t.metadata["category"]
     }
+
+
+#: The output of a task run the orchestrator stopped before any evaluator
+#: could judge it -- its infrastructure or configuration failed, or its
+#: scenario failed the preflight -- and that nothing else produces. Its
+#: recorded result is carried, never recomputed (docs/adr/0008 R6).
+CARRIED = TerminationReason.INFRA_FAILURE
+
+
+def is_carried(termination_reason: object) -> bool:
+    """Whether a task run whose output ended with *termination_reason* (the
+    enum or its recorded string) is carried rather than evaluated."""
+    return termination_reason in (CARRIED, CARRIED.value)
+
+
+def task_runs(
+    tasks: Sequence[TaskSpec], repetitions: int
+) -> list[tuple[TaskSpec, int]]:
+    """Every task run, task by task and then by repetition: the order of a
+    run's results whatever its concurrency (docs/adr/0006 D18; the
+    orchestrator owns repetitions, and task_id stays the scenario's id)."""
+    return [(task, rep) for task in tasks for rep in range(max(1, repetitions))]
+
+
+def new_summary(run_id: RunId, runs: Sequence[tuple[TaskSpec, int]]) -> RunSummary:
+    """A run's summary before any result: its id and how many task runs it
+    holds."""
+    return RunSummary(run_id=run_id, total_tasks=len(runs))
+
+
+async def evaluate(
+    task: TaskSpec,
+    output: AgentOutput,
+    events: list[TraceEvent],
+    context: EvaluatorContext,
+    evaluators: Sequence[Evaluator],
+) -> list[EvaluationResult]:
+    """One task run judged: each configured evaluator that applies to
+    *task*, in configuration order, then the result that says so for each
+    kind the task declares and the run does not configure (docs/adr/0006
+    D13). Evaluators see the task as declared and the agent's own events,
+    never an ``evaluator.score`` event."""
+    chosen, missing = applicable(task, evaluators)
+    return [await e.evaluate(task, output, events, context) for e in chosen] + [
+        unconfigured(kind) for kind in missing
+    ]
+
+
+def score_events(
+    result: TaskRunResult, run_id: RunId, events: Sequence[TraceEvent]
+) -> list[TraceEvent]:
+    """One ``evaluator.score`` event per evaluation result of *result*, in
+    ``evaluations`` order (docs/adr/0007 D3, format 0.6). Every result
+    counts: the real ones, the synthesised ``configuration`` ones and the
+    not-evaluated ones, so the trace says what ``evaluations.json`` says.
+    ``step_index`` continues the task run's own stream, *events*."""
+    step = max((e.step_index for e in events), default=-1) + 1
+    return [
+        TraceEvent(
+            run_id=run_id,
+            step_index=step + offset,
+            kind=TraceEventKind.EVALUATOR_SCORE,
+            payload={
+                "evaluator_id": evaluation.evaluator_id,
+                "evaluator_kind": evaluation.evaluator_kind,
+                "applicable": evaluation.applicable,
+                "evaluated": evaluation.evaluated,
+                "passed": evaluation.passed,
+                "score": evaluation.score,
+                "not_evaluated_cause": evaluation.not_evaluated_cause,
+                "refs": list(evaluation.refs),
+            },
+            task_id=result.task_id,
+            repetition=result.repetition,
+        )
+        for offset, evaluation in enumerate(result.evaluations or [result.evaluation])
+    ]
+
+
+async def check_policy(
+    checker: PolicyChecker,
+    spec: PolicySpec,
+    summary: RunSummary,
+    all_events: list[TraceEvent],
+    records: Sequence[ToolCallRecord],
+    end_states: Sequence[EndStateRecord],
+) -> PolicyVerdict:
+    """The run-level policy verdict: *checker* judging *spec* over the
+    whole run's output, every event (score events included) and every
+    harness record."""
+    return await checker.check(
+        spec,
+        combined_output(summary),
+        all_events,
+        EvaluatorContext(records=tuple(records), end_states=tuple(end_states)),
+    )

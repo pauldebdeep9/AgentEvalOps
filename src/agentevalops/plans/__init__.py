@@ -15,7 +15,12 @@ Imports ``core``, ``bundles`` and ``catalogue`` (ARCHITECTURE.md §1;
 docs/adr/0007 D13).
 """
 
-from agentevalops.plans.builder import build_plan, undeclared_plan
+from agentevalops.plans.builder import (
+    build_plan,
+    pack_data_sha256,
+    scenarios_sha256,
+    undeclared_plan,
+)
 from agentevalops.plans.coverage import (
     COVERAGE_STATES,
     EvidenceInputs,
@@ -40,10 +45,12 @@ __all__ = [
     "build_plan",
     "control_coverage",
     "judge",
+    "pack_data_sha256",
     "plan_from_document",
     "plan_sha256",
     "read_plan",
     "scenario_descriptors",
+    "scenarios_sha256",
     "undeclared_plan",
     "write_plan",
 ]

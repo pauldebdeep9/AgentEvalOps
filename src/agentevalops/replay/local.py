@@ -20,7 +20,7 @@ from typing import Any
 
 from agentevalops.bundles.reader import LoadedBundle
 from agentevalops.bundles.serializers import LoadError, load_trace_event, to_jsonable
-from agentevalops.orchestration.verdicts import output_from_terminal
+from agentevalops.orchestration.verdicts import is_carried, output_from_terminal
 
 #: The first format whose traces carry one ``evaluator.score`` event per
 #: evaluation result (docs/adr/0007 D3).
@@ -167,7 +167,7 @@ def _carried(bundle: LoadedBundle) -> list[str]:
                     f"carried result does not fit at {where}: not evaluated "
                     f"({cause}) by some of its evaluators, not all"
                 )
-            if reason != "infra_failure":
+            if not is_carried(reason):
                 errors.append(
                     f"carried result does not fit at {where}: not evaluated "
                     f"({cause}), but its output's termination_reason is "
@@ -200,7 +200,7 @@ def _carried(bundle: LoadedBundle) -> list[str]:
                 f"carried result does not fit at {where}: evaluated, but "
                 "end_states.jsonl has no end state for it"
             )
-        if reason == "infra_failure":
+        if is_carried(reason):
             continue
         terminal = terminals.get(run)
         try:

@@ -50,7 +50,14 @@ from agentevalops.core.schemas import (
 from agentevalops.core.scripts import parse_script
 from agentevalops.core.types import TaskId
 
-__all__ = ["PLAN_VERSION", "build_plan", "select", "undeclared_plan"]
+__all__ = [
+    "PLAN_VERSION",
+    "build_plan",
+    "pack_data_sha256",
+    "scenarios_sha256",
+    "select",
+    "undeclared_plan",
+]
 
 #: The plan document's own version, independent of the bundle format.
 #: "2" from format 0.6 (docs/adr/0007 D2): ``declared``, ``pack.data_sha256``,
@@ -205,7 +212,12 @@ def _thresholds(
     return tuple(out)
 
 
-def _scenarios_sha256(pack: DomainPack) -> str:
+def pack_data_sha256(pack: DomainPack) -> str | None:
+    """The pack's data hash, for a pack that has one (``DataHashed``)."""
+    return pack.data_sha256 if isinstance(pack, DataHashed) else None
+
+
+def scenarios_sha256(pack: DomainPack) -> str:
     """The pack's scenarios as loaded, hashed canonically, so an edit to the
     pack after the plan shows (ROADMAP R28 records source versions in full)."""
     canonical = json.dumps(
@@ -254,7 +266,7 @@ def build_plan(
         system_path=system_path,
         pack_id=pack.pack_id,
         pack_version=pack.pack_version,
-        scenarios_sha256=_scenarios_sha256(pack),
+        scenarios_sha256=scenarios_sha256(pack),
         repetitions=repetitions,
         seed=run_config.seed,
         evaluators=tuple(evaluators),
@@ -265,7 +277,7 @@ def build_plan(
         thresholds=_thresholds(declaration, pack),
         uncovered_tools=uncovered,
         declared=True,
-        data_sha256=pack.data_sha256 if isinstance(pack, DataHashed) else None,
+        data_sha256=pack_data_sha256(pack),
     )
 
 
