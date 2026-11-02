@@ -17,6 +17,7 @@ from pathlib import Path
 import fast_yaml
 import pytest
 from flaky_runner import FlakyRunner, passes
+from reference_bundles import ReferenceBundles
 from test_gate import _bundle, _config, _gate
 from test_r24_exit import _evaluators
 from typer.testing import CliRunner
@@ -44,12 +45,12 @@ SCENARIO_IDS = [s.scenario_id for s in PACK.scenarios()]
 
 
 def test_editing_test_plan_json_after_the_run_makes_validate_bundle_fail(
-    tmp_path: Path,
+    tmp_path: Path, reference_bundles: ReferenceBundles
 ) -> None:
     """Criterion 1 (fail-first in tests/test_test_plan.py): the hash
     registered before the first task ran is in metadata.json, so an edit
     fails validation even after the manifest is rewritten to match."""
-    bundle = _bundle(tmp_path, _config(tmp_path))
+    bundle = reference_bundles["seed"].copy(tmp_path / "bundle")
     assert validate_bundle(bundle).valid
     plan_path = bundle / TEST_PLAN_FILENAME
     doc = json.loads(plan_path.read_text(encoding="utf-8"))
@@ -106,13 +107,13 @@ def test_a_threshold_set_in_system_yaml_overrides_the_packs_and_records_its_sour
 
 
 def test_a_declared_intended_use_and_business_metric_appear_unchanged_in_the_plan(
-    tmp_path: Path,
+    reference_bundles: ReferenceBundles,
 ) -> None:
     """Criterion 3 (testing-framework 3.7.1): recorded verbatim, never
     evaluated -- in the plan the run registered, and repeated by the
     report."""
     shipped = fast_yaml.safe_load(SYSTEM.read_text(encoding="utf-8"))
-    bundle = _bundle(tmp_path, _config(tmp_path))
+    bundle = reference_bundles["seed"].path
     plan = read_plan(bundle)
     assert plan is not None
     system = plan["system"]
@@ -225,7 +226,7 @@ def test_gate_exits_non_zero_with_all_evaluated_passed_and_one_not_evaluated(
 
 
 def test_the_plan_is_registered_before_the_first_task_and_the_run_refuses_without_it(
-    tmp_path: Path,
+    tmp_path: Path, reference_bundles: ReferenceBundles
 ) -> None:
     """The row's text, beyond its criteria: ``test_plan.json`` hashed before
     the first task runs, and the seed pack never running without one."""
@@ -244,7 +245,7 @@ def test_the_plan_is_registered_before_the_first_task_and_the_run_refuses_withou
     )
     assert result.exit_code == 1 and "system" in result.output
     assert not (tmp_path / "no-plan").exists()
-    bundle = _bundle(tmp_path, _config(tmp_path))
+    bundle = reference_bundles["seed"].path
     metadata = json.loads((bundle / "metadata.json").read_text(encoding="utf-8"))
     assert isinstance(metadata["test_plan_sha256"], str)
     doc = read_plan(bundle)

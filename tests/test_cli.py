@@ -5,6 +5,7 @@ from __future__ import annotations
 import pathlib
 
 import pytest
+from reference_bundles import ReferenceBundles
 from typer.testing import CliRunner
 
 from agentevalops import __version__
@@ -68,13 +69,12 @@ def test_run_command_missing_config_exits_nonzero(tmp_path: pathlib.Path) -> Non
     assert result.exit_code != 0
 
 
-def test_run_command_with_output_creates_bundle(tmp_path: pathlib.Path) -> None:
-    output_dir = tmp_path / "my-bundle"
-    result = runner.invoke(
-        app,
-        ["run", "--config", str(_CONFIG), "--output", str(output_dir)],
-    )
-    assert result.exit_code == 0, result.output
+def test_run_command_with_output_creates_bundle(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    # The session's shared toy run (reference_bundles.py), written with
+    # --output; it asserts the run's exit code 0 when it writes the bundle.
+    output_dir = reference_bundles["toy"].path
     assert output_dir.exists()
     for fname in (
         "metadata.json",
@@ -89,15 +89,11 @@ def test_run_command_with_output_creates_bundle(tmp_path: pathlib.Path) -> None:
 
 
 def test_run_command_with_output_prints_bundle_path(
-    tmp_path: pathlib.Path,
+    reference_bundles: ReferenceBundles,
 ) -> None:
-    output_dir = tmp_path / "bundle-out"
-    result = runner.invoke(
-        app,
-        ["run", "--config", str(_CONFIG), "--output", str(output_dir)],
-    )
-    assert result.exit_code == 0, result.output
-    assert "Bundle written to:" in result.output
+    # What the shared toy run printed (its exit code 0 is asserted where
+    # reference_bundles.py writes it).
+    assert "Bundle written to:" in reference_bundles["toy"].output
 
 
 def test_run_command_without_output_no_bundle_message(
@@ -234,18 +230,18 @@ def test_run_command_prints_pass_rate() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_bundle(runs_dir: pathlib.Path, name: str) -> pathlib.Path:
-    """Run the toy config and write a bundle under runs_dir/name."""
-    out = runs_dir / name
-    result = runner.invoke(
-        app, ["run", "--config", str(_CONFIG), "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
-    return out
+def _make_bundle(
+    reference_bundles: ReferenceBundles, runs_dir: pathlib.Path, name: str
+) -> pathlib.Path:
+    """A toy-config bundle under runs_dir/name: a copy of the session's
+    shared toy run (reference_bundles.py), so a test may change it."""
+    return reference_bundles["toy"].copy(runs_dir / name)
 
 
-def test_report_by_run_id(tmp_path: pathlib.Path) -> None:
-    _make_bundle(tmp_path, "toy-smoke-001")
+def test_report_by_run_id(
+    tmp_path: pathlib.Path, reference_bundles: ReferenceBundles
+) -> None:
+    _make_bundle(reference_bundles, tmp_path, "toy-smoke-001")
     result = runner.invoke(
         app,
         ["report", "--run-id", "toy-smoke-001", "--runs-dir", str(tmp_path)],
@@ -255,8 +251,10 @@ def test_report_by_run_id(tmp_path: pathlib.Path) -> None:
     assert "toy-smoke-001" in result.output
 
 
-def test_report_latest(tmp_path: pathlib.Path) -> None:
-    _make_bundle(tmp_path, "bundle-a")
+def test_report_latest(
+    tmp_path: pathlib.Path, reference_bundles: ReferenceBundles
+) -> None:
+    _make_bundle(reference_bundles, tmp_path, "bundle-a")
     result = runner.invoke(
         app, ["report", "--run-id", "latest", "--runs-dir", str(tmp_path)]
     )
@@ -264,9 +262,11 @@ def test_report_latest(tmp_path: pathlib.Path) -> None:
     assert "toy-smoke-001" in result.output
 
 
-def test_report_by_directory_name_fallback(tmp_path: pathlib.Path) -> None:
+def test_report_by_directory_name_fallback(
+    tmp_path: pathlib.Path, reference_bundles: ReferenceBundles
+) -> None:
     # Resolve by the bundle's directory name even if it differs from run_id.
-    _make_bundle(tmp_path, "custom-dir-name")
+    _make_bundle(reference_bundles, tmp_path, "custom-dir-name")
     result = runner.invoke(
         app,
         ["report", "--run-id", "custom-dir-name", "--runs-dir", str(tmp_path)],
@@ -274,8 +274,10 @@ def test_report_by_directory_name_fallback(tmp_path: pathlib.Path) -> None:
     assert result.exit_code == 0, result.output
 
 
-def test_report_unknown_run_id_exits_nonzero(tmp_path: pathlib.Path) -> None:
-    _make_bundle(tmp_path, "toy-smoke-001")
+def test_report_unknown_run_id_exits_nonzero(
+    tmp_path: pathlib.Path, reference_bundles: ReferenceBundles
+) -> None:
+    _make_bundle(reference_bundles, tmp_path, "toy-smoke-001")
     result = runner.invoke(
         app, ["report", "--run-id", "nope", "--runs-dir", str(tmp_path)]
     )
@@ -303,9 +305,9 @@ def test_report_empty_runs_dir_exits_nonzero(tmp_path: pathlib.Path) -> None:
 
 
 def test_report_bundle_without_report_md_exits_nonzero(
-    tmp_path: pathlib.Path,
+    tmp_path: pathlib.Path, reference_bundles: ReferenceBundles
 ) -> None:
-    bundle = _make_bundle(tmp_path, "toy-smoke-001")
+    bundle = _make_bundle(reference_bundles, tmp_path, "toy-smoke-001")
     (bundle / "report.md").unlink()
     result = runner.invoke(
         app,
@@ -359,14 +361,14 @@ def test_run_langgraph_runner_missing_key_exits_cleanly(
 
 
 def test_report_skips_dir_with_unreadable_metadata(
-    tmp_path: pathlib.Path,
+    tmp_path: pathlib.Path, reference_bundles: ReferenceBundles
 ) -> None:
     # A directory whose metadata.json is unparseable is not matched by run_id
     # but is still skipped gracefully (no crash); a valid sibling resolves.
     bad = tmp_path / "bad-bundle"
     bad.mkdir()
     (bad / "metadata.json").write_text("{ not json", encoding="utf-8")
-    _make_bundle(tmp_path, "toy-smoke-001")
+    _make_bundle(reference_bundles, tmp_path, "toy-smoke-001")
     result = runner.invoke(
         app,
         ["report", "--run-id", "toy-smoke-001", "--runs-dir", str(tmp_path)],

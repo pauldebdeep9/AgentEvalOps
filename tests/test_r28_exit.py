@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 import test_enum_construction_coverage as enum_coverage
-from typer.testing import CliRunner
+from reference_bundles import ReferenceBundles
 
 from agentevalops.bundles import validator as validator_module
 from agentevalops.bundles.constants import (
@@ -27,7 +27,6 @@ from agentevalops.bundles.manifest import write_manifest
 from agentevalops.bundles.provenance import package_sha256
 from agentevalops.bundles.validator import validate_bundle
 from agentevalops.catalogue import load_catalogue
-from agentevalops.cli import app
 from agentevalops.core.schemas import CategoryPassK, RunSummary, TraceEventKind
 from agentevalops.core.types import RunId
 from agentevalops.reports.evidence import render_evidence_report
@@ -36,21 +35,11 @@ ROOT = Path(__file__).resolve().parents[1]
 LEGACY_0_5 = ROOT / "tests/fixtures/bundles/seed-narrow-0.5"
 
 
-def _run(config: str, out: Path) -> Path:
-    result = CliRunner().invoke(
-        app, ["run", "--config", str(ROOT / config), "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
-    return out
-
-
 @pytest.fixture(scope="module")
-def bundles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
-    tmp = tmp_path_factory.mktemp("r28")
-    return {
-        "toy": _run("configs/toy_smoke.yaml", tmp / "toy"),
-        "seed": _run("configs/agentic_baseline_mock.yaml", tmp / "seed"),
-    }
+def bundles(reference_bundles: ReferenceBundles) -> dict[str, Path]:
+    """The shared toy and seed bundles; read only (tests copy before they
+    edit)."""
+    return {kind: reference_bundles[kind].path for kind in ("toy", "seed")}
 
 
 def _copy(bundle: Path, tmp_path: Path) -> Path:

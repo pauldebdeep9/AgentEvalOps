@@ -21,6 +21,7 @@ from typing import Any
 
 import fast_yaml
 import pytest
+from reference_bundles import ReferenceBundles
 from typer.testing import CliRunner
 
 from agentevalops.bundles.constants import TEST_PLAN_FILENAME
@@ -238,8 +239,10 @@ def _snapshot(bundle: Path) -> dict[str, tuple[int, bytes]]:
     }
 
 
-def test_the_shipped_run_passes_the_gate(tmp_path: Path) -> None:
-    bundle = _bundle(tmp_path, _config(tmp_path))
+def test_the_shipped_run_passes_the_gate(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    bundle = reference_bundles["seed"].path
     before = _snapshot(bundle)
     result = _gate(bundle)
     assert result.exit_code == EXIT_PASS == 0, result.output
@@ -300,9 +303,10 @@ def test_every_task_passes_but_one_gated_scenario_is_not_evaluated(
     assert "not evaluated (" in result.output
 
 
-def test_a_known_bad_run_fails_every_hard_gate_and_names_them(tmp_path: Path) -> None:
-    config = _config(tmp_path, lambda d: d.__setitem__("mock_trajectory", "known_bad"))
-    result = _gate(_bundle(tmp_path, config))
+def test_a_known_bad_run_fails_every_hard_gate_and_names_them(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    result = _gate(reference_bundles["known-bad"].path)
     assert result.exit_code == EXIT_FAIL
     assert "GATE: FAIL" in result.output
     for category in ("task_execution", "tool_calling", "policy_compliance"):
@@ -323,25 +327,20 @@ def test_an_owner_hard_gate_on_robustness_fails_a_known_bad_run(tmp_path: Path) 
     assert "min 0.75 (pack, gate: owner)" in result.output
 
 
-def test_a_bundle_without_a_plan_cannot_be_judged(tmp_path: Path) -> None:
-    out = tmp_path / "toy"
-    assert (
-        CliRunner()
-        .invoke(
-            app, ["run", "--config", "configs/toy_smoke.yaml", "--output", str(out)]
-        )
-        .exit_code
-        == 0
-    )
-    result = _gate(out)
+def test_a_bundle_without_a_plan_cannot_be_judged(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    result = _gate(reference_bundles["toy"].path)
     assert result.exit_code == EXIT_CANNOT_JUDGE == 2
     # From 0.6 the toy run registers the undeclared plan (docs/adr/0007 D2).
     assert "no test plan was declared" in result.output
     assert "GATE: CANNOT JUDGE" in result.output
 
 
-def test_a_tampered_plan_cannot_be_judged(tmp_path: Path) -> None:
-    bundle = _bundle(tmp_path, _config(tmp_path))
+def test_a_tampered_plan_cannot_be_judged(
+    tmp_path: Path, reference_bundles: ReferenceBundles
+) -> None:
+    bundle = reference_bundles["seed"].copy(tmp_path / "bundle")
     plan_path = bundle / TEST_PLAN_FILENAME
     doc = json.loads(plan_path.read_text(encoding="utf-8"))
     doc["thresholds"] = [
@@ -355,18 +354,22 @@ def test_a_tampered_plan_cannot_be_judged(tmp_path: Path) -> None:
     assert "GATE: CANNOT JUDGE" in result.output
 
 
-def test_a_missing_or_invalid_bundle_cannot_be_judged(tmp_path: Path) -> None:
+def test_a_missing_or_invalid_bundle_cannot_be_judged(
+    tmp_path: Path, reference_bundles: ReferenceBundles
+) -> None:
     result = _gate(tmp_path / "nowhere")
     assert result.exit_code == EXIT_CANNOT_JUDGE
-    bundle = _bundle(tmp_path, _config(tmp_path))
+    bundle = reference_bundles["seed"].copy(tmp_path / "bundle")
     (bundle / "summary.json").write_text("{}", encoding="utf-8")
     result = _gate(bundle)
     assert result.exit_code == EXIT_CANNOT_JUDGE
     assert "SHA-256 mismatch" in result.output
 
 
-def test_a_run_outside_its_plan_cannot_be_judged(tmp_path: Path) -> None:
-    bundle = _bundle(tmp_path, _config(tmp_path))
+def test_a_run_outside_its_plan_cannot_be_judged(
+    tmp_path: Path, reference_bundles: ReferenceBundles
+) -> None:
+    bundle = reference_bundles["seed"].copy(tmp_path / "bundle")
     plan_path = bundle / TEST_PLAN_FILENAME
     doc = json.loads(plan_path.read_text(encoding="utf-8"))
     dropped = doc["selected"][-1]
@@ -395,9 +398,10 @@ def test_a_run_outside_its_plan_cannot_be_judged(tmp_path: Path) -> None:
     assert "did not follow" in result.output
 
 
-def test_the_output_is_one_line_per_threshold_then_the_verdict(tmp_path: Path) -> None:
-    bundle = _bundle(tmp_path, _config(tmp_path))
-    output = _gate(bundle).output
+def test_the_output_is_one_line_per_threshold_then_the_verdict(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    output = _gate(reference_bundles["seed"].path).output
     lines = output.splitlines()
     assert lines[-1] == "GATE: PASS"
     table = [

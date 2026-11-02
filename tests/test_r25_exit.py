@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 import fast_yaml
+from reference_bundles import ReferenceBundles
 from test_r24_exit import EVALUATIONS, GOOD_CALLS, SCENARIO_IDS, N, _seed
 from typer.testing import CliRunner
 
@@ -154,16 +155,14 @@ def test_category_lines_count_each_category_in_first_seen_order() -> None:
 
 
 def test_the_shipped_config_produces_verdicts_in_three_categories(
-    tmp_path: Path,
+    reference_bundles: ReferenceBundles,
 ) -> None:
-    out = tmp_path / "bundle"
-    result = CliRunner().invoke(
-        app, ["run", "--config", str(CONFIG), "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
-    assert "Policy  : PASS" in result.output
-    assert "By category:" in result.output
-    lines = [line for line in result.output.splitlines() if line.startswith("  ")]
+    # The shared seed run (its exit code 0 is checked where it is written).
+    seed = reference_bundles["seed"]
+    out = seed.path
+    assert "Policy  : PASS" in seed.output
+    assert "By category:" in seed.output
+    lines = [line for line in seed.output.splitlines() if line.startswith("  ")]
     counts = {s.category: 0 for s in PACK.scenarios()}
     for s in PACK.scenarios():
         counts[s.category] += 1
@@ -186,26 +185,19 @@ def test_the_shipped_config_produces_verdicts_in_three_categories(
 
 
 def test_the_known_bad_playback_fails_every_category_and_keeps_the_run_level_pass(
-    tmp_path: Path,
+    reference_bundles: ReferenceBundles,
 ) -> None:
-    doc = fast_yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
-    doc["system"] = str(SYSTEM.resolve())  # the copy lives in tmp_path (R27)
-    doc["mock_trajectory"] = "known_bad"
-    config = tmp_path / "bad.yaml"
-    config.write_text(fast_yaml.safe_dump(doc), encoding="utf-8")
-    out = tmp_path / "bundle"
-    result = CliRunner().invoke(
-        app, ["run", "--config", str(config), "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
-    lines = [line for line in result.output.splitlines() if line.startswith("  ")]
+    # The shared known-bad run: the shipped config with mock_trajectory
+    # known_bad and the system path absolute (exit code 0 checked there).
+    output = reference_bundles["known-bad"].output
+    lines = [line for line in output.splitlines() if line.startswith("  ")]
     assert all(
         "0/" in line and "evaluated passed (0 not evaluated)" in line for line in lines
     )
     assert len(lines) == len({s.category for s in PACK.scenarios()})
     # Every known-bad stays within the pack's six tools, so the run-level
     # allow-list passes; a stray tool would fail it.
-    assert "Policy  : PASS" in result.output
+    assert "Policy  : PASS" in output
 
 
 def test_a_run_that_strays_outside_allowed_tool_ids_fails_the_policy_verdict(

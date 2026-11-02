@@ -12,15 +12,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from reference_bundles import ReferenceBundles
 from test_r24_exit import _seed
-from typer.testing import CliRunner
 
-from agentevalops.cli import app
 from agentevalops.core.schemas import NEGATIVE_OUTCOMES
 from agentevalops.domain_packs.seed import SeedDomainPack
 from agentevalops.reports.markdown import OUTCOME_LABELS
 
-CONFIG = Path("configs/agentic_baseline_mock.yaml")
 PACK = SeedDomainPack()
 SCENARIOS = {s.scenario_id: s for s in PACK.scenarios()}
 ROBUSTNESS = [sid for sid in SCENARIOS if sid.startswith("RB")]
@@ -148,14 +146,12 @@ def test_the_robustness_scenarios_cover_every_outcome_group() -> None:
 
 
 def test_the_shipped_config_runs_four_categories_and_fills_the_five_groups(
-    tmp_path: Path,
+    reference_bundles: ReferenceBundles,
 ) -> None:
-    out = tmp_path / "bundle"
-    result = CliRunner().invoke(
-        app, ["run", "--config", str(CONFIG), "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
-    lines = [line for line in result.output.splitlines() if line.startswith("  ")]
+    # The shared seed run (its exit code 0 is checked where it is written).
+    seed = reference_bundles["seed"]
+    out = seed.path
+    lines = [line for line in seed.output.splitlines() if line.startswith("  ")]
     assert [line.split()[0] for line in lines] == [
         "task_execution",
         "tool_calling",

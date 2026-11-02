@@ -7,15 +7,14 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
-import tempfile
 from collections.abc import Callable
 from importlib import import_module, resources
 from pathlib import Path
 from typing import Any
 
-import fast_yaml
 import pytest
 import yaml
+from reference_bundles import edited_seed_data as _edited
 
 from agentevalops import registry as registry_module
 from agentevalops.agents import mock_runner
@@ -60,21 +59,6 @@ SCENARIOS = {s.scenario_id: s for s in PACK.scenarios()}
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _edited(
-    tmp_path: Path, file: str, mutate: Callable[[dict[str, Any]], None]
-) -> Path:
-    """A copy of the data directory with *file* changed by *mutate*."""
-    copy = Path(tempfile.mkdtemp(prefix="data", dir=tmp_path))
-    shutil.rmtree(copy)
-    shutil.copytree(DATA_DIR, copy)
-    doc = fast_yaml.safe_load((copy / file).read_text(encoding="utf-8"))
-    mutate(doc)
-    (copy / file).write_text(
-        fast_yaml.safe_dump(doc, sort_keys=False), encoding="utf-8"
-    )
-    return copy
 
 
 def _run(

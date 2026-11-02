@@ -17,6 +17,7 @@ from typing import Any
 
 import fast_yaml
 import pytest
+from reference_bundles import ReferenceBundles
 from typer.testing import CliRunner
 
 from agentevalops.bundles.constants import (
@@ -55,7 +56,11 @@ def _run(config: Path, out: Path) -> Path:
 
 
 @pytest.fixture(scope="module")
-def bundles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
+def bundles(
+    tmp_path_factory: pytest.TempPathFactory, reference_bundles: ReferenceBundles
+) -> dict[str, Path]:
+    """The shared toy and seed bundles, read only (tests copy before they
+    edit), and this module's own run narrowed to ``NARROWED``."""
     tmp = tmp_path_factory.mktemp("b06")
     seed = fast_yaml.safe_load(
         (ROOT / "configs/agentic_baseline_mock.yaml").read_text("utf-8")
@@ -65,8 +70,8 @@ def bundles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
     narrowed = tmp / "narrowed.yaml"
     narrowed.write_text(fast_yaml.safe_dump(seed), encoding="utf-8")
     return {
-        "toy": _run(ROOT / "configs/toy_smoke.yaml", tmp / "toy"),
-        "seed": _run(ROOT / "configs/agentic_baseline_mock.yaml", tmp / "seed"),
+        "toy": reference_bundles["toy"].path,
+        "seed": reference_bundles["seed"].path,
         "narrowed": _run(narrowed, tmp / "narrowed"),
     }
 

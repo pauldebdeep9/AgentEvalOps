@@ -14,6 +14,7 @@ from typing import Any
 
 import fast_yaml
 import pytest
+from reference_bundles import ReferenceBundles
 from typer.testing import CliRunner
 
 from agentevalops.agents.mock_runner import MockAgentRunner
@@ -44,7 +45,6 @@ from agentevalops.registry import KIND_EVALUATOR, build_default_registry
 from agentevalops.stores.memory import InMemoryTraceStore
 
 CONFIG = Path("configs/agentic_baseline_mock.yaml")
-SYSTEM = Path("configs/seed_system.yaml")
 DATA_DIR = Path(str(resources.files("agentevalops.domain_packs.seed") / "data"))
 _PACK = SeedDomainPack()
 #: Every scenario the pack ships, R25's policy-compliance ones included.
@@ -361,13 +361,13 @@ def _evaluations(out: Path) -> list[dict[str, Any]]:
     return data
 
 
-def test_the_shipped_config_runs_the_pack_through_the_cli(tmp_path: Path) -> None:
-    out = tmp_path / "bundle"
-    result = CliRunner().invoke(
-        app, ["run", "--config", str(CONFIG), "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
-    assert f"{N}/{N} evaluated passed" in result.output
+def test_the_shipped_config_runs_the_pack_through_the_cli(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    # The shared seed run (its exit code 0 is checked where it is written).
+    seed = reference_bundles["seed"]
+    out = seed.path
+    assert f"{N}/{N} evaluated passed" in seed.output
     summary = _summary(out)
     assert (
         summary["passed_tasks"],
@@ -411,18 +411,12 @@ def test_the_shipped_config_runs_the_pack_through_the_cli(tmp_path: Path) -> Non
         assert checked.exit_code == 0, checked.output
 
 
-def test_the_known_bad_playback_fails_every_task(tmp_path: Path) -> None:
-    doc = fast_yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
-    doc["system"] = str(SYSTEM.resolve())  # the copy lives in tmp_path (R27)
-    doc["mock_trajectory"] = "known_bad"
-    doc["run_id"] = "agentic-baseline-mock-bad"
-    config = tmp_path / "bad.yaml"
-    config.write_text(fast_yaml.safe_dump(doc), encoding="utf-8")
-    out = tmp_path / "bundle"
-    result = CliRunner().invoke(
-        app, ["run", "--config", str(config), "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
+def test_the_known_bad_playback_fails_every_task(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    # The shared known-bad run: the shipped config with mock_trajectory
+    # known_bad and the system path absolute (exit code 0 checked there).
+    out = reference_bundles["known-bad"].path
     summary = _summary(out)
     assert (
         summary["passed_tasks"],

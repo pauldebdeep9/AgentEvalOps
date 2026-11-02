@@ -16,9 +16,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
-import fast_yaml
 import pytest
-from typer.testing import CliRunner
+from reference_bundles import ReferenceBundles
 
 from agentevalops.bundles.serializers import (
     LoadError,
@@ -31,7 +30,6 @@ from agentevalops.bundles.serializers import (
     load_trace_event,
     to_jsonable,
 )
-from agentevalops.cli import app
 from agentevalops.core.schemas import (
     PolicyVerdict,
     ResultBundleMetadata,
@@ -40,31 +38,13 @@ from agentevalops.core.schemas import (
     TraceEvent,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def _run(config: Path, out: Path) -> Path:
-    result = CliRunner().invoke(
-        app, ["run", "--config", str(config), "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
-    return out
+KINDS = ["toy", "seed", "known-bad"]
 
 
 @pytest.fixture(scope="module")
-def bundles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
-    tmp = tmp_path_factory.mktemp("loaders")
-    bad = fast_yaml.safe_load(
-        (ROOT / "configs/agentic_baseline_mock.yaml").read_text("utf-8")
-    )
-    bad["mock_trajectory"] = "known_bad"
-    bad["system"] = str(ROOT / "configs/seed_system.yaml")
-    (tmp / "bad.yaml").write_text(fast_yaml.safe_dump(bad), encoding="utf-8")
-    return {
-        "toy": _run(ROOT / "configs/toy_smoke.yaml", tmp / "toy"),
-        "seed": _run(ROOT / "configs/agentic_baseline_mock.yaml", tmp / "seed"),
-        "known-bad": _run(tmp / "bad.yaml", tmp / "bad"),
-    }
+def bundles(reference_bundles: ReferenceBundles) -> dict[str, Path]:
+    """The shared toy, seed and known-bad bundles; read only."""
+    return {kind: reference_bundles[kind].path for kind in KINDS}
 
 
 def _lines(path: Path) -> list[dict[str, Any]]:
@@ -73,9 +53,6 @@ def _lines(path: Path) -> list[dict[str, Any]]:
 
 def _json(path: Path) -> Any:
     return json.loads(path.read_text("utf-8"))
-
-
-KINDS = ["toy", "seed", "known-bad"]
 
 
 @pytest.mark.parametrize("kind", KINDS)

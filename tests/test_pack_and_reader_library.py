@@ -12,11 +12,10 @@ from typing import Any
 
 import fast_yaml
 import pytest
-from typer.testing import CliRunner
+from reference_bundles import ReferenceBundles
 
 from agentevalops.benchmarks.agentic_baseline import AgenticBaselineBenchmark
 from agentevalops.bundles.reader import BundleReader
-from agentevalops.cli import app
 from agentevalops.core.errors import BundleError
 from agentevalops.core.protocols import DataHashed
 from agentevalops.domain_packs.seed import SeedDomainPack
@@ -109,22 +108,11 @@ def test_a_descriptor_carries_what_coverage_reads() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _run(tmp_path: Path, config: str) -> Path:
-    out = tmp_path / Path(config).stem
-    result = CliRunner().invoke(
-        app, ["run", "--config", str(ROOT / config), "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
-    return out
-
-
 @pytest.fixture(scope="module")
-def bundles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
-    tmp = tmp_path_factory.mktemp("bundles")
-    return {
-        "toy": _run(tmp, "configs/toy_smoke.yaml"),
-        "seed": _run(tmp, "configs/agentic_baseline_mock.yaml"),
-    }
+def bundles(reference_bundles: ReferenceBundles) -> dict[str, Path]:
+    """The shared toy and seed bundles; read only (tests copy before they
+    edit)."""
+    return {kind: reference_bundles[kind].path for kind in ("toy", "seed")}
 
 
 def test_a_seed_bundle_loads_its_plan_and_streams(bundles: dict[str, Path]) -> None:

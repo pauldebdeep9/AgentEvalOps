@@ -10,7 +10,6 @@ code path.
 
 from __future__ import annotations
 
-import pathlib
 from pathlib import Path
 
 import pytest
@@ -20,6 +19,7 @@ from bundle_inputs import (
     runner_fields,
     with_score_events,
 )
+from reference_bundles import ReferenceBundles
 from typer.testing import CliRunner
 
 from agentevalops.bundles.reader import BundleReader, LoadedBundle
@@ -42,9 +42,6 @@ from agentevalops.core.types import BACKEND_LOCAL, AgentId, RunId, TaskId
 from agentevalops.replay.local import LocalReplayVerifier
 
 runner = CliRunner()
-_CONFIG = (
-    pathlib.Path(__file__).parent.parent / "configs" / "toy_smoke.yaml"
-)
 
 
 # ---------------------------------------------------------------------------
@@ -274,15 +271,12 @@ def test_cli_replay_malformed_bundle_exits_nonzero(tmp_path: Path) -> None:
 
 
 def test_cli_replay_end_to_end_via_run_then_replay(
-    tmp_path: Path,
+    reference_bundles: ReferenceBundles,
 ) -> None:
-    """Create a bundle with the run command, then replay it."""
-    output_dir = tmp_path / "e2e-bundle"
-    run_result = runner.invoke(
-        app,
-        ["run", "--config", str(_CONFIG), "--output", str(output_dir)],
-    )
-    assert run_result.exit_code == 0, run_result.output
+    """Create a bundle with the run command, then replay it. The bundle is
+    the session's shared toy run (``reference_bundles.py``), which asserts
+    the run's own exit code when it writes it; replay only reads it."""
+    output_dir = reference_bundles["toy"].path
 
     replay_result = runner.invoke(
         app, ["replay", "--bundle", str(output_dir)]

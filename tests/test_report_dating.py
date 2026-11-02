@@ -14,15 +14,13 @@ import json
 import time
 from pathlib import Path
 
-from typer.testing import CliRunner
+from reference_bundles import ReferenceBundles
 
-from agentevalops.cli import app
 from agentevalops.core.schemas import ResourceLimits, RunConfig, RunSummary
 from agentevalops.core.types import BACKEND_LOCAL, AgentId, RunId
 from agentevalops.reports import markdown
 from agentevalops.reports.markdown import render_report
 
-ROOT = Path(__file__).resolve().parents[1]
 CREATED_AT = "2026-11-02T01:02:03.456789+00:00"
 
 
@@ -66,13 +64,10 @@ def test_without_a_timestamp_the_line_says_so() -> None:
     assert "Run created: not recorded" in report
 
 
-def test_a_written_report_carries_the_bundles_created_at(tmp_path: Path) -> None:
-    out = tmp_path / "toy"
-    result = CliRunner().invoke(
-        app,
-        ["run", "--config", str(ROOT / "configs/toy_smoke.yaml"), "--output", str(out)],
-    )
-    assert result.exit_code == 0, result.output
+def test_a_written_report_carries_the_bundles_created_at(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    out = reference_bundles["toy"].path
     created_at = json.loads((out / "metadata.json").read_text("utf-8"))["created_at"]
     report = (out / "report.md").read_text("utf-8")
     line = f"Run created: {created_at} (`created_at` in `metadata.json`)"
@@ -81,15 +76,12 @@ def test_a_written_report_carries_the_bundles_created_at(tmp_path: Path) -> None
     assert f"- {line}" in evidence.splitlines()
 
 
-def test_both_reports_label_the_date_as_the_runs_creation(tmp_path: Path) -> None:
+def test_both_reports_label_the_date_as_the_runs_creation(
+    reference_bundles: ReferenceBundles,
+) -> None:
     """Fail-first: report.md called the run's created_at "Generated:", a time
     no report records, and the evidence report called it "Created:"."""
-    out = tmp_path / "toy"
-    result = CliRunner().invoke(
-        app,
-        ["run", "--config", str(ROOT / "configs/toy_smoke.yaml"), "--output", str(out)],
-    )
-    assert result.exit_code == 0, result.output
+    out = reference_bundles["toy"].path
     report = (out / "report.md").read_text("utf-8")
     evidence = (out / "evidence_report.md").read_text("utf-8")
     dated = [

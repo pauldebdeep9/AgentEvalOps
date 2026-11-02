@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import fast_yaml
+from reference_bundles import ReferenceBundles
 from typer.testing import CliRunner
 
 from agentevalops.cli import app
@@ -176,14 +177,13 @@ def test_the_report_has_the_section_only_when_tasks_carry_groups() -> None:
     assert "## Policy Checks" in without
 
 
-def test_the_shipped_run_fills_all_five_groups(tmp_path: Path) -> None:
+def test_the_shipped_run_fills_all_five_groups(
+    reference_bundles: ReferenceBundles,
+) -> None:
     """R26's exit criterion: the report shows all five groups, each with at
     least one executed scenario."""
-    out = tmp_path / "bundle"
-    result = CliRunner().invoke(
-        app, ["run", "--config", str(CONFIG), "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
+    # The shared seed run (its exit code 0 is checked where it is written).
+    out = reference_bundles["seed"].path
     report = (out / "report.md").read_text(encoding="utf-8")
     section = report.split("## Outcomes by kind of harm")[1].split("## Policy Checks")[
         0

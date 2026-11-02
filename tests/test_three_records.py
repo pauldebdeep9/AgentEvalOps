@@ -18,31 +18,18 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from typer.testing import CliRunner
+from reference_bundles import ReferenceBundles
 
 from agentevalops.bundles.manifest import write_manifest
 from agentevalops.bundles.validator import validate_bundle
-from agentevalops.cli import app
 
-ROOT = Path(__file__).resolve().parents[1]
 TASK, REP, EVALUATOR = "TE2", 0, "deterministic-v1"
 
 
 @pytest.fixture(scope="module")
-def seed(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    out = tmp_path_factory.mktemp("c1") / "seed"
-    result = CliRunner().invoke(
-        app,
-        [
-            "run",
-            "--config",
-            str(ROOT / "configs/agentic_baseline_mock.yaml"),
-            "--output",
-            str(out),
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    return out
+def seed(reference_bundles: ReferenceBundles) -> Path:
+    """The shared seed bundle; read only (tests copy before they flip)."""
+    return reference_bundles["seed"].path
 
 
 def _flip_evaluations(bundle: Path) -> None:

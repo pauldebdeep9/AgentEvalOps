@@ -17,6 +17,7 @@ from typing import Any
 
 import fast_yaml
 import pytest
+from reference_bundles import ReferenceBundles
 from test_seed_domain import _edited
 from typer.testing import CliRunner
 
@@ -570,10 +571,11 @@ def test_a_seed_run_registers_its_plan(tmp_path: Path) -> None:
     assert doc["system_path"] == "system.yaml"
 
 
-def test_editing_the_plan_after_the_run_fails_validation(tmp_path: Path) -> None:
+def test_editing_the_plan_after_the_run_fails_validation(
+    tmp_path: Path, reference_bundles: ReferenceBundles
+) -> None:
     """R27 exit criterion, fail-first."""
-    out = tmp_path / "bundle"
-    assert _run(_cli_config(tmp_path), out).exit_code == 0
+    out = reference_bundles["seed"].copy(tmp_path / "bundle")
     plan_path = out / TEST_PLAN_FILENAME
     doc = json.loads(plan_path.read_text(encoding="utf-8"))
     doc["thresholds"][0]["min_pass_k"] = 0.0
@@ -592,9 +594,10 @@ def test_editing_the_plan_after_the_run_fails_validation(tmp_path: Path) -> None
     assert TEST_PLAN_FILENAME in cli.output
 
 
-def test_removing_the_plan_after_the_run_fails_validation(tmp_path: Path) -> None:
-    out = tmp_path / "bundle"
-    assert _run(_cli_config(tmp_path), out).exit_code == 0
+def test_removing_the_plan_after_the_run_fails_validation(
+    tmp_path: Path, reference_bundles: ReferenceBundles
+) -> None:
+    out = reference_bundles["seed"].copy(tmp_path / "bundle")
     (out / TEST_PLAN_FILENAME).unlink()
     write_manifest(out)
     result = validate_bundle(out)
@@ -690,16 +693,13 @@ def test_the_run_is_narrowed_to_the_selected_scenarios(tmp_path: Path) -> None:
 
 
 def test_a_toy_run_registers_the_undeclared_plan_and_validates(
-    tmp_path: Path,
+    reference_bundles: ReferenceBundles,
 ) -> None:
     """docs/adr/0007 D2: a run without a declaration registers a plan that
     says so -- no system, no pack, no threshold -- selecting its tasks."""
-    out = tmp_path / "bundle"
-    result = CliRunner().invoke(
-        app, ["run", "--config", "configs/toy_smoke.yaml", "--output", str(out)]
-    )
-    assert result.exit_code == 0, result.output
-    assert "no system declared" in result.output
+    toy = reference_bundles["toy"]
+    out = toy.path
+    assert "no system declared" in toy.output
     plan_path = out / TEST_PLAN_FILENAME
     metadata = json.loads((out / "metadata.json").read_text(encoding="utf-8"))
     assert metadata["test_plan_sha256"] == plan_sha256(plan_path)

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from reference_bundles import ReferenceBundles
 from typer.testing import CliRunner
 
 from agentevalops.bundles import signing
@@ -112,28 +113,11 @@ def _fingerprint(home: Path, key: Path) -> str:
     return out.split()[1]
 
 
-@pytest.fixture(scope="module")
-def seed(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    out = tmp_path_factory.mktemp("signing") / "seed"
-    result = CliRunner().invoke(
-        app,
-        [
-            "run",
-            "--config",
-            str(ROOT / "configs/agentic_baseline_mock.yaml"),
-            "--output",
-            str(out),
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    return out
-
-
 @pytest.fixture
-def bundle(seed: Path, home: Path) -> Path:
-    copy = home / "bundle"
-    shutil.copytree(seed, copy)
-    return copy
+def bundle(reference_bundles: ReferenceBundles, home: Path) -> Path:
+    """A copy of the shared seed bundle in the test's own HOME: signing
+    writes into it."""
+    return reference_bundles["seed"].copy(home / "bundle")
 
 
 def _cli(*args: str) -> Any:

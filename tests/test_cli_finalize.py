@@ -24,6 +24,7 @@ import json
 import pathlib
 
 import pytest
+from reference_bundles import ReferenceBundles
 from typer.testing import CliRunner
 
 from agentevalops.cli import app
@@ -111,19 +112,21 @@ def test_run_writes_bundle_on_unexpected_exception(
 
 
 def test_finalized_under_failure_bundle_distinguishable_from_complete(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reference_bundles: ReferenceBundles,
 ) -> None:
     """The core Task-1 claim: a reader must be able to tell a
     finalized-under-failure bundle apart from a normal one without
     guessing -- that's what `status` is for (docs/adr/0002, Axis 4).
+
+    The clean bundle is the session's shared toy run
+    (``reference_bundles.py``), which asserts its exit code 0 when it
+    writes it; this test only reads its metadata.
     """
-    clean_dir = tmp_path / "clean"
+    clean_dir = reference_bundles["toy"].path
     failed_dir = tmp_path / "failed"
 
-    clean_result = runner.invoke(
-        app, ["run", "--config", str(_CONFIG), "--output", str(clean_dir)]
-    )
-    assert clean_result.exit_code == 0
     clean_meta = _read_metadata(clean_dir)
 
     async def _raising_run(self: LocalOrchestrator) -> None:
