@@ -106,6 +106,28 @@ def scenario_descriptors(pack: DomainPack) -> dict[str, dict[str, Any]]:
     }
 
 
+def benchmark_descriptors(benchmark: Any) -> dict[str, dict[str, Any]]:
+    """The scenario descriptors of a run's benchmark, built before it is
+    narrowed to the plan's selection: every scenario of its domain pack
+    when it has one (``scenario_descriptors``), else each task's own
+    metadata -- a task cites the control ids it names, if any. What the CLI
+    gives the writer and what rescore rebuilds (docs/adr/0007 D5)."""
+    pack = getattr(benchmark, "pack", None)
+    if pack is not None:
+        return scenario_descriptors(pack)
+    descriptors: dict[str, dict[str, Any]] = {}
+    for task in benchmark.list_tasks():
+        meta = task.metadata
+        variant = meta.get("variant")
+        descriptors[str(task.task_id)] = {
+            "category": meta.get("category"),
+            "outcome_group": meta.get("outcome_group"),
+            "variant": dict(variant) if isinstance(variant, dict) else {},
+            "control_ids": [str(c) for c in meta.get("control_ids") or []],
+        }
+    return descriptors
+
+
 def _locator_key(locator: str) -> tuple[tuple[int, int | str], ...]:
     """Natural order: 1.2.1 before 1.10.1; names after numbers."""
     return tuple(

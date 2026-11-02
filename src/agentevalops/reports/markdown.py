@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from agentevalops.bundles.constants import (
@@ -19,6 +19,7 @@ from agentevalops.core.schemas import (
     RunPlan,
     RunSummary,
     TaskRunResult,
+    TaskSpec,
     TraceEvent,
 )
 
@@ -51,6 +52,27 @@ NO_PLAN_SENTENCE = (
     "No test plan was declared before this run, so nothing here was "
     "registered in advance."
 )
+
+
+def scenario_info(tasks: Sequence[TaskSpec]) -> dict[str, dict[str, Any]]:
+    """Each task's ``category``, ``outcome_group`` and ``variant`` from its
+    metadata, for the tasks that carry any of them (a domain pack's
+    scenarios do; the toy's do not): what the report's outcomes and
+    repeatability sections read, for a run and for ``rescore``'s re-render
+    (docs/adr/0008 R3)."""
+    info: dict[str, dict[str, Any]] = {}
+    for task in tasks:
+        entry: dict[str, Any] = {}
+        for key in ("category", "outcome_group"):
+            value = task.metadata.get(key)
+            if isinstance(value, str) and value:
+                entry[key] = value
+        variant = task.metadata.get("variant")
+        if isinstance(variant, dict) and variant:
+            entry["variant"] = dict(variant)
+        if entry:
+            info[str(task.task_id)] = entry
+    return info
 
 
 def format_pass_rate(summary: RunSummary) -> str:

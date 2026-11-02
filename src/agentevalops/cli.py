@@ -63,9 +63,9 @@ def run(
     from agentevalops.core.schemas import RunPlan, RunSummary
     from agentevalops.orchestration.local import LocalOrchestrator
     from agentevalops.registry import (
-        KIND_BENCHMARK,
         KIND_EVALUATOR,
         KIND_POLICY,
+        build_benchmark,
         default_registry,
         discover_all,
     )
@@ -81,17 +81,10 @@ def run(
         typer.echo(f"Configuration error: {exc}", err=True)
         raise typer.Exit(code=1)
 
-    benchmark_cls = default_registry.get(KIND_BENCHMARK, loaded.benchmark_id)
-    # docs/adr/0006 D25: the benchmark validates its own options.
+    # docs/adr/0006 D25: the benchmark validates its own options -- built by
+    # the same function rescore rebuilds it with (registry.build_benchmark).
     try:
-        benchmark = benchmark_cls(**loaded.benchmark_options)
-    except TypeError as exc:
-        typer.echo(
-            f"Configuration error: benchmark '{loaded.benchmark_id}' does not "
-            f"accept these benchmark_options: {exc}",
-            err=True,
-        )
-        raise typer.Exit(code=1)
+        benchmark = build_benchmark(loaded.benchmark_id, loaded.benchmark_options)
     except ConfigurationError as exc:
         typer.echo(f"Configuration error: {exc}", err=True)
         raise typer.Exit(code=1)
@@ -99,17 +92,14 @@ def run(
     # first -- what the declaration selects, against which thresholds -- and
     # the benchmark runs only the selected scenarios. A declaration that
     # contradicts the pack, or selects nothing, stops the run here.
-    from agentevalops.plans import scenario_descriptors, undeclared_plan
+    from agentevalops.plans import benchmark_descriptors, undeclared_plan
 
     plan: RunPlan | None = None
     # docs/adr/0007 D5 (decision 5 of 2026-11-02): every scenario of the
     # pack, selected or not, described before the benchmark is narrowed to
     # the plan's selection; a benchmark without a pack is described from
     # its own tasks.
-    pack = getattr(benchmark, "pack", None)
-    descriptors = (
-        scenario_descriptors(pack) if pack is not None else _descriptors(benchmark)
-    )
+    descriptors = benchmark_descriptors(benchmark)
     if loaded.system is not None:
         from agentevalops.plans import build_plan
 
@@ -692,40 +682,15 @@ def _task_info(benchmark: Any) -> dict[str, dict[str, Any]]:
     pack's scenarios do; the toy's do not). Computed at run time for the
     CLI's summary and the report's outcomes section only: the bundle gains
     them with format 0.6 (R28)."""
-    info: dict[str, dict[str, Any]] = {}
+    from agentevalops.reports.markdown import scenario_info
+
     try:
         tasks = list(benchmark.list_tasks())
     except Exception:  # noqa: BLE001 - a summary line must never fail a run
-        return info
-    for task in tasks:
-        entry: dict[str, Any] = {}
-        for key in ("category", "outcome_group"):
-            value = task.metadata.get(key)
-            if isinstance(value, str) and value:
-                entry[key] = value
-        variant = task.metadata.get("variant")
-        if isinstance(variant, dict) and variant:
-            entry["variant"] = dict(variant)
-        if entry:
-            info[str(task.task_id)] = entry
-    return info
+        return {}
+    return scenario_info(tasks)
 
 
-def _descriptors(benchmark: Any) -> dict[str, dict[str, Any]]:
-    """Coverage descriptors for a benchmark with no domain pack, from its
-    tasks' metadata: a task cites the control ids its metadata names, if
-    any (docs/adr/0007 D5)."""
-    descriptors: dict[str, dict[str, Any]] = {}
-    for task in benchmark.list_tasks():
-        meta = task.metadata
-        variant = meta.get("variant")
-        descriptors[str(task.task_id)] = {
-            "category": meta.get("category"),
-            "outcome_group": meta.get("outcome_group"),
-            "variant": dict(variant) if isinstance(variant, dict) else {},
-            "control_ids": [str(c) for c in meta.get("control_ids") or []],
-        }
-    return descriptors
 
 
 def _categories(scenario_info: dict[str, dict[str, Any]]) -> dict[str, str]:

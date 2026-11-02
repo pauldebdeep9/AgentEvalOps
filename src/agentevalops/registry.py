@@ -165,9 +165,7 @@ class Registry:
 
         key = (kind, name)
         if key in self._entries and not replace:
-            raise ConfigurationError(
-                f"Component already registered: {kind}:{name}"
-            )
+            raise ConfigurationError(f"Component already registered: {kind}:{name}")
 
         entry = RegistryEntry(kind=kind, name=name, factory=factory)
         self._entries[key] = entry
@@ -200,9 +198,7 @@ class Registry:
 
     def names(self, kind: str) -> tuple[str, ...]:
         """Return the registered names for *kind*, sorted alphabetically."""
-        return tuple(
-            sorted(n for (k, n) in self._entries if k == kind)
-        )
+        return tuple(sorted(n for (k, n) in self._entries if k == kind))
 
     def entries(self, kind: str | None = None) -> tuple[RegistryEntry, ...]:
         """Return all entries, optionally filtered to a single *kind*."""
@@ -378,6 +374,21 @@ default_registry: Registry = build_default_registry()
 def get(kind: str, name: str) -> Callable[..., Any]:
     """Look up *name* of *kind* in :data:`default_registry`."""
     return default_registry.get(kind, name)
+
+
+def build_benchmark(benchmark_id: str, options: dict[str, Any]) -> Any:
+    """The benchmark *benchmark_id* built with *options*, as a run builds it
+    and as ``rescore`` rebuilds it from ``config.json`` (docs/adr/0006 D25:
+    the benchmark validates its own options). Raises
+    ``UnknownComponentError`` when it is not installed and
+    ``ConfigurationError`` when it refuses the options."""
+    benchmark_cls = default_registry.get(KIND_BENCHMARK, benchmark_id)
+    try:
+        return benchmark_cls(**options)
+    except TypeError as exc:
+        raise ConfigurationError(
+            f"benchmark '{benchmark_id}' does not accept these benchmark_options: {exc}"
+        ) from None
 
 
 def names(kind: str) -> tuple[str, ...]:

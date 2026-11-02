@@ -19,6 +19,7 @@ from agentevalops.plans.builder import build_plan, undeclared_plan
 from agentevalops.plans.coverage import (
     COVERAGE_STATES,
     EvidenceInputs,
+    benchmark_descriptors,
     control_coverage,
     scenario_descriptors,
 )
@@ -33,6 +34,7 @@ from agentevalops.plans.io import (
 __all__ = [
     "COVERAGE_STATES",
     "EvidenceInputs",
+    "benchmark_descriptors",
     "GateError",
     "GateResult",
     "build_plan",
