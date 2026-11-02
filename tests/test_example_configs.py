@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from bundle_inputs import minimal_evidence
+from bundle_inputs import minimal_evidence, runner_fields
 
 from agentevalops.agents.mock_runner import MockAgentRunner
 from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
@@ -80,6 +80,7 @@ def _run_and_write(
         policy_spec=loaded.policy_spec,
         config_name=str(config_path),
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     return summary, bundle_dir
 

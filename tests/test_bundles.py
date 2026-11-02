@@ -8,7 +8,7 @@ from enum import Enum
 from pathlib import Path
 
 import pytest
-from bundle_inputs import minimal_evidence
+from bundle_inputs import minimal_evidence, runner_fields
 
 from agentevalops.bundles.constants import BUNDLE_FORMAT_VERSION, MANIFEST_FILENAME
 from agentevalops.bundles.serializers import to_jsonable
@@ -108,6 +108,7 @@ def _write_bundle(tmp_path: Path) -> Path:
         policy_spec=policy_spec,
         config_name="configs/test.yaml",
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
 
 
@@ -135,6 +136,7 @@ def test_write_returns_output_directory(tmp_path: Path) -> None:
         summary=summary,
         all_events=events,
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     assert result == expected
 
@@ -147,6 +149,7 @@ def test_creates_nested_output_directory(tmp_path: Path) -> None:
         summary=summary,
         all_events=events,
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     assert deep.exists()
 
@@ -228,6 +231,7 @@ def test_policy_json_is_null_when_no_policy_verdict(tmp_path: Path) -> None:
         summary=summary,
         all_events=events,
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     data = json.loads((bundle_dir / "policy.json").read_text())
     assert data is None
@@ -279,6 +283,7 @@ def test_overwrite_true_replaces_existing_bundle(tmp_path: Path) -> None:
         summary=summary,
         all_events=events,
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     # should NOT raise
     BundleWriter(tmp_path / "bundle", overwrite=True).write(
@@ -286,6 +291,7 @@ def test_overwrite_true_replaces_existing_bundle(tmp_path: Path) -> None:
         summary=summary,
         all_events=events,
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     assert (first / "metadata.json").exists()
 
@@ -300,6 +306,7 @@ def test_write_to_empty_existing_dir_is_allowed(tmp_path: Path) -> None:
         summary=summary,
         all_events=events,
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
 
 

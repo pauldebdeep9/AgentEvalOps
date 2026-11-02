@@ -20,7 +20,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from bundle_inputs import minimal_evidence
+from bundle_inputs import minimal_evidence, runner_fields
 
 from agentevalops.bundles.reader import BundleReader
 from agentevalops.bundles.validator import validate_bundle
@@ -91,6 +91,7 @@ def _write_legacy_bundle(tmp_path: Path) -> Path:
         all_events=events,
         policy_spec=PolicySpec(policy_id="default"),
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
 
     # --- downgrade metadata.json: old hardcoded "0.1.0", no new fields ---
@@ -215,6 +216,7 @@ def _write_legacy_v02_bundle(tmp_path: Path) -> Path:
         all_events=events,
         policy_spec=PolicySpec(policy_id="default"),
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
 
     # --- downgrade metadata.json: "0.2" instead of the current version ---

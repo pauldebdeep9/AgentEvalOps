@@ -74,3 +74,12 @@ def with_score_events(
         result.event_count += len(evaluations)
     summary.trace_event_count = len(out)
     return out
+
+
+def runner_fields(
+    runner_id: str | None = "mock", mock_trajectory: str | None = None
+) -> dict[str, str | None]:
+    """The writer's two required runner fields (R28 follow-up, 2026-11-02),
+    for a test that is not about them: a hand-built bundle stands in for
+    a mock run that played no script."""
+    return {"runner_id": runner_id, "mock_trajectory": mock_trajectory}

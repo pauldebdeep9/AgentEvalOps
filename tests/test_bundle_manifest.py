@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from bundle_inputs import minimal_evidence
+from bundle_inputs import minimal_evidence, runner_fields
 
 from agentevalops import __version__
 from agentevalops.bundles.constants import (
@@ -101,6 +101,7 @@ def _make_bundle(tmp_path: Path) -> Path:
         policy_spec=policy_spec,
         config_name="configs/toy_smoke.yaml",
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     return bundle_dir
 
@@ -442,6 +443,7 @@ def _make_bundle_with_benchmark(tmp_path: Path) -> Path:
         benchmark_id="toy",
         benchmark_scenario="smoke",
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     return bundle_dir
 

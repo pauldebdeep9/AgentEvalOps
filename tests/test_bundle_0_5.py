@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from bundle_inputs import minimal_evidence
+from bundle_inputs import minimal_evidence, runner_fields
 
 from agentevalops.agents.mock_runner import MockAgentRunner
 from agentevalops.benchmarks.toy.adapter import ToyBenchmarkAdapter
@@ -116,6 +116,7 @@ def _bundle(tmp_path: Path, orch: LocalOrchestrator) -> tuple[Path, RunSummary]:
         tool_calls=orch.tool_call_records,
         end_states=orch.end_states,
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     return out, summary
 

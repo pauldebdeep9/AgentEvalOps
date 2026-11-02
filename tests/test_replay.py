@@ -14,7 +14,7 @@ import pathlib
 from pathlib import Path
 
 import pytest
-from bundle_inputs import minimal_evidence, with_score_events
+from bundle_inputs import minimal_evidence, runner_fields, with_score_events
 from typer.testing import CliRunner
 
 from agentevalops.bundles.reader import BundleReader, LoadedBundle
@@ -110,6 +110,7 @@ def _make_valid_bundle(tmp_path: Path) -> Path:
         summary=summary,
         all_events=with_score_events(summary, events),
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     return bundle_dir
 

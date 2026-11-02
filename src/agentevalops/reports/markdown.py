@@ -38,6 +38,14 @@ OUTCOME_LABELS: dict[str, str] = {
 #: says so by ``runner_id``, never by the agent's name.
 SCRIPTED_RUNNER = "mock"
 
+#: What either report's header says when ``config.json`` records no
+#: ``runner_id`` (R28 follow-up, 2026-11-02): without it neither report can
+#: tell a scripted run from a model-backed one.
+RUNNER_NOT_RECORDED = (
+    "The runner is not recorded, so this report cannot say whether the "
+    "trajectories were scripted."
+)
+
 #: Decision 6 of 2026-11-02: all either report says about a run with no
 #: system declaration's plan.
 NO_PLAN_SENTENCE = (
@@ -109,6 +117,9 @@ def render_report(
     lines.append("")
     lines.append(f"Generated: {now}")
     lines.append("")
+    if runner_id is None:
+        lines.append(f"**{RUNNER_NOT_RECORDED}**")
+        lines.append("")
 
     # ---- run summary -----------------------------------------------------
     lines.append("## Run Summary")
@@ -117,6 +128,11 @@ def render_report(
     if config_name:
         lines.append(f"- Config:        `{config_name}`")
     lines.append(f"- Agent:         `{run_config.agent_id}`")
+    lines.append(
+        f"- Runner:        `{runner_id}`"
+        if runner_id
+        else "- Runner:        not recorded"
+    )
     lines.append(f"- Backend:       `{run_config.backend_id}`")
     rl = run_config.resource_limits
     lines.append(

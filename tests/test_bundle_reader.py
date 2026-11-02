@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from bundle_inputs import minimal_evidence
+from bundle_inputs import minimal_evidence, runner_fields
 
 from agentevalops.bundles.reader import BundleReader, LoadedBundle
 from agentevalops.bundles.writer import BundleWriter
@@ -94,6 +94,7 @@ def _make_valid_bundle(tmp_path: Path) -> Path:
         summary=summary,
         all_events=events,
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     return bundle_dir
 

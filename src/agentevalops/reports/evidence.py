@@ -30,6 +30,7 @@ from agentevalops.catalogue import Catalogue, Control
 from agentevalops.core.schemas import RunPlan, RunSummary
 from agentevalops.reports.markdown import (
     NO_PLAN_SENTENCE,
+    RUNNER_NOT_RECORDED,
     SCRIPTED_RUNNER,
     plan_section,
 )
@@ -188,7 +189,7 @@ def _class(control: Control) -> str:
 def _header(
     controls: Mapping[str, Any],
     plan: RunPlan | None,
-    runner_id: str,
+    runner_id: str | None,
     created_at: str,
 ) -> list[str]:
     run_id = controls["run_id"]
@@ -198,8 +199,10 @@ def _header(
     if plan is not None and plan.system is not None:
         lines.append(f"- System: `{plan.system.system_id}`")
         lines.append(f"- Pack: `{plan.pack_id}` {plan.pack_version}")
-    lines.append(f"- Runner: `{runner_id}`")
+    lines.append(f"- Runner: `{runner_id}`" if runner_id else "- Runner: not recorded")
     lines.append("")
+    if runner_id is None:
+        lines += [f"**{RUNNER_NOT_RECORDED}**", ""]
     if runner_id == SCRIPTED_RUNNER:
         lines += [
             f"**{SCRIPTED_SENTENCE}** Every cell with evidence from this run "
@@ -395,7 +398,7 @@ def render_evidence_report(
     controls: Mapping[str, Any],
     summary: RunSummary,
     *,
-    runner_id: str,
+    runner_id: str | None,
     created_at: str,
 ) -> str:
     """``evidence_report.md`` for one run (docs/adr/0007 D7, amended
@@ -405,6 +408,8 @@ def render_evidence_report(
     that declared nothing, which the report says in one sentence and shows
     nothing else of. *created_at* is the run's own timestamp, as
     ``metadata.json`` records it -- the report reads no clock. When
+    *runner_id* is ``None`` -- not recorded -- the header says the report
+    cannot tell whether the run was scripted. When
     *runner_id* is ``mock`` the scripted-run sentence is in the header and
     each cell with evidence from the run carries the ``(scripted)`` tag.
     """

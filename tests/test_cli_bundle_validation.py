@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from bundle_inputs import minimal_evidence, with_score_events
+from bundle_inputs import minimal_evidence, runner_fields, with_score_events
 from typer.testing import CliRunner
 
 from agentevalops.bundles.constants import MANIFEST_FILENAME
@@ -97,6 +97,7 @@ def _make_bundle(tmp_path: Path) -> Path:
         summary=summary,
         all_events=with_score_events(summary, events),
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     return bundle_dir
 

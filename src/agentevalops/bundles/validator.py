@@ -571,6 +571,11 @@ def validate_bundle(bundle_path: Path) -> BundleValidationResult:
     at_0_6 = format_tuple is not None and format_tuple >= _PACKAGE_HASH_FROM
     if at_0_6 and loaded is not None:
         errors.extend(_evidence_pack_checks(loaded))
+    if at_0_6 and loaded is not None and loaded.config.get("runner_id") is None:
+        warnings.append(
+            "config.json records no runner_id: neither report can say whether "
+            "the run's trajectories were scripted"
+        )
     if at_0_6 and (bundle_path / MANIFEST_SIGNATURE_FILENAME).exists():
         warnings.append(
             f"{MANIFEST_SIGNATURE_FILENAME} is present but not verified: "

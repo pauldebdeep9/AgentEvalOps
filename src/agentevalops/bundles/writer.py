@@ -174,8 +174,8 @@ class BundleWriter:
         plan: RunPlan | None = None,
         *,
         evidence: EvidenceInputs,
-        runner_id: str | None = None,
-        mock_trajectory: str | None = None,
+        runner_id: str | None,
+        mock_trajectory: str | None,
         evaluators: Sequence[str] = (),
     ) -> Path:
         """Write all bundle files including manifest; return output dir.
@@ -193,6 +193,11 @@ class BundleWriter:
 
         ``runner_id``, ``mock_trajectory`` and ``evaluators`` (D4) go to
         ``config.json``; the reports call a run scripted by ``runner_id``.
+        The two runner fields are required, like ``evidence`` (R28
+        follow-up, 2026-11-02): a caller passes ``None`` when a value is
+        legitimately absent -- ``mock_trajectory`` for a model-backed run --
+        and never by leaving it out. A ``None`` ``runner_id`` makes both
+        reports say the runner is not recorded.
 
         ``test_plan_sha256`` (docs/adr/0005 D6; R27): the hash of
         ``test_plan.json`` the caller registered before the first task ran,
@@ -274,7 +279,7 @@ class BundleWriter:
             plan,
             controls,
             summary,
-            runner_id=runner_id or "not recorded",
+            runner_id=runner_id,
             created_at=created_at.isoformat(),
         )
         (self._dir / EVIDENCE_REPORT_FILENAME).write_text(

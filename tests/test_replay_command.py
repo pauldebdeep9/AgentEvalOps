@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 import pytest
-from bundle_inputs import minimal_evidence, with_score_events
+from bundle_inputs import minimal_evidence, runner_fields, with_score_events
 
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
@@ -105,6 +105,7 @@ def _make_bundle(
         policy_spec=PolicySpec(policy_id="default"),
         config_name="configs/toy_smoke.yaml",
         evidence=minimal_evidence(summary),
+        **runner_fields(),
     )
     return bundle_dir
 
