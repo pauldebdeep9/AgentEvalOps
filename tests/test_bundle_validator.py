@@ -6,7 +6,12 @@ import json
 from pathlib import Path
 
 import pytest
-from bundle_inputs import minimal_evidence, runner_fields, with_score_events
+from bundle_inputs import (
+    end_states_for,
+    minimal_evidence,
+    runner_fields,
+    with_score_events,
+)
 
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
@@ -53,12 +58,18 @@ def _make_bundle(tmp_path: Path, run_id_str: str = "val-test-001") -> Path:
             step_index=0,
             kind=TraceEventKind.AGENT_PLAN,
             payload={"plan": "step"},
+            task_id=TaskId("t-1"),
         ),
         TraceEvent(
             run_id=run_id,
             step_index=1,
             kind=TraceEventKind.AGENT_TERMINAL,
-            payload={"success": True},
+            payload={
+                "success": True,
+                "termination_reason": "completed",
+                "total_tokens": 5,
+            },
+            task_id=TaskId("t-1"),
         ),
     ]
     output = AgentOutput(
@@ -102,6 +113,7 @@ def _make_bundle(tmp_path: Path, run_id_str: str = "val-test-001") -> Path:
         summary=summary,
         all_events=with_score_events(summary, events),
         evidence=minimal_evidence(summary),
+        end_states=end_states_for(summary),
         **runner_fields(),
     )
     return bundle_dir

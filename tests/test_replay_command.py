@@ -8,7 +8,12 @@ import json
 from pathlib import Path
 
 import pytest
-from bundle_inputs import minimal_evidence, runner_fields, with_score_events
+from bundle_inputs import (
+    end_states_for,
+    minimal_evidence,
+    runner_fields,
+    with_score_events,
+)
 
 from agentevalops.bundles.constants import (
     BUNDLE_FORMAT_VERSION,
@@ -69,11 +74,15 @@ def _make_bundle(
     events = [
         TraceEvent(
             run_id=run_id, step_index=0, kind=TraceEventKind.AGENT_PLAN,
-            payload={},
+            payload={}, task_id=TaskId("t-1"),
         ),
         TraceEvent(
             run_id=run_id, step_index=1, kind=TraceEventKind.AGENT_TERMINAL,
-            payload={"success": True},
+            payload={
+                "success": True, "termination_reason": "completed",
+                "total_tokens": 5,
+            },
+            task_id=TaskId("t-1"),
         ),
     ]
     output = AgentOutput(
@@ -105,6 +114,7 @@ def _make_bundle(
         policy_spec=PolicySpec(policy_id="default"),
         config_name="configs/toy_smoke.yaml",
         evidence=minimal_evidence(summary),
+        end_states=end_states_for(summary),
         **runner_fields(),
     )
     return bundle_dir

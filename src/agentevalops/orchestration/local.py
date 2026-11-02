@@ -47,6 +47,7 @@ from agentevalops.orchestration.verdicts import (
     categories_of,
     combined_output,
     not_evaluated,
+    output_from_terminal,
     tally,
     unconfigured,
     verdict,
@@ -59,40 +60,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-
-
-def _output_from_terminal(terminal: TraceEvent | None) -> AgentOutput:
-    """Reconstruct ``AgentOutput`` from the payload of an AGENT_TERMINAL event.
-
-    If no terminal event was emitted, returns a synthetic error output.
-    """
-    if terminal is None:
-        return AgentOutput(
-            success=False,
-            termination_reason=TerminationReason.AGENT_ERROR,
-            error="Agent did not emit an AGENT_TERMINAL event.",
-        )
-    p = terminal.payload
-    return AgentOutput(
-        success=bool(p.get("success", False)),
-        termination_reason=TerminationReason(
-            p.get("termination_reason", TerminationReason.AGENT_ERROR.value)
-        ),
-        final_answer=p.get("final_answer"),
-        total_cost_usd=float(p.get("total_cost_usd", 0.0)),
-        total_tokens=int(p.get("total_tokens", 0)),
-        wall_seconds=float(p.get("wall_seconds", 0.0)),
-    )
-
-
 def _cause_of(exc: Exception) -> NotEvaluatedCause:
     return "configuration" if isinstance(exc, ConfigurationError) else "infrastructure"
-
-
-
-
-
-
 
 
 def _not_evaluated_result(
@@ -456,7 +425,7 @@ class LocalOrchestrator:
             # docs/adr/0006 D7: the end state is taken after the agent stops
             # and before any evaluator runs or the environment is torn down.
             end_state, records = await self._harvest(task, repetition, environment)
-            output = _output_from_terminal(terminal)
+            output = output_from_terminal(terminal)
             # Scoring is routed through the Evaluator (DeterministicEvaluator
             # by default), not BenchmarkAdapter.grade().  grade() is the
             # benchmark's own official grading and is reserved for future
@@ -473,10 +442,7 @@ class LocalOrchestrator:
             evaluations = [
                 await evaluator.evaluate(task, output, events, context)
                 for evaluator in chosen
-            ] + [
-                unconfigured(kind)
-                for kind in missing
-            ]
+            ] + [unconfigured(kind) for kind in missing]
 
             return (
                 TaskRunResult(
@@ -546,13 +512,10 @@ class LocalOrchestrator:
                 applicable_evaluators=task.applicable_evaluators,
             )
             chosen, missing = applicable(task, self._evaluators)
-            output = _output_from_terminal(terminal)
+            output = output_from_terminal(terminal)
             evaluations = [
                 await e.evaluate(task, output, events, context) for e in chosen
-            ] + [
-                unconfigured(kind)
-                for kind in missing
-            ]
+            ] + [unconfigured(kind) for kind in missing]
             outcome = verdict(evaluations)
             if outcome.evaluated and outcome.passed:
                 return PreflightResult(task.task_id, True), False

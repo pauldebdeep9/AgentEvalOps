@@ -19,6 +19,8 @@ import json
 from typing import Any
 
 from agentevalops.bundles.reader import LoadedBundle
+from agentevalops.bundles.serializers import LoadError, load_trace_event, to_jsonable
+from agentevalops.orchestration.verdicts import output_from_terminal
 
 #: The first format whose traces carry one ``evaluator.score`` event per
 #: evaluation result (docs/adr/0007 D3).
@@ -110,6 +112,107 @@ def _three_records(bundle: LoadedBundle) -> list[str]:
                         f"{field} is "
                         + ", ".join(f"{v!r} in {name}" for name, v in values.items())
                     )
+    return errors
+
+
+def _run_of(item: dict[str, Any]) -> Run:
+    return (str(item.get("task_id")), int(item.get("repetition", 0)))
+
+
+def _carried(bundle: LoadedBundle) -> list[str]:
+    """ADR-0008 R6: what rescore takes as recorded instead of recomputing --
+    each scenario's preflight, the cause of a task run never evaluated, and
+    the agent's output -- must fit the records it is carried with.
+
+    A run stopped by its scenario's failed preflight never reached the
+    agent: a failed preflight is recorded for its scenario, and it has no
+    agent trace event, tool call or end state. A run not evaluated because
+    of the preflight or the infrastructure is not evaluated by any of its
+    evaluators, and its output says ``infra_failure``. An evaluated run has
+    its end state. Any other run's output is what its ``agent.terminal``
+    event gives, through the run's own ``output_from_terminal``."""
+    agent_events = {
+        _run_of(e) for e in bundle.traces if e.get("kind") != "evaluator.score"
+    }
+    terminals = {
+        _run_of(e): e for e in bundle.traces if e.get("kind") == "agent.terminal"
+    }
+    tool_calls = {_run_of(r) for r in bundle.tool_calls if isinstance(r, dict)}
+    end_states = {_run_of(s) for s in bundle.end_states if isinstance(s, dict)}
+    failed_preflight = {
+        str(p.get("task_id"))
+        for p in bundle.summary.get("preflight") or []
+        if isinstance(p, dict) and not p.get("passed")
+    }
+    errors: list[str] = []
+    for result in bundle.summary.get("task_results") or []:
+        if not isinstance(result, dict):
+            continue
+        run = _run_of(result)
+        where = f"{run[0]}/{run[1]}"
+        evaluations = [
+            e
+            for e in result.get("evaluations") or [result.get("evaluation") or {}]
+            if isinstance(e, dict)
+        ]
+        causes = {e.get("not_evaluated_cause") for e in evaluations}
+        evaluated = any(e.get("evaluated") for e in evaluations)
+        output = result.get("output") or {}
+        reason = output.get("termination_reason")
+        for cause in ("environment_defect", "infrastructure"):
+            if cause not in causes:
+                continue
+            if causes != {cause} or evaluated:
+                errors.append(
+                    f"carried result does not fit at {where}: not evaluated "
+                    f"({cause}) by some of its evaluators, not all"
+                )
+            if reason != "infra_failure":
+                errors.append(
+                    f"carried result does not fit at {where}: not evaluated "
+                    f"({cause}), but its output's termination_reason is "
+                    f"{reason!r}, not 'infra_failure'"
+                )
+        if "environment_defect" in causes:
+            if run[0] not in failed_preflight:
+                errors.append(
+                    f"carried result does not fit at {where}: stopped by its "
+                    "scenario's preflight, but summary.json records no failed "
+                    f"preflight for {run[0]}"
+                )
+            found = [
+                name
+                for name, runs in (
+                    ("agent trace events", agent_events),
+                    ("tool calls", tool_calls),
+                    ("an end state", end_states),
+                )
+                if run in runs
+            ]
+            if found:
+                errors.append(
+                    f"carried result does not fit at {where}: stopped by its "
+                    "scenario's preflight before the agent ran, but the bundle "
+                    f"has {', '.join(found)} for it"
+                )
+        if evaluated and run not in end_states:
+            errors.append(
+                f"carried result does not fit at {where}: evaluated, but "
+                "end_states.jsonl has no end state for it"
+            )
+        if reason == "infra_failure":
+            continue
+        terminal = terminals.get(run)
+        try:
+            event = load_trace_event(terminal) if terminal is not None else None
+        except LoadError as exc:
+            errors.append(f"carried result does not fit at {where}: {exc}")
+            continue
+        if output != to_jsonable(output_from_terminal(event)):
+            errors.append(
+                f"carried result does not fit at {where}: its output is not "
+                "what its agent.terminal event records"
+            )
     return errors
 
 
@@ -215,6 +318,7 @@ class LocalReplayVerifier:
                 1 for e in self._bundle.traces if e.get("kind") == "evaluator.score"
             )
             errors.extend(_three_records(self._bundle))
+            errors.extend(_carried(self._bundle))
             if scores != eval_count:
                 errors.append(
                     f"evaluator.score event count mismatch: {scores} in "

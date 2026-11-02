@@ -79,6 +79,8 @@ def _run_and_write(
         all_events=store.events(loaded.run_config.run_id),
         policy_spec=loaded.policy_spec,
         config_name=str(config_path),
+        tool_calls=orch.tool_call_records,
+        end_states=orch.end_states,
         evidence=minimal_evidence(summary),
         **runner_fields(),
     )

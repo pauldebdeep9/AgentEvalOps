@@ -12,7 +12,12 @@ plan, and with a declared one its selection.
 from __future__ import annotations
 
 from agentevalops.catalogue import load_catalogue
-from agentevalops.core.schemas import RunSummary, TraceEvent, TraceEventKind
+from agentevalops.core.schemas import (
+    EndStateRecord,
+    RunSummary,
+    TraceEvent,
+    TraceEventKind,
+)
 from agentevalops.plans import EvidenceInputs
 
 CATALOGUE = load_catalogue()
@@ -38,6 +43,15 @@ def minimal_evidence(summary: RunSummary | None = None) -> EvidenceInputs:
             for task_id in task_ids
         },
     )
+
+
+def end_states_for(summary: RunSummary) -> list[EndStateRecord]:
+    """An empty end state per task run, as the orchestrator takes one before
+    any evaluator runs (docs/adr/0006 D7): validate-bundle refuses an
+    evaluated run without it (docs/adr/0008 R6)."""
+    return [
+        EndStateRecord(r.task_id, r.repetition, {}) for r in summary.task_results
+    ]
 
 
 def with_score_events(

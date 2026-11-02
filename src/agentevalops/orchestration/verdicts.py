@@ -4,10 +4,10 @@ re-derives a bundle's verdicts from its records (docs/adr/0008 R1, R3).
 
 Moved out of ``orchestration/local.py`` unchanged (R29 (b1)): which
 evaluators apply to a task (docs/adr/0006 D13), the not-evaluated result,
-a task run's verdict from its evaluators' results, the run-level output
-the policy checker judges, and the summary's counts, score result and
-pass^k (docs/adr/0002 Axis 3; docs/adr/0006 D18, D20). No second copy of
-any of these rules exists.
+a task run's output from its terminal event, a task run's verdict from its
+evaluators' results, the run-level output the policy checker judges, and
+the summary's counts, score result and pass^k (docs/adr/0002 Axis 3;
+docs/adr/0006 D18, D20). No second copy of any of these rules exists.
 """
 
 from __future__ import annotations
@@ -23,9 +23,36 @@ from agentevalops.core.schemas import (
     TaskRunResult,
     TaskSpec,
     TerminationReason,
+    TraceEvent,
 )
 from agentevalops.scorers.pass_k import pass_k_by_category, pass_k_results
 from agentevalops.scorers.simple import SimpleScorer
+
+
+def output_from_terminal(terminal: TraceEvent | None) -> AgentOutput:
+    """Reconstruct ``AgentOutput`` from the payload of an AGENT_TERMINAL event.
+
+    If no terminal event was emitted, returns a synthetic error output.
+    The run records the result as the task run's output; validate-bundle
+    checks a bundle's carried outputs against it (docs/adr/0008 R6).
+    """
+    if terminal is None:
+        return AgentOutput(
+            success=False,
+            termination_reason=TerminationReason.AGENT_ERROR,
+            error="Agent did not emit an AGENT_TERMINAL event.",
+        )
+    p = terminal.payload
+    return AgentOutput(
+        success=bool(p.get("success", False)),
+        termination_reason=TerminationReason(
+            p.get("termination_reason", TerminationReason.AGENT_ERROR.value)
+        ),
+        final_answer=p.get("final_answer"),
+        total_cost_usd=float(p.get("total_cost_usd", 0.0)),
+        total_tokens=int(p.get("total_tokens", 0)),
+        wall_seconds=float(p.get("wall_seconds", 0.0)),
+    )
 
 
 def combined_output(summary: RunSummary) -> AgentOutput:
