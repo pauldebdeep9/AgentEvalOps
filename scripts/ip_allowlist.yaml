@@ -1,0 +1,52 @@
+# Known overlaps of the IP check (scripts/check_catalogue_ip.py; CLAUDE.md,
+# "Before any tag"). Each entry is one five-word run, in the script's own
+# normalisation (lowercase, words split on anything that is not a letter or
+# a digit), that a rendered report shares with a pinned source PDF, and why
+# it may: an identifier or a cited name, never prose.
+#
+# The script refuses an entry that is not mechanically one of three kinds:
+#   check-id-and-scope  a run of a process check's id, the scope words the
+#                       evidence report prints beside it, and this
+#                       project's label for that check
+#   principle-name      a run of a principle's number and this project's
+#                       label for it, as a heading
+#   source-citation     a run of a source's id, title and publisher, as the
+#                       Sources table cites them
+# Recorded 2026-11-02 from a format 0.6 seed run's evidence_report.md and
+# report.md against all three PDFs: 16 texts, 32 runs.
+allowed:
+  # The evidence report's principle tables: check id, then its scope.
+  - {run: 1 1 3 generative ai, kind: check-id-and-scope, reason: check 1.1.3 and its scope}
+  - {run: 4 3 2 generative ai, kind: check-id-and-scope, reason: check 4.3.2 and its scope}
+  - {run: 4 8 1 generative ai, kind: check-id-and-scope, reason: check 4.8.1 and its scope}
+  - {run: 4 9 1 generative ai, kind: check-id-and-scope, reason: check 4.9.1 and its scope}
+  - {run: 4 9 2 generative ai, kind: check-id-and-scope, reason: check 4.9.2 and its scope}
+  - {run: 4 10 2 generative ai, kind: check-id-and-scope, reason: check 4.10.2 and its scope}
+  - {run: 6 7 2 generative ai, kind: check-id-and-scope, reason: check 6.7.2 and its scope}
+  - {run: 7 3 1 traditional ai, kind: check-id-and-scope, reason: check 7.3.1 and its scope}
+  - {run: 7 5 1 traditional ai, kind: check-id-and-scope, reason: check 7.5.1 and its scope}
+  - {run: 7 6 1 traditional ai, kind: check-id-and-scope, reason: check 7.6.1 and its scope}
+  - {run: 7 7 1 traditional ai, kind: check-id-and-scope, reason: check 7.7.1 and its scope}
+  - {run: 8 3 2 generative ai, kind: check-id-and-scope, reason: check 8.3.2 and its scope}
+  - {run: 3 2 generative ai detect, kind: check-id-and-scope, reason: "check 8.3.2, its scope and the first word of this project's label for it"}
+  # The evidence report's heading for principle 10.
+  - {run: 10 human agency and oversight, kind: principle-name, reason: principle 10's number and label}
+  # The Sources table: each source's id, title and publisher.
+  - {run: model ai governance framework for, kind: source-citation, reason: MGF-Agentic's title}
+  - {run: ai governance framework for agentic, kind: source-citation, reason: MGF-Agentic's title}
+  - {run: governance framework for agentic ai, kind: source-citation, reason: MGF-Agentic's title}
+  - {run: starter kit for testing llm, kind: source-citation, reason: the Starter Kit's title}
+  - {run: kit for testing llm based, kind: source-citation, reason: the Starter Kit's title}
+  - {run: for testing llm based applications, kind: source-citation, reason: the Starter Kit's title}
+  - {run: testing llm based applications for, kind: source-citation, reason: the Starter Kit's title}
+  - {run: llm based applications for safety, kind: source-citation, reason: the Starter Kit's title}
+  - {run: based applications for safety and, kind: source-citation, reason: the Starter Kit's title}
+  - {run: applications for safety and reliability, kind: source-citation, reason: the Starter Kit's title}
+  - {run: info communications media development authority, kind: source-citation, reason: the publisher's name}
+  - {run: communications media development authority imda, kind: source-citation, reason: the publisher's name}
+  - {run: framework ai verify testing framework, kind: source-citation, reason: "the testing framework's source id, then its title"}
+  - {run: ai verify testing framework for, kind: source-citation, reason: the testing framework's title}
+  - {run: verify testing framework for traditional, kind: source-citation, reason: the testing framework's title}
+  - {run: testing framework for traditional and, kind: source-citation, reason: the testing framework's title}
+  - {run: framework for traditional and generative, kind: source-citation, reason: the testing framework's title}
+  - {run: for traditional and generative ai, kind: source-citation, reason: the testing framework's title}
