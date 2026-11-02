@@ -9,6 +9,29 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Carried results must fit the records** (2026-11-03, `40da4b7`; ROADMAP
+  R29 (b1); ADR-0008 R6). What rescore will take as recorded -- each
+  scenario's preflight, the cause of a run never evaluated, the agent's
+  output -- is now checked by `validate-bundle` at 0.6: a run stopped by a
+  failed preflight has that failure recorded and no agent event, tool call
+  or end state; a run not evaluated for the preflight or the
+  infrastructure is not evaluated by any evaluator and its output says
+  `infra_failure`; an evaluated run has its end state; every other run's
+  output is what its `agent.terminal` event gives. No format change.
+- **Golden format 0.6 bundles** (`09bc5ae`):
+  `tests/fixtures/bundles/seed-narrow-0.6` and `seed-narrow-known-bad-0.6`,
+  the seed pack narrowed to one scenario per category, about 200 KB each.
+- **Groundwork for rescore, as library code** (`d1b632f`, `2384320`,
+  `5308cdd`). The verdict and summary rules moved unchanged into
+  `orchestration/verdicts.py`, which the orchestrator imports; typed
+  loaders in `bundles/serializers.py` read a bundle's records back into
+  their dataclasses (`from_jsonable`, `load_tool_call`,
+  `load_trace_event`, `load_run_config`, ...), refusing a key the
+  dataclass does not know; `replay/rebuild.py`'s `rebuild_run` rebuilds a
+  run's benchmark, tasks and scenario descriptors from `config.json` and
+  the plan, and says why when it cannot (a benchmark or pack not
+  installed, a selected scenario missing, tasks or seeds that are not the
+  plan's). No CLI change.
 - **Signing a bundle** (2026-11-02, `a733ebc`; ROADMAP R29 (a); ADR-0008).
   `agentevalops sign --bundle DIR --key PATH [--force]` writes
   `manifest.json.sig`, a detached `ssh-keygen -Y sign` signature over
@@ -27,6 +50,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- **Both reports label their date as the run's creation** (2026-11-03,
+  `b491ab4`): ``Run created: <created_at> (`created_at` in `metadata.json`)``,
+  the same line in `report.md` and in the evidence report's header, which
+  had said `Generated:` and `Created:`. The README documents signing: the
+  `sign` command, an allowed-signers file, keys with a passphrase through
+  `ssh-agent`, and what a verified signature says.
 - **`report.md` is dated by the bundle** (`111e0f0`): its `Generated:` line
   is the run's `created_at` from `metadata.json`, not the time it was
   rendered, so a bundle renders to the same bytes at any time.

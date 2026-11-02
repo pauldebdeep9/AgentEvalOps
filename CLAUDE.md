@@ -170,6 +170,16 @@ local green gate is not CI: CI runs Linux and installs only `.[dev]`.
   `configs/toy_openai.yaml` without being asked to.
 - `otel` — scaffold only, emits nothing.
 
+## Keys and `~/.ssh`
+
+Never read, use or print anything in `~/.ssh`, and never use the running
+`ssh-agent`: both hold the owner's real keys. A key needed for a test or a
+manual check of signing is a throwaway made with `ssh-keygen` in a temp
+directory, with `HOME` pointed at that directory; a key with a passphrase is
+loaded into a private agent started there (`ssh-agent -a <dir>/agent.sock`),
+never the running one. Delete the directory and stop the agent afterwards.
+`tests/test_signing.py` already works this way.
+
 ## Third-party framework text (IMDA, AI Verify Foundation)
 
 The AI Verify Testing Framework may not be reproduced without written

@@ -2,6 +2,56 @@
 
 ## Status
 
+**R29 (b1) built — 2026-11-03** (`d1b632f`, `2384320`, `5308cdd`, `40da4b7`,
+`09bc5ae`, `b491ab4`): the groundwork for rescore, as library code, and the
+signing docs. Where the build adds to the text:
+- **R1's one path.** The rules that turn evaluation results into verdicts
+  and a summary are public in `orchestration/verdicts.py`, moved unchanged
+  (a toy, a seed and a known-bad run gave the same evaluations, summary,
+  policy verdict, traces and controls before and after), with the
+  terminal event's output (`output_from_terminal`). A bundle's records load
+  back into their dataclasses through `bundles/serializers.py`
+  (`from_jsonable` and named loaders), next to the serialiser that writes
+  them. `replay/rebuild.py` rebuilds a run's benchmark, tasks and scenario
+  descriptors through the registry, sharing `registry.build_benchmark`,
+  `plans.benchmark_descriptors` and `reports.markdown.scenario_info` with
+  `run`; it checks that the tasks are the plan's selection and the seeds
+  the ones the plan's seed derives, and raises `RebuildError`, which (b2)
+  turns into exit 2. No import-linter contract changed.
+- **R6 gets a structural check (beside C1).** `validate-bundle` holds what
+  is carried to the records: a run stopped by its scenario's failed
+  preflight has that failure in `summary.json` and no agent trace event,
+  tool call or end state; a run not evaluated for the preflight or the
+  infrastructure is not evaluated by any evaluator and its output says
+  `infra_failure`; an evaluated run has its end state; every other run's
+  output equals `output_from_terminal` of its `agent.terminal` event. A
+  run not evaluated for `configuration` is not checked beyond that last
+  rule: the cause is shared by a runner's configuration error and an
+  evaluator the run does not configure, and the records do not tell them
+  apart.
+- **`mock_fail` is not an infrastructure failure.** It ends the agent with
+  `agent_error`, which is evaluated and fails, so it carries nothing. The
+  carried-results tests raise `InfrastructureError` from a test runner
+  registered as `mock`, and make a preflight fail with an edited pack
+  registered under its own name, so the run rebuilds with the same
+  `data_sha256`.
+- **Golden fixtures (F).** `tests/fixtures/bundles/seed-narrow-0.6` and
+  `seed-narrow-known-bad-0.6`, written at `40da4b7`, one scenario per
+  category (TE3, TC1, PC5, RB5); 202 KB and 208 KB, of which
+  `controls.json` -- every pack scenario, however narrow the run -- is
+  108 KB. Under 0003 Q5 they are regenerated only for an intended format
+  change, so they keep the date line they were written with (below).
+- **Decision 9's line is relabelled.** It held the run's `created_at`
+  under "Generated:"; both reports now carry one line, ``Run created:
+  <created_at> (`created_at` in `metadata.json`)``, written once in
+  `reports/markdown.py`. A rescore of the golden fixtures runs under
+  changed code (`CODE_CHANGED`) and will find `report.md` and
+  `evidence_report.md` differing by that line.
+- **E's signature paragraph is in the README**, with the `sign` command,
+  an allowed-signers example and the `ssh-agent` route for a key with a
+  passphrase. The `MATCH` paragraph, and both paragraphs in the reports,
+  wait for rescore. (b2) is open.
+
 **R29 (a) built — 2026-11-02** (`199ddee`, `111e0f0`, `230f51b`, `a733ebc`).
 Where the build adds to the text: the version check reads `ssh -V` beside
 `ssh-keygen` (no version flag on `ssh-keygen` itself); every `ssh-keygen`

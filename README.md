@@ -28,8 +28,8 @@ pass^k; a fail-closed `gate`; and a report grouped by kind of harm. Since
 v0.3.0, on `main`: bundle format 0.6, the evidence pack (R28) -- every
 bundle registers a plan, records the package's own hash, and carries
 `controls.json` and `evidence_report.md` over the testing framework's 112
-checks. Every exit criterion of rows R24 to R28 is a test, and CI runs on
-every push.
+checks; and bundle signing with `ssh-keygen` (R29 (a)). Every exit criterion
+of rows R24 to R28 is a test, and CI runs on every push.
 
 **All evidence so far comes from scripted trajectories.** The mock runner
 plays each scenario's known-good or known-bad trajectory through the real
@@ -39,14 +39,14 @@ exist behind the `llm` extra; the first live run is R30.
 
 Planned next, in [ROADMAP.md](ROADMAP.md):
 
-- **R29** — signing (`manifest.json.sig`) and `rescore`, an evaluation-layer
-  re-run over a bundle's own records.
+- **R29** — `rescore`, an evaluation-layer re-run over a bundle's own
+  records (signing, its first half, is on `main`).
 - **R30** — catalogue v1 and one live run on a real model, committed to the
   private repository.
 
 Not implemented: sandboxing (tools run in process); any cloud backend
 (`backend_id` accepts only `local`); LLM-as-judge or trace-quality
-evaluators; external benchmark adapters; a web UI; bundle signing (R29);
+evaluators; external benchmark adapters; a web UI; `rescore` (R29);
 OpenTelemetry export (the `observability` package is a scaffold that emits
 nothing).
 
@@ -283,7 +283,7 @@ so its checksums cover them all.
 | `test_plan.json` | Registered before the first task: the declaration, the selected and excluded scenarios with reasons, thresholds with sources, every seed, the pack's scenario and data hashes. A run with no declaration registers a plan that says so (`declared: false`), which the gate cannot judge |
 | `controls.json` | Every catalogue control in one of five states (covered, partly covered, uncovered, not in plan, not in pack) with each citing scenario's pass^k and its records, never an aggregate; the sources and catalogue files it was resolved against; every pack scenario, selected or excluded |
 | `evidence_report.md` | The testing framework's 112 checks by principle, with evidence pointers where a citing scenario ran and the organisation's Implemented and Elaboration columns left blank; a Scenarios table; the MGF-Agentic and Starter Kit controls; the pinned sources |
-| `manifest.json.sig` | Optional: a detached signature over `manifest.json`, recognised and reported as not verified until R29 signs it |
+| `manifest.json.sig` | Optional: a detached `ssh-keygen` signature over `manifest.json` (see [Signing a bundle](#signing-a-bundle)) |
 
 Bundles at formats 0.1 to 0.5 are still read and validated; a reader
 treats what they lack as the documented default, and a 0.5 bundle's
@@ -303,14 +303,71 @@ count matching the task runs evaluated). At 0.6 it also checks that
 `controls.json` is tied to the registered plan and selects exactly the
 plan's scenarios, that every end-state pointer in it is a real line of
 `end_states.jsonl`, and that there is one `evaluator.score` event per
-entry in `evaluations.json`; a malformed file is a finding, never a crash.
-A code-drift warning is printed when the code differs from the code that
-wrote the bundle -- for a 0.6 bundle, the running package's hash against
-`package_sha256`; for older ones, the current checkout against the
-recorded `git_sha`; a `manifest.json.sig` is reported as not yet verified.
-Neither ever fails
-the bundle. Checksums detect tampering and corruption; they are not a
-signature (R29).
+entry in `evaluations.json`; that the three records of each evaluation
+result -- its entry in `evaluations.json`, its place in `summary.json` and
+its `evaluator.score` event -- agree; and that what a run carries fits its
+records: a task run stopped by its scenario's failed preflight has that
+failure recorded and no agent event, tool call or end state, a run not
+evaluated for the preflight or the infrastructure is not evaluated by any
+evaluator and its output says `infra_failure`, an evaluated run has its end
+state, and every other run's output is what its `agent.terminal` event
+gives. A malformed file is a finding, never a crash. A code-drift warning
+is printed when the code differs from the code that wrote the bundle --
+for a 0.6 bundle, the running package's hash against `package_sha256`; for
+older ones, the current checkout against the recorded `git_sha` -- and a
+`manifest.json.sig` is noted as present but not verified unless
+`--allowed-signers` is given. Neither ever fails the bundle. Checksums
+detect tampering and corruption; they are not a signature.
+
+## Signing a bundle
+
+`sign` signs a bundle's `manifest.json` with `ssh-keygen -Y sign` (OpenSSH
+8.2 or newer), in the namespace `agentevalops-bundle`, and writes the
+detached signature to `manifest.json.sig`. The key is never defaulted; a
+bundle that does not validate is not signed, and an existing signature is
+kept unless you pass `--force`.
+
+```bash
+agentevalops sign --bundle runs/seed --key release_ed25519
+```
+
+`sign` never prompts for a passphrase. For a key that has one, load it into
+`ssh-agent` and pass its public half; `ssh-keygen` then signs with the
+agent's copy:
+
+```bash
+ssh-add release_ed25519
+agentevalops sign --bundle runs/seed --key release_ed25519.pub
+```
+
+To verify, list the keys you trust in an allowed-signers file (see
+`ssh-keygen(1)`, ALLOWED SIGNERS), one line per key, each limited to this
+tool's namespace. The identity is a name you choose for the key; the key
+is the public key's type and base64 text:
+
+```
+release@example.org namespaces="agentevalops-bundle" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...
+```
+
+```bash
+agentevalops validate-bundle --bundle runs/seed --allowed-signers allowed_signers
+agentevalops gate --bundle runs/seed --require-signature --allowed-signers allowed_signers
+```
+
+With `--allowed-signers`, `validate-bundle` verifies the signature and
+prints the identity and the key's fingerprint; a missing or bad signature,
+or no usable `ssh-keygen`, fails validation. `gate --require-signature`
+cannot judge (exit 2) a bundle whose signature does not verify, or when no
+`--allowed-signers` file is given.
+
+**What a verified signature says.** That `manifest.json` is byte for byte
+the file the holder of a key in your allowed-signers file signed, for this
+tool's namespace, and -- with the checksums `validate-bundle` checks --
+that every file the manifest lists is unchanged since then. It does not say
+who ran the agent or that the run happened as recorded, that the code or
+model was what the bundle names, that the key was not lost or stolen, or
+anything about how well the system behaves; it is only as trustworthy as
+the allowed-signers file you chose to trust.
 
 ---
 
