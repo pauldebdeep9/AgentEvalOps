@@ -7,6 +7,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`BundleWriter.write()` requires `runner_id` and `mock_trajectory`**
+  (2026-11-02, `e39b824`), like `evidence`: pass `None` when a value is
+  legitimately absent, never leave it out. A 0.6 bundle with a null
+  `runner_id` says in both reports' headers that the runner is not
+  recorded, so the report cannot say whether the trajectories were
+  scripted; `validate-bundle` warns and does not fail. No bundle field
+  changes.
+- **The IP check separates known overlaps from new ones** (2026-11-02,
+  `49c8419`). `scripts/ip_allowlist.yaml` holds the known ones -- a check
+  id beside its scope, a principle's number and label, a source's id,
+  title and publisher -- and the script refuses any entry the catalogue
+  does not yield, so prose cannot be listed. It exits 1 only on a new
+  overlap. Against all three PDFs with a seed run's two reports: 16
+  known, 0 new.
+
 ### Changed (bundle format)
 
 - **Bundle format 0.6, the evidence pack** (2026-11-02, `3a2d0bc`; ROADMAP

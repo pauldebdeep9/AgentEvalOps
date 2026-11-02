@@ -40,8 +40,11 @@ script against all three pinned PDFs (in `~/Documents/aeo-sources/`, never
 committed): `$ENV/bin/python scripts/check_catalogue_ip.py
 ~/Documents/aeo-sources/mgf-for-agentic-ai.pdf
 ~/Documents/aeo-sources/starter-kit-llm-testing.pdf
-~/Documents/aeo-sources/aivtf-2025.pdf`. It must name each PDF's pinned
-source and report 0 overlap. CI cannot run it.
+~/Documents/aeo-sources/aivtf-2025.pdf` (add `--extra FILE` with a fresh
+seed run's `evidence_report.md` and `report.md`). It must name each PDF's
+pinned source and report 0 new overlaps; known ones are on
+`scripts/ip_allowlist.yaml`, which admits only identifiers and cited names.
+CI cannot run it.
 
 **Every gate or CI command chain starts with `set -o pipefail`.** Without it a
 pipeline's exit status is its last command's, so `pytest ... | tail -1` or
