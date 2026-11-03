@@ -20,7 +20,11 @@ from typing import Any
 
 from agentevalops.bundles.reader import LoadedBundle
 from agentevalops.bundles.serializers import LoadError, load_trace_event, to_jsonable
-from agentevalops.orchestration.verdicts import is_carried, output_from_terminal
+from agentevalops.orchestration.verdicts import (
+    is_carried,
+    output_from_terminal,
+    terminal_of,
+)
 
 #: The first format whose traces carry one ``evaluator.score`` event per
 #: evaluation result (docs/adr/0007 D3).
@@ -129,14 +133,21 @@ def _carried(bundle: LoadedBundle) -> list[str]:
     agent trace event, tool call or end state. A run not evaluated because
     of the preflight or the infrastructure is not evaluated by any of its
     evaluators, and its output says ``infra_failure``. An evaluated run has
-    its end state. Any other run's output is what its ``agent.terminal``
-    event gives, through the run's own ``output_from_terminal``."""
+    its end state.
+
+    Whether a run was stopped or finished is read from the records, not the
+    summary (R29 (b2)): a run the orchestrator stopped -- its output says
+    ``infra_failure`` and no evaluator evaluated it -- never finished, so
+    it has no ``agent.terminal`` event; every other run's output is what
+    its terminal event gives (the run's own ``terminal_of`` and
+    ``output_from_terminal``), whatever its output says."""
     agent_events = {
         _run_of(e) for e in bundle.traces if e.get("kind") != "evaluator.score"
     }
-    terminals = {
-        _run_of(e): e for e in bundle.traces if e.get("kind") == "agent.terminal"
-    }
+    terminals: dict[Run, list[dict[str, Any]]] = {}
+    for e in bundle.traces:
+        if e.get("kind") == "agent.terminal":
+            terminals.setdefault(_run_of(e), []).append(e)
     tool_calls = {_run_of(r) for r in bundle.tool_calls if isinstance(r, dict)}
     end_states = {_run_of(s) for s in bundle.end_states if isinstance(s, dict)}
     failed_preflight = {
@@ -200,11 +211,16 @@ def _carried(bundle: LoadedBundle) -> list[str]:
                 f"carried result does not fit at {where}: evaluated, but "
                 "end_states.jsonl has no end state for it"
             )
-        if is_carried(reason):
+        if is_carried(reason) and not evaluated:
+            if run in terminals:
+                errors.append(
+                    f"carried result does not fit at {where}: stopped before "
+                    "any evaluator judged it (its output says infra_failure), "
+                    "but its agent finished: it has an agent.terminal event"
+                )
             continue
-        terminal = terminals.get(run)
         try:
-            event = load_trace_event(terminal) if terminal is not None else None
+            event = terminal_of([load_trace_event(t) for t in terminals.get(run, [])])
         except LoadError as exc:
             errors.append(f"carried result does not fit at {where}: {exc}")
             continue

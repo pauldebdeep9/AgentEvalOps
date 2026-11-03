@@ -36,9 +36,13 @@ from agentevalops.bundles.serializers import (
     load_evaluation,
     load_tool_call,
     load_trace_event,
+    to_jsonable,
 )
 from agentevalops.bundles.validator import validate_bundle
 from agentevalops.core.schemas import TerminationReason
+from agentevalops.core.types import RunId
+from agentevalops.orchestration.verdicts import scored, stopped
+from agentevalops.registry import build_evaluators
 from agentevalops.replay.rebuild import rebuild_run
 
 SCENARIOS = CARRIED_SCENARIOS
@@ -248,3 +252,112 @@ def test_a_terminal_event_that_does_not_load(
 
     errors = _edit(bundles["infra"], tmp_path, "traces.jsonl", corrupt)
     assert _fits(errors, "at TC1/0: ") and _fits(errors, "surprise")
+
+
+# ---------------------------------------------------------------------------
+# Stopped or finished: read from the records, not the summary (R29 (b2))
+# ---------------------------------------------------------------------------
+
+
+def _relabel_as_stopped(
+    bundle: Path, task_id: str, *, drop_terminal: bool = False
+) -> None:
+    """Make a finished run look stopped in all three records of its result
+    -- summary.json, evaluations.json and its evaluator.score events --
+    through the run's own ``stopped``, keeping every count consistent; with
+    *drop_terminal*, delete its agent.terminal event too."""
+    config, plan = _json(bundle / "config.json"), _json(bundle / "test_plan.json")
+    (task,) = [t for t in rebuild_run(config, plan).tasks if str(t.task_id) == task_id]
+    lines = _lines(bundle / "traces.jsonl")
+    mine = [e for e in lines if (e["task_id"], e["repetition"]) == (task_id, 0)]
+    agent = [
+        e
+        for e in mine
+        if e["kind"] != "evaluator.score"
+        and not (drop_terminal and e["kind"] == "agent.terminal")
+    ]
+    result = stopped(
+        task,
+        "runner: relabelled",
+        "configuration",
+        agent,
+        build_evaluators(config["evaluators"]),
+    )
+    events = [load_trace_event(e) for e in agent]
+    stamp = load_trace_event(mine[-1]).timestamp
+    score = [
+        to_jsonable(e) for e in scored(result, RunId(plan["run_id"]), events, stamp)
+    ]
+    kept = [e for e in lines if e not in mine or e in agent]
+    at = max(i for i, e in enumerate(kept) if e in agent) + 1
+    lines = kept[:at] + score + kept[at:]
+    (bundle / "traces.jsonl").write_text(
+        "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in lines),
+        encoding="utf-8",
+    )
+    summary = _json(bundle / "summary.json")
+    for run in summary["task_results"]:
+        if (run["task_id"], run["repetition"]) == (task_id, 0):
+            run.update(
+                output=to_jsonable(result.output),
+                evaluation=to_jsonable(result.evaluation),
+                evaluations=to_jsonable(result.evaluations),
+                event_count=result.event_count,
+            )
+    summary["trace_event_count"] = len(lines)
+    (bundle / "summary.json").write_text(json.dumps(summary, indent=2), "utf-8")
+    entries = [
+        e
+        for e in _json(bundle / "evaluations.json")
+        if (e["task_id"], e["repetition"]) != (task_id, 0)
+    ]
+    position = next(
+        i
+        for i, e in enumerate(_json(bundle / "evaluations.json"))
+        if (e["task_id"], e["repetition"]) == (task_id, 0)
+    )
+    entries[position:position] = [
+        {**to_jsonable(e), "task_id": task_id, "repetition": 0}
+        for e in result.evaluations
+    ]
+    (bundle / "evaluations.json").write_text(json.dumps(entries, indent=2), "utf-8")
+    write_manifest(bundle)
+
+
+def test_a_finished_run_relabelled_as_stopped_fails_validation(
+    reference_bundles: ReferenceBundles, tmp_path: Path
+) -> None:
+    """Fail-first: before the rule, a finished run relabelled consistently
+    in all three records of its result -- not evaluated, its output
+    infra_failure -- validated: nothing held it to its agent.terminal
+    event."""
+    bundle = reference_bundles["seed"].copy(tmp_path / "relabelled")
+    _relabel_as_stopped(bundle, "TE1")
+    errors = validate_bundle(bundle).errors
+    assert _fits(errors, "at TE1/0: stopped before any evaluator judged it")
+    assert _fits(errors, "but its agent finished: it has an agent.terminal event")
+
+
+def test_with_its_terminal_event_deleted_too_the_relabel_validates(
+    reference_bundles: ReferenceBundles, tmp_path: Path
+) -> None:
+    """The known limit, which the MATCH paragraph describes: an edit to the
+    trace itself, with every derived record made to match, is a consistent
+    edit of the records -- the structural checks cannot see it; only a
+    signature made when the bundle was written can."""
+    bundle = reference_bundles["seed"].copy(tmp_path / "relabelled")
+    _relabel_as_stopped(bundle, "TE1", drop_terminal=True)
+    assert validate_bundle(bundle).errors == []
+
+
+def test_an_evaluated_run_whose_output_alone_says_infra_failure(
+    bundles: dict[str, Path], tmp_path: Path
+) -> None:
+    """Fail-first: an infra_failure output skipped the comparison with the
+    run's terminal event, evaluated or not."""
+
+    def relabel(summary: dict[str, Any]) -> None:
+        _run(summary, "TC1")["output"]["termination_reason"] = "infra_failure"
+
+    errors = _edit(bundles["infra"], tmp_path, "summary.json", relabel)
+    assert _fits(errors, "at TC1/0: its output is not what its agent.terminal")
