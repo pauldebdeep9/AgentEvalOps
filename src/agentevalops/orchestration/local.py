@@ -46,6 +46,7 @@ from agentevalops.orchestration.verdicts import (
     stopped,
     tally,
     task_runs,
+    terminal_of,
 )
 
 logger = logging.getLogger(__name__)
@@ -363,12 +364,25 @@ class LocalOrchestrator:
                     await self._trace_store.append(run_id, event)
                     events.append(event)
             except (InfrastructureError, ConfigurationError) as exc:
-                await self._harvest(task, repetition, environment)
-                return (
-                    _not_evaluated_result(
-                        task, exc, events, self._evaluators, repetition=repetition
-                    ),
-                    events,
+                if terminal_of(events) is None:
+                    await self._harvest(task, repetition, environment)
+                    return (
+                        _not_evaluated_result(
+                            task, exc, events, self._evaluators, repetition=repetition
+                        ),
+                        events,
+                    )
+                # The agent finished: its agent.terminal event is in the
+                # trace, so the run is finished and judged like any other
+                # (docs/adr/0008, the stopped-run rule: a stopped run has no
+                # terminal event). A late error from the runner's stream is
+                # logged and changes no result.
+                logger.warning(
+                    "task run %s/%s: the runner raised after its agent.terminal "
+                    "event; judged as finished: %s",
+                    task.task_id,
+                    repetition,
+                    exc,
                 )
 
             # docs/adr/0006 D7: the end state is taken after the agent stops
