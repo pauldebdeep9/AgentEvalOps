@@ -1,3 +1,6 @@
 # Real bundles kept as legacy fixtures: their bytes are what their
 # manifests checksum, so no conversion of any kind.
 tests/fixtures/** -text
+# Generated diagrams: tests/test_diagrams.py compares their bytes with a
+# fresh render of scripts/render_diagrams.py, so no conversion of any kind.
+docs/diagrams/*.svg -text
