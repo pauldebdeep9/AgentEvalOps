@@ -164,6 +164,16 @@ local green gate is not CI: CI runs Linux and installs only `.[dev]`.
   intended format change (ADR-0003 Q5); `"0.1"` bundles (incl. `runs/toy-smoke*` on disk) still
   validate/read — see `docs/adr/0002-outcome-taxonomy.md`
 
+## README diagrams
+
+The README's two diagrams are generated. To change one, edit the data at
+the top of `scripts/render_diagrams.py`, run
+`$ENV/bin/python scripts/render_diagrams.py`, and commit the four SVGs it
+writes to `docs/diagrams/`. `tests/test_diagrams.py` fails when the
+committed SVGs are not a fresh render, and the script itself refuses data
+that leaves out or makes up a package, a line too long for its box, or a
+claim word.
+
 ## Optional extras
 
 - `llm` — `anthropic` (for `agents/langgraph_runner.py`) and `openai` (for

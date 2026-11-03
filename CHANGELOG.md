@@ -9,6 +9,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **The README's diagrams as generated SVG** (2026-11-04, `0f0530f`).
+  `scripts/render_diagrams.py` draws the package structure and one run,
+  light and dark, from the data at its top, into `docs/diagrams/`; the
+  README shows the light or dark file by the reader's colour scheme, in
+  place of the two Mermaid blocks. Before drawing, the script checks that
+  the structure names every package and top-level module and nothing else
+  (the rule `tests/test_readme_drift.py` held the Mermaid block to), that
+  each line fits its box, and that no label makes a claim.
+  `tests/test_diagrams.py` fails when the committed SVGs are not a fresh
+  render. The labels were checked against the code: the CLI's nine
+  commands, the run's order (registry, plan, then the preflight, once per
+  scenario, before any agent run).
 - **Carried results must fit the records** (2026-11-03, `40da4b7`; ROADMAP
   R29 (b1); ADR-0008 R6). What rescore will take as recorded -- each
   scenario's preflight, the cause of a run never evaluated, the agent's

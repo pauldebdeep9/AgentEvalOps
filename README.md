@@ -54,106 +54,30 @@ nothing).
 
 ## Structure
 
-```mermaid
-%%{init: {'flowchart': {'nodeSpacing': 24, 'rankSpacing': 40, 'subGraphTitleMargin': {'top': 2, 'bottom': 10}}}}%%
-flowchart TB
-    subgraph interface["Interface"]
-        cli["cli<br/>run, validate-bundle,<br/>gate, report, replay<br/>(deprecated alias),<br/>version, doctor"]
-    end
-    subgraph engine["Engine and adapters"]
-            orchestration["orchestration<br/>the run loop: preflight,<br/>k repetitions, scoring"]
-            bundles["bundles<br/>write, manifest,<br/>read, validate"]
-            plans["plans<br/>declaration to plan;<br/>the fail-closed gate"]
-            replay["replay<br/>cross-file checks<br/>of a bundle"]
-            registry["registry<br/>names to components;<br/>entry points"]
-            config["config<br/>run config and<br/>system.yaml loaders"]
-            agents["agents<br/>runners: mock,<br/>langgraph, openai,<br/>azure-openai"]
-            benchmarks["benchmarks<br/>toy; agentic-baseline<br/>over a domain pack"]
-            domain_packs["domain_packs<br/>seed: tools, cases,<br/>scenarios, thresholds"]
-            evaluators["evaluators<br/>deterministic, tool_use,<br/>state_based, policy"]
-            scorers["scorers<br/>simple counts;<br/>pass^k"]
-            policy["policy<br/>run-level checks: cost,<br/>trace ceiling, tool lists"]
-            stores["stores<br/>trace stores: memory,<br/>local jsonl"]
-            reports["reports<br/>report.md: harms,<br/>repeatability, plan"]
-            observability["observability<br/>OpenTelemetry scaffold;<br/>emits nothing yet"]
-    end
-    subgraph shared["Shared services"]
-        direction LR
-        environments["environments<br/>in-process tools: approver<br/>gate, faults, injections,<br/>call records"]
-        catalogue["catalogue<br/>control sources and ids<br/>as data; identifiers only"]
-    end
-    subgraph coretier["Core"]
-        core["core<br/>protocols, schemas, types, errors;<br/>pii detector, synthetic identifiers,<br/>script grammar, seed derivation"]
-    end
-    orchestration ~~~ config
-    config ~~~ scorers
-    bundles ~~~ agents
-    agents ~~~ policy
-    plans ~~~ benchmarks
-    benchmarks ~~~ stores
-    replay ~~~ domain_packs
-    domain_packs ~~~ reports
-    registry ~~~ evaluators
-    evaluators ~~~ observability
-    stores ~~~ environments
-    cli --> orchestration
-    orchestration --> environments
-    domain_packs --> catalogue
-    environments --> core
-    catalogue --> core
-    classDef t1 fill:#dde7f3,stroke:#5b7396,color:#1b1f23
-    classDef t2 fill:#e3efe4,stroke:#5e8a62,color:#1b1f23
-    classDef t3 fill:#f3ecdc,stroke:#9a8352,color:#1b1f23
-    classDef t4 fill:#ece3f1,stroke:#7e6396,color:#1b1f23
-    class cli t1
-    class orchestration,bundles,plans,replay,registry,config,agents,benchmarks,domain_packs,evaluators,scorers,policy,stores,reports,observability t2
-    class environments,catalogue t3
-    class core t4
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/structure-dark.svg">
+  <img alt="The package structure in four tiers, each importing only the tiers below it: the cli; the engine and adapters, from orchestration and the registry to bundles, plans, replay and reports; the shared environments and catalogue; and core." src="docs/diagrams/structure-light.svg" width="900">
+</picture>
 
-Arrows show the direction imports may flow: a package may import any tier
-below it and never one above. import-linter enforces this with nine
-contracts in `pyproject.toml`.
+Arrows run tier to tier: a package may import any tier below it and never
+one above. import-linter enforces it, with nine contracts in
+`pyproject.toml`. The diagrams are drawn by `scripts/render_diagrams.py`
+from the data at its top.
 
 ---
 
 ## One run
 
-```mermaid
-%%{init: {'flowchart': {'nodeSpacing': 28, 'rankSpacing': 30}}}%%
-flowchart TB
-    inputs["run config + system.yaml"] --> plan["plan written; sha256<br/>registered before the first task"]
-    plan --> resolve["registry resolves<br/>pack, runner, evaluators"]
-    resolve --> loop
-    subgraph perrun[" "]
-        loop["for each scenario, k repetitions:"] --> preflight["known-good preflight"]
-        preflight --> env["environment built: tools,<br/>approvals, faults, injections,<br/>perturbed text"]
-        env --> runner["runner loop<br/>(scripted, or model-backed)"]
-        runner --> records["every tool call<br/>recorded by the harness"]
-        runner --> snapshot["end-state snapshot"]
-        snapshot --> evals["evaluators: deterministic,<br/>tool_use, state_based, policy"]
-    end
-    runner -.-> r30["live run on a real model,<br/>cost reconciled (R30)"]
-    evals --> scoring["pass^k scorer + policy checker"]
-    scoring --> bundle["bundle, format 0.6<br/>(14 files)"]
-    bundle --> validate["validate-bundle"]
-    bundle --> gate["gate (fails closed)"]
-    bundle --> evidence["evidence report +<br/>controls.json"]
-    bundle -.-> r29["signature + rescore (R29)"]
-    classDef built fill:#e3efe4,stroke:#5e8a62,color:#1b1f23
-    classDef loop fill:none,stroke:#5e8a62,stroke-dasharray:2 3,color:#1b1f23
-    classDef planned fill:#f4f4f4,stroke:#8a8a8a,color:#1b1f23,stroke-dasharray:5 5
-    classDef verdict fill:#dde7f3,stroke:#5b7396,color:#1b1f23
-    class inputs,plan,resolve,preflight,env,runner,records,snapshot,evals,scoring,bundle,evidence built
-    class loop loop
-    class validate,gate verdict
-    class r29,r30 planned
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/run-dark.svg">
+  <img alt="One run, top to bottom: the run config, the registry, the test plan and the known-good preflight; for each scenario and repetition, the environment, the runner loop, the recorded tool calls and end state, and the evaluators; then the pass^k scorer and policy checker, the bundle, and what reads it: validate-bundle, the gate, the evidence report, and signing and rescore." src="docs/diagrams/run-light.svg" width="880">
+</picture>
 
 Each scenario is first proved solvable by its known-good trajectory, then
 run k times against a freshly built environment, and a scenario passes only
-if every repetition passed. Dashed boxes are planned roadmap rows; all
-evidence so far comes from scripted trajectories, and the live run is R30.
+if every repetition passed. Green boxes are built, blue ones give a
+verdict, and grey dashed ones are planned roadmap rows; all evidence so far
+comes from scripted trajectories, and the live run is R30.
 
 ---
 
