@@ -8,14 +8,18 @@ a task run's output from its terminal event, a task run's verdict from its
 evaluators' results, the run-level output the policy checker judges, and
 the summary's counts, score result and pass^k (docs/adr/0002 Axis 3;
 docs/adr/0006 D18, D20). Moved too (R29 (b2)): the order of a run's task
-runs, how one task run is judged, its ``evaluator.score`` events, the
-run-level policy check, and which task runs are carried rather than
-evaluated. No second copy of any of these rules exists.
+runs, which terminal event is a run's, how one finished task run is judged
+from its records and how a stopped one's result is made, its
+``evaluator.score`` events and event count, the summary's closing steps
+and the run-level policy check, and which task runs are carried rather
+than evaluated. No second copy of any of these rules exists.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import datetime
+from typing import Any
 
 from agentevalops.core.protocols import Evaluator, PolicyChecker, Scorer
 from agentevalops.core.schemas import (
@@ -258,14 +262,19 @@ async def evaluate(
 
 
 def score_events(
-    result: TaskRunResult, run_id: RunId, events: Sequence[TraceEvent]
+    result: TaskRunResult,
+    run_id: RunId,
+    events: Sequence[TraceEvent],
+    timestamp: datetime | None = None,
 ) -> list[TraceEvent]:
     """One ``evaluator.score`` event per evaluation result of *result*, in
     ``evaluations`` order (docs/adr/0007 D3, format 0.6). Every result
     counts: the real ones, the synthesised ``configuration`` ones and the
     not-evaluated ones, so the trace says what ``evaluations.json`` says.
-    ``step_index`` continues the task run's own stream, *events*."""
+    ``step_index`` continues the task run's own stream, *events*. A
+    *timestamp*, when given, stamps them all instead of the clock."""
     step = max((e.step_index for e in events), default=-1) + 1
+    stamp: dict[str, Any] = {} if timestamp is None else {"timestamp": timestamp}
     return [
         TraceEvent(
             run_id=run_id,
@@ -283,6 +292,7 @@ def score_events(
             },
             task_id=result.task_id,
             repetition=result.repetition,
+            **stamp,
         )
         for offset, evaluation in enumerate(result.evaluations or [result.evaluation])
     ]
@@ -304,4 +314,115 @@ async def check_policy(
         combined_output(summary),
         all_events,
         EvaluatorContext(records=tuple(records), end_states=tuple(end_states)),
+    )
+
+
+def run_policy_spec(spec: PolicySpec | None) -> PolicySpec:
+    """The policy a run is checked against: its own, or the default policy
+    when it names none."""
+    return spec or PolicySpec(policy_id="default")
+
+
+def terminal_of(events: Sequence[TraceEvent]) -> TraceEvent | None:
+    """A task run's terminal event: the last ``agent.terminal`` its agent
+    emitted, or None when it emitted none."""
+    terminal = None
+    for event in events:
+        if event.kind == TraceEventKind.AGENT_TERMINAL:
+            terminal = event
+    return terminal
+
+
+async def judge(
+    task: TaskSpec,
+    events: list[TraceEvent],
+    records: Sequence[ToolCallRecord],
+    end_states: Sequence[EndStateRecord],
+    repetition: int,
+    evaluators: Sequence[Evaluator],
+) -> TaskRunResult:
+    """One finished task run judged from its own records: the output its
+    terminal event gives, each evaluator's result over its events, tool
+    calls and end state (docs/adr/0006 D7, D13), and the verdict.
+    Evaluators see the task as declared, never as the agent saw it."""
+    output = output_from_terminal(terminal_of(events))
+    context = EvaluatorContext(
+        records=tuple(records),
+        end_states=tuple(end_states),
+        task_id=task.task_id,
+        repetition=repetition,
+        applicable_evaluators=task.applicable_evaluators,
+    )
+    evaluations = await evaluate(task, output, events, context, evaluators)
+    return TaskRunResult(
+        task_id=task.task_id,
+        output=output,
+        evaluation=verdict(evaluations),
+        event_count=len(events),
+        evaluations=evaluations,
+        repetition=repetition,
+    )
+
+
+def stopped(
+    task: TaskSpec,
+    detail: str,
+    cause: NotEvaluatedCause,
+    events: Sequence[TraceEvent],
+    evaluators: Sequence[Evaluator],
+    *,
+    repetition: int = 0,
+) -> TaskRunResult:
+    """The result of a task run the orchestrator stopped before any
+    evaluator could judge it -- its infrastructure or configuration failed,
+    or its scenario failed the preflight: every evaluator that would have
+    applied records it not evaluated, with *cause* and *detail* (D16), and
+    its output says ``infra_failure``."""
+    output = AgentOutput(
+        success=False,
+        termination_reason=CARRIED,
+        error=detail,
+    )
+    chosen, missing = applicable(task, evaluators)
+    evaluations = [
+        not_evaluated(e.evaluator_id, e.evaluator_kind, cause, detail) for e in chosen
+    ] + [not_evaluated(kind, kind, cause, detail) for kind in missing]
+    return TaskRunResult(
+        task_id=task.task_id,
+        output=output,
+        evaluation=verdict(evaluations),
+        event_count=len(events),
+        evaluations=evaluations,
+        repetition=repetition,
+    )
+
+
+def scored(
+    result: TaskRunResult,
+    run_id: RunId,
+    events: Sequence[TraceEvent],
+    timestamp: datetime | None = None,
+) -> list[TraceEvent]:
+    """*result*'s ``evaluator.score`` events, and its ``event_count``: the
+    run's own *events* and these (docs/adr/0007 D3)."""
+    new = score_events(result, run_id, events, timestamp)
+    result.event_count = len(events) + len(new)
+    return new
+
+
+async def close_summary(
+    summary: RunSummary,
+    tasks: Sequence[TaskSpec],
+    all_events: list[TraceEvent],
+    checker: PolicyChecker,
+    spec: PolicySpec,
+    records: Sequence[ToolCallRecord],
+    end_states: Sequence[EndStateRecord],
+) -> None:
+    """The summary's closing steps once every task run is tallied: the
+    counts, score result and pass^k (docs/adr/0002 Axis 3; docs/adr/0006
+    D18, D20), then the run-level policy verdict over every event."""
+    aggregate(summary, categories_of(tasks), len(all_events))
+    summary.policy_verdict = await check_policy(
+        checker, spec, summary, all_events, records, end_states
     )

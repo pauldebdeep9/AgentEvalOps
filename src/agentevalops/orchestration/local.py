@@ -24,10 +24,8 @@ from agentevalops.core.protocols import (
 )
 from agentevalops.core.schemas import (
     AgentInput,
-    AgentOutput,
     EndStateRecord,
     EnvHandle,
-    EvaluatorContext,
     NotEvaluatedCause,
     PolicySpec,
     PreflightResult,
@@ -35,25 +33,19 @@ from agentevalops.core.schemas import (
     RunSummary,
     TaskRunResult,
     TaskSpec,
-    TerminationReason,
     ToolCallRecord,
     TraceEvent,
-    TraceEventKind,
 )
 from agentevalops.core.types import RunId
 from agentevalops.orchestration.verdicts import (
-    aggregate,
-    applicable,
-    categories_of,
-    check_policy,
-    evaluate,
+    close_summary,
+    judge,
     new_summary,
-    not_evaluated,
-    output_from_terminal,
-    score_events,
+    run_policy_spec,
+    scored,
+    stopped,
     tally,
     task_runs,
-    verdict,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,23 +78,8 @@ def _not_evaluated_result(
     is folded into the error/notes text so the paths stay distinguishable.
     """
     detail = f"{stage}: {exc}" if stage else str(exc)
-    cause = cause or _cause_of(exc)
-    output = AgentOutput(
-        success=False,
-        termination_reason=TerminationReason.INFRA_FAILURE,
-        error=detail,
-    )
-    chosen, missing = applicable(task, evaluators)
-    evaluations = [
-        not_evaluated(e.evaluator_id, e.evaluator_kind, cause, detail) for e in chosen
-    ] + [not_evaluated(kind, kind, cause, detail) for kind in missing]
-    return TaskRunResult(
-        task_id=task.task_id,
-        output=output,
-        evaluation=verdict(evaluations),
-        event_count=len(events),
-        evaluations=evaluations,
-        repetition=repetition,
+    return stopped(
+        task, detail, cause or _cause_of(exc), events, evaluators, repetition=repetition
     )
 
 
@@ -140,7 +117,7 @@ class LocalOrchestrator:
             list(evaluator) if isinstance(evaluator, Sequence) else [evaluator]
         )
         self._policy_checker = policy_checker
-        self._policy_spec = policy_spec or PolicySpec(policy_id="default")
+        self._policy_spec = run_policy_spec(policy_spec)
         # Harness data (docs/adr/0006 D4, D7, D19), kept as each task run
         # finishes so an interrupted run still writes what it observed.
         self._records: list[ToolCallRecord] = []
@@ -252,13 +229,12 @@ class LocalOrchestrator:
         # tasks that were never evaluated at all (not_evaluated_tasks does).
         # ROADMAP R27 (docs/adr/0006 D18, D20): pass^k per scenario over its
         # repetitions, and per category for the tasks that carry one.
-        aggregate(summary, categories_of(tasks), len(all_events))
-
-        summary.policy_verdict = await check_policy(
+        await close_summary(
+            summary,
+            tasks,
+            all_events,
             self._policy_checker,
             self._policy_spec,
-            summary,
-            all_events,
             self.tool_call_records,
             self.end_states,
         )
@@ -275,10 +251,9 @@ class LocalOrchestrator:
         not-evaluated ones, so the trace says what ``evaluations.json``
         says. ``step_index`` continues the task's own stream."""
         run_id: RunId = self._config.run_id
-        for event in score_events(result, run_id, events):
+        for event in scored(result, run_id, events):
             await self._trace_store.append(run_id, event)
             events.append(event)
-        result.event_count = len(events)
         return result, events
 
     async def _run_task(
@@ -380,7 +355,6 @@ class LocalOrchestrator:
 
             try:
                 trace_iter = await self._runner.run(agent_input, limits)
-                terminal: TraceEvent | None = None
                 async for event in trace_iter:
                     # docs/adr/0006 D17: the orchestrator, not the runner,
                     # says which task run an event belongs to.
@@ -388,8 +362,6 @@ class LocalOrchestrator:
                     event.repetition = repetition
                     await self._trace_store.append(run_id, event)
                     events.append(event)
-                    if event.kind == TraceEventKind.AGENT_TERMINAL:
-                        terminal = event
             except (InfrastructureError, ConfigurationError) as exc:
                 await self._harvest(task, repetition, environment)
                 return (
@@ -402,34 +374,15 @@ class LocalOrchestrator:
             # docs/adr/0006 D7: the end state is taken after the agent stops
             # and before any evaluator runs or the environment is torn down.
             end_state, records = await self._harvest(task, repetition, environment)
-            output = output_from_terminal(terminal)
             # Scoring is routed through the Evaluator (DeterministicEvaluator
             # by default), not BenchmarkAdapter.grade().  grade() is the
             # benchmark's own official grading and is reserved for future
             # use when an upstream benchmark's deterministic test suite
             # needs to run post-hoc.
-            context = EvaluatorContext(
-                records=records,
-                end_states=(end_state,),
-                task_id=task.task_id,
-                repetition=repetition,
-                applicable_evaluators=task.applicable_evaluators,
+            result = await judge(
+                task, events, records, (end_state,), repetition, self._evaluators
             )
-            evaluations = await evaluate(
-                task, output, events, context, self._evaluators
-            )
-
-            return (
-                TaskRunResult(
-                    task_id=task.task_id,
-                    output=output,
-                    evaluation=verdict(evaluations),
-                    event_count=len(events),
-                    evaluations=evaluations,
-                    repetition=repetition,
-                ),
-                events,
-            )
+            return result, events
         finally:
             await self._teardown(task, handle)
 
@@ -466,7 +419,6 @@ class LocalOrchestrator:
             except ConfigurationError as exc:
                 return PreflightResult(task.task_id, False, f"bad script: {exc}"), True
             events: list[TraceEvent] = []
-            terminal: TraceEvent | None = None
             agent_input = AgentInput(
                 task=task,
                 context={"run_id": self._config.run_id},
@@ -476,21 +428,11 @@ class LocalOrchestrator:
             async for event in stream:
                 event.task_id = task.task_id
                 events.append(event)
-                if event.kind == TraceEventKind.AGENT_TERMINAL:
-                    terminal = event
             state = EndStateRecord(task.task_id, 0, dict(await environment.snapshot()))
-            context = EvaluatorContext(
-                records=tuple(environment.records()),
-                end_states=(state,),
-                task_id=task.task_id,
-                repetition=0,
-                applicable_evaluators=task.applicable_evaluators,
+            judged = await judge(
+                task, events, environment.records(), (state,), 0, self._evaluators
             )
-            output = output_from_terminal(terminal)
-            evaluations = await evaluate(
-                task, output, events, context, self._evaluators
-            )
-            outcome = verdict(evaluations)
+            outcome = judged.evaluation
             if outcome.evaluated and outcome.passed:
                 return PreflightResult(task.task_id, True), False
             if not outcome.evaluated and outcome.not_evaluated_cause == "configuration":
