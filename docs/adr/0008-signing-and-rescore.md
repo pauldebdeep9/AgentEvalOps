@@ -2,6 +2,76 @@
 
 ## Status
 
+**R29 (b2) built, and R29 met — 2026-11-04** (`ad6a45c`, `16f9cfa`,
+`754751d`, `45ec731`, `1d57db5`, `a70d2ed`, `d1c52d4`, `40e0157`, `6f55bbc`,
+`e29b2de`, `52e47c0`): `agentevalops rescore` and the close-out. Where the
+build adds to the text:
+- **R1's one path, finished.** Rescore calls what the run calls. The rest of
+  the per-run code moved into `orchestration/verdicts.py` (`terminal_of`,
+  `judge`, `stopped`, `scored`, `close_summary`, `run_policy_spec`); the
+  registry builds the evaluators and the policy checker for both
+  (`build_evaluators`, `build_policy_checker`); `bundles/writer.py`'s
+  `render_bundle` returns every content file's bytes, and `write()` writes
+  them, so rescore renders the bundle in memory with the writer's own code
+  and the bundle's own stamp (`BundleStamp.recorded`). Each move was proved
+  by the suite and by a toy, a seed and a known-bad run written again,
+  identical to before apart from clock and provenance.
+- **R3, as built.** The outcome is decided by R3's list: each evaluation's
+  `applicable`, `evaluated`, `passed`, `score`, `not_evaluated_cause` and
+  `refs`; the summary's passed, failed and not-evaluated counts and pass^k
+  per scenario and category; the policy verdict, its citations and refs;
+  each control's state and verdicts; and both reports byte for byte, a
+  differing report naming its first differing line. Every other recomputed
+  file is compared in bytes and listed when it differs, and notes are
+  shown; neither decides.
+- **R2, as built.** The pack's two hashes are not compared only when the
+  bundle records no pack (a toy run: "not compared: no pack recorded"), and
+  the data hash only when neither side has one; never because the plan is
+  undeclared -- an undeclared plan on a pack-backed benchmark now records
+  the pack (`1d57db5`). A recorded pack the installed benchmark lacks is
+  exit 2. Evaluator ids are compared for the configured kinds.
+- **Exit 2 for every error after validation**, never a traceback read as
+  `DIFFER`; `--json` then writes the reason. No clock is read: score events
+  take the bundle's times, and a record without its time cannot be
+  rescored. Bundle text is printed with control characters escaped.
+- **Amended 2026-11-03 (owner): `--output DIR` beside R1's `--json FILE`.**
+  `--json FILE` stays the machine-readable result; `--output DIR` writes the
+  recomputed content files into a new or empty folder, for diffing by hand
+  and for the limits test. It is not a bundle: no plan, no manifest. Both
+  are refused inside the bundle by file identity (`st_dev`, `st_ino`, from
+  the target's nearest existing ancestor up), never by spelling, and
+  written through a temporary file moved into place, never through an
+  existing inode.
+- **Amended 2026-11-03 (owner): R6's carried runs, read from the records.**
+  A task run with an `agent.terminal` event finished, and is judged again
+  whatever `summary.json` says. One without was stopped: when its
+  infrastructure failed, its result is made again by the run's own
+  `stopped` from the reason it records, and compared; when its scenario's
+  preflight or its configuration failed, it is carried as recorded and
+  named. Carried runs are not counted in the verdict line.
+- **Amended 2026-11-03 (owner): the stopped-run rule in `validate-bundle`.**
+  A run the orchestrator stopped -- its output `infra_failure` and no
+  evaluator evaluated it -- has no `agent.terminal` event; every other run's
+  output is what its terminal event gives, whatever the output says. This
+  closed a forgery the review reproduced: an evaluated run relabelled
+  `infra_failure` in `summary.json`, its verdicts flipped in all three
+  records and the manifest re-sealed, validated and rescored as `MATCH`.
+- **Amended 2026-11-04 (owner): the producer's side of that rule.** A task
+  run whose runner yielded its `agent.terminal` event is finished: if the
+  runner's stream raises after it, the run is still harvested and judged
+  like any finished run, and the late error is logged as a warning and
+  changes no result (`52e47c0`). A run with no terminal event is stopped, as
+  before.
+- **Reviewed before it landed.** Four independent reviewers read the
+  rescore slice through four lenses; one-line mutations of its rules showed
+  ten of twelve surviving the first tests. Every confirmed finding was
+  fixed with a test, and undoing each fix failed its test. Speculative ones
+  are in ROADMAP §0 as open questions.
+- **Golden fixtures (T1).** Rescored under changed code they say
+  `CODE_CHANGED`, the verdicts reproducing (10 evaluations over 4 task
+  runs), and both reports differing at their date line; their tests assert
+  the verdict line only.
+
 **R29 (b1) built — 2026-11-03** (`d1b632f`, `2384320`, `5308cdd`, `40da4b7`,
 `09bc5ae`, `b491ab4`): the groundwork for rescore, as library code, and the
 signing docs. Where the build adds to the text:
@@ -382,8 +452,9 @@ Signing tests skip locally, with a reason naming what is missing, when
 them instead (decision 10), so CI never passes by skipping.
 Signatures are never compared as bytes (spike 1); rescore output has no
 clock, so it is compared exactly. The two golden fixtures R29 names (a
-passing and a failing seed run, both narrowed, under `tests/replay/fixtures/`,
-generated with the mock runner per ADR-0003 Q5) record a `package_sha256`
+passing and a failing seed run, both narrowed, under `tests/fixtures/bundles/`
+-- path corrected 2026-11-04; this said `tests/replay/fixtures/` -- generated
+with the mock runner per ADR-0003 Q5) record a `package_sha256`
 that the next code commit changes: their tests assert the verdict line
 ("verdicts reproduce") under `CODE_CHANGED`, not a `MATCH`. `MATCH` itself
 is tested on a bundle written in the test.

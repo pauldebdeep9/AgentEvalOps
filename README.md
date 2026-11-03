@@ -28,8 +28,9 @@ pass^k; a fail-closed `gate`; and a report grouped by kind of harm. Since
 v0.3.0, on `main`: bundle format 0.6, the evidence pack (R28) -- every
 bundle registers a plan, records the package's own hash, and carries
 `controls.json` and `evidence_report.md` over the testing framework's 112
-checks; and bundle signing with `ssh-keygen` (R29 (a)). Every exit criterion
-of rows R24 to R28 is a test, and CI runs on every push.
+checks; and, from R29, bundle signing with `ssh-keygen` and `rescore`, which
+derives a bundle's verdicts again from its own records. Every exit criterion
+of rows R24 to R29 is a test, and CI runs on every push.
 
 **All evidence so far comes from scripted trajectories.** The mock runner
 plays each scenario's known-good or known-bad trajectory through the real
@@ -39,15 +40,13 @@ exist behind the `llm` extra; the first live run is R30.
 
 Planned next, in [ROADMAP.md](ROADMAP.md):
 
-- **R29** — `rescore`, an evaluation-layer re-run over a bundle's own
-  records (signing, its first half, is on `main`).
 - **R30** — catalogue v1 and one live run on a real model, committed to the
   private repository.
 
 Not implemented: sandboxing (tools run in process); any cloud backend
 (`backend_id` accepts only `local`); LLM-as-judge or trace-quality
-evaluators; external benchmark adapters; a web UI; `rescore` (R29);
-OpenTelemetry export (the `observability` package is a scaffold that emits
+evaluators; external benchmark adapters; a web UI; behavioural replay
+(re-running a recorded agent, ADR-0003); OpenTelemetry export (the `observability` package is a scaffold that emits
 nothing).
 
 ---
@@ -233,9 +232,10 @@ its `evaluator.score` event -- agree; and that what a run carries fits its
 records: a task run stopped by its scenario's failed preflight has that
 failure recorded and no agent event, tool call or end state, a run not
 evaluated for the preflight or the infrastructure is not evaluated by any
-evaluator and its output says `infra_failure`, an evaluated run has its end
-state, and every other run's output is what its `agent.terminal` event
-gives. A malformed file is a finding, never a crash. A code-drift warning
+evaluator and its output says `infra_failure`, and an evaluated run has its
+end state. Stopped or finished is read from the records, not the summary: a
+run stopped before any evaluator judged it has no `agent.terminal` event,
+and every other run's output is what that event gives. A malformed file is a finding, never a crash. A code-drift warning
 is printed when the code differs from the code that wrote the bundle --
 for a 0.6 bundle, the running package's hash against `package_sha256`; for
 older ones, the current checkout against the recorded `git_sha` -- and a
@@ -292,6 +292,63 @@ who ran the agent or that the run happened as recorded, that the code or
 model was what the bundle names, that the key was not lost or stolen, or
 anything about how well the system behaves; it is only as trustworthy as
 the allowed-signers file you chose to trust.
+
+## Rescoring a bundle
+
+`rescore` derives a bundle's verdicts again from its own records with the
+code now installed, and compares them with what the bundle records
+(ADR-0008). It is offline: it never runs the agent, calls a model or uses a
+tool, and it never writes into the bundle.
+
+```bash
+agentevalops rescore --bundle runs/seed
+agentevalops rescore --bundle runs/seed --json rescore.json --output recomputed/
+```
+
+It validates the bundle first, with every check. Then it rebuilds the run
+from `config.json` and the plan, and judges each task run again from its
+recorded tool calls, end state and agent events, through the run's own
+code. A run whose agent finished (it has an `agent.terminal` event) is
+judged again; one stopped before that is made again from the reason it
+records when its infrastructure failed, and carried as recorded, and
+named, when its scenario's preflight or its configuration failed. Each
+scenario's preflight is carried too. Rescore then derives the summary, the
+policy verdict and the control coverage, renders every file in memory with
+the writer's own renderer and the bundle's own dates, and compares.
+
+| Outcome | Exit | Means |
+|---|---|---|
+| `MATCH` | 0 | The running code is the code that wrote the bundle, and every evaluation, the summary's counts and pass^k, the policy verdict, each control's state and verdicts, and both reports byte for byte, are what the bundle records |
+| `DIFFER` | 1 | The code is the same and something is not; each difference is named, and a report's first differing line |
+| cannot rescore | 2 | The bundle does not validate, predates format 0.6, or names a benchmark, pack or evaluator that is not installed |
+| `CODE_CHANGED` | 3 | The package hash, the pack's scenarios or data hash, the catalogue files or an evaluator's id differ from the code that wrote the bundle; the verdict line still says whether every verdict reproduces under the running code, and names the ones that moved |
+
+`--json FILE` writes the result as JSON: the outcome, the provenance
+comparison and every difference, and the reason when the bundle cannot be
+rescored. `--output DIR` writes the recomputed content files into a new or
+empty folder, for diffing by hand; it is not a bundle (no plan, no
+manifest). Neither may be inside the bundle, by any spelling or link. A
+bundle written by a later commit than the one installed, or rescored after
+the code changed, gives `CODE_CHANGED`, not `MATCH`, even when every
+verdict reproduces.
+
+Rescore builds the benchmark the bundle names from the installed packages,
+with the bundle's own options: rescore a bundle only from a source you
+would accept a run config from.
+
+**What a `MATCH` says.** That the code now installed -- the same code, by
+`package_sha256`, as the code that wrote the bundle -- derives every
+recorded deterministic verdict, the summary's counts and pass^k, the policy
+verdict and the control coverage again from the bundle's own recorded tool
+calls, end states and agent events. It does not say that those records
+truthfully describe what the agent did (the harness recorded them; a
+signature says they are unchanged since signing), that the agent would act
+the same way again (the behavioural layer, not built), anything about
+model-judged results, or anything beyond the tested domain pack. Nor does
+it compare everything that could change a result: the versions of the
+package's dependencies and of Python are not compared, and an evaluator
+installed as a plugin whose code changed without a new `evaluator_id` is
+not detected.
 
 ---
 

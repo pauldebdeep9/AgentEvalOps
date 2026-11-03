@@ -183,7 +183,7 @@ These are the load-bearing decisions. They are not implementation details — ch
 
 At the v0.1 milestone, success is the demo path completing on a fresh clone in under five minutes with zero cloud credentials. The result bundle is on disk. The replay command works. A policy check runs and produces a verdict.
 
-At the v0.5 milestone, success is a live baseline run on one real model, committed to the repository, whose signed evidence pack validates, verifies and re-scores `MATCH` on a fresh clone, with cost reconciled against the provider — and whose evidence report an organisation can carry into its AI Verify Testing Framework report (`docs/imda-alignment.md`).
+At the v0.5 milestone, success is a live baseline run on one real model, committed to the repository, whose signed evidence pack validates, verifies and re-scores `MATCH` on a fresh clone **[Amended 2026-11-04, R29 close-out:** on a fresh clone at the commit that wrote the bundle, `MATCH`; at any later commit, `CODE_CHANGED` with every verdict reproducing -- the code is identified by `package_sha256` (ADR-0008 R2).**]**, with cost reconciled against the provider — and whose evidence report an organisation can carry into its AI Verify Testing Framework report (`docs/imda-alignment.md`).
 
 At the v1.0 milestone, success is three properties simultaneously: (a) at least two domain packs; (b) buyer mode over MCP; (c) at least one evidence pack produced by someone other than the author, against their own agent — ideally inside the Global AI Assurance Sandbox.
 

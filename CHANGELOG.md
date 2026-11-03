@@ -9,6 +9,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Rescore** (2026-11-04, `6f55bbc`, `e29b2de`; ROADMAP R29 (b2), met;
+  ADR-0008 R1-R6). `agentevalops rescore --bundle DIR [--json FILE]
+  [--output DIR]` derives a bundle's verdicts again from its own records with
+  the installed code and compares: `MATCH` (exit 0), `DIFFER` (1), cannot
+  rescore (2), `CODE_CHANGED` (3) when the package, the pack's hashes, the
+  catalogue files or an evaluator id differ, still naming the verdicts that
+  moved. Offline and read-only: it never runs the agent or a model, never
+  writes into the bundle, and reads no clock. It validates first, rebuilds
+  the run, judges each task run through the run's own code, and renders
+  every file with the writer's own renderer to compare; R3's results and
+  both reports decide, other files' bytes are listed. `--json` writes the
+  machine-readable result; `--output` the recomputed files, which are not a
+  bundle. The README's "Rescoring a bundle" says what a `MATCH` does not.
+- **validate-bundle reads stopped or finished from the records**
+  (`40e0157`): a run stopped before any evaluator judged it has no
+  `agent.terminal` event, and every other run's output is what that event
+  gives.
 - **The README's diagrams as generated SVG** (2026-11-04, `0f0530f`).
   `scripts/render_diagrams.py` draws the package structure and one run,
   light and dark, from the data at its top, into `docs/diagrams/`; the
@@ -61,6 +78,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   a careful forger who edits all three: a signature, or rescore, does.
 
 ### Changed
+
+- **A run whose runner yielded its `agent.terminal` event is finished**
+  (2026-11-04, `52e47c0`): if the runner's stream raises after it, the run is
+  still harvested and judged, and the late error is a logged warning that
+  changes no result. Before, such a run was recorded as stopped while its
+  terminal event was in the trace, and the bundle failed validation.
+- **An undeclared plan records the pack its run ran on** (`1d57db5`), in plan
+  version 2's existing `pack` field: a value, not a format change.
+- **Both reports say what a signature and a rescore `MATCH` do not**
+  (`a70d2ed`), in their "What this report does not say".
+- **The tests write the toy, seed, known-bad and two carried-result bundles
+  once per session** (`ad6a45c`) and share them; the session fails if a test
+  changes one in place. The uncovered suite went from 136 s to 112 s.
 
 - **Both reports label their date as the run's creation** (2026-11-03,
   `b491ab4`): ``Run created: <created_at> (`created_at` in `metadata.json`)``,

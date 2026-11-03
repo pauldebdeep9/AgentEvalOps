@@ -24,10 +24,23 @@ point at a different interpreter than the one the project is installed into.
 | Import layer contracts | `$ENV/bin/lint-imports` — **only the console script works.** `python -m importlinter.cli lint-imports` exits 0 with zero output regardless of contract state (`importlinter/cli.py` has no `if __name__ == "__main__":` guard); it silently checks nothing. |
 | Test | `$ENV/bin/python -m pytest -q --cov=agentevalops --cov-report=term-missing` |
 | Smoke | `$ENV/bin/agentevalops run --config configs/toy_smoke.yaml --output runs/tmp` then `validate-bundle` / `replay` on the same dir (format 0.6, 13 files checked; the run registers a plan that declares nothing, so `gate` says `CANNOT JUDGE`, exit 2) |
-| Smoke, seed pack | `$ENV/bin/agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/tmp-pack` then `validate-bundle` / `replay` on the same dir (format 0.6, 13 files checked, `controls.json` and `evidence_report.md` among them; the plan is registered first, 26 of 26 scenarios selected; 26 scenarios pass under the four evaluators with the summary's four category lines, each ending in its pass^k, and the report's five outcome groups, repeatability table and pre-registered plan; `mock_trajectory: known_bad` fails every one), then `gate --bundle` on the same dir: `GATE: PASS`, exit 0; on the known-bad bundle `GATE: FAIL` with the three hard gates named, exit 1; on a toy bundle `GATE: CANNOT JUDGE`, exit 2 |
+| Smoke, seed pack | `$ENV/bin/agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/tmp-pack` then `validate-bundle` / `replay` on the same dir (format 0.6, 13 files checked, `controls.json` and `evidence_report.md` among them; the plan is registered first, 26 of 26 scenarios selected; 26 scenarios pass under the four evaluators with the summary's four category lines, each ending in its pass^k, and the report's five outcome groups, repeatability table and pre-registered plan; `mock_trajectory: known_bad` fails every one), then `gate --bundle` on the same dir: `GATE: PASS`, exit 0; on the known-bad bundle `GATE: FAIL` with the three hard gates named, exit 1; on a toy bundle `GATE: CANNOT JUDGE`, exit 2; then `rescore --bundle` on the fresh seed dir: `RESCORE: MATCH`, exit 0, `Files: every recomputed file is byte-identical` (a bundle from an older commit says `CODE_CHANGED`, exit 3, with `Verdicts: reproduce`) |
 
 The `Makefile` targets invoke bare executables and are therefore only safe with
 the env already activated. Prefer the absolute-path commands above.
+
+**No `git stash`.** To set work aside, commit it to a local branch, and
+delete the branch once its work has landed. On 2026-11-02 a stash and pop
+emptied the index while the editor's git integration was active.
+
+**A slice that changes what a verdict means gets an independent review
+with mutations before it lands** -- the validator, the gate, signing or
+rescore. Reviewers who did not write it read the diff through separate
+lenses (conformance to the ADR, one path, read-only and paths, the tests),
+and one-line mutations of each new rule must each fail a test; every
+confirmed finding is fixed with a test before the commit. In R29 (b2) this
+found a forgery that rescored as `MATCH` and ten of twelve mutations
+surviving the first tests.
 
 **Don't edit files while a gate is running on the tree.** Wait for it to
 finish, or stop it first. Tests read the checkout's own git state and
@@ -41,7 +54,9 @@ committed): `$ENV/bin/python scripts/check_catalogue_ip.py
 ~/Documents/aeo-sources/mgf-for-agentic-ai.pdf
 ~/Documents/aeo-sources/starter-kit-llm-testing.pdf
 ~/Documents/aeo-sources/aivtf-2025.pdf` (add `--extra FILE` with a fresh
-seed run's `evidence_report.md` and `report.md`). It must name each PDF's
+seed run's `evidence_report.md` and `report.md` joined into one file:
+`--extra` takes one file, and given twice keeps only the last, which
+silently skips the evidence report and its identifiers). It must name each PDF's
 pinned source and report 0 new overlaps; known ones are on
 `scripts/ip_allowlist.yaml`, which admits only identifiers and cited names.
 CI cannot run it.
@@ -110,10 +125,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-03, Sai2608, clean checkout at `26c0658`)
+## Baseline (verified 2026-11-04, Sai2608, clean checkout at `52e47c0`)
 
 - ruff: clean
-- mypy: clean (80 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (81 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -128,18 +143,24 @@ in this repo.
   `plans` joined the middle tier and every forbidden contract -- each edit
   proven against an injected violation first; R28 (a)'s `plans` →
   `catalogue` import is the middle tier reaching the low tier, so no
-  contract changed; nor did R29 (b1)'s `replay` → `orchestration` and
-  `replay` → `registry` imports, all middle tier)
-- pytest: 1674 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+  contract changed; nor did R29's `replay` → `orchestration`, `registry`,
+  `bundles` and `plans` imports, all middle tier)
+- pytest: 1786 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  97.94% branch coverage on a clean checkout (`26c0658`, R29 (b1)). The
+  97.77% branch coverage on a clean checkout (`52e47c0`, R29 met). In CI the
+  two case-insensitive path tests also skip, on Linux's case-sensitive
+  disk. The
   signing tests (`tests/test_signing.py`) need `ssh-keygen` from OpenSSH 8.2
   or newer: locally they skip, naming what is missing; with
   `AGENTEVALOPS_REQUIRE_SSH_KEYGEN=1`, as CI sets it, they fail instead.
   They make throwaway keys in their own temp dirs and never touch `~/.ssh`
   or a running agent. The
-  suite takes about two and a half minutes without coverage and three and a
-  half with it on this machine, under two minutes per CI job; tests read and write
+  suite takes about two and a half minutes without coverage and four with
+  it on this machine, under two minutes per CI job. A toy, a seed, a
+  known-bad and two carried-result bundles are written once per session
+  and shared (`tests/conftest.py`, `tests/reference_bundles.py`): a test
+  that changes one copies it first, and the session fails if any shared
+  file changed. Tests read and write
   YAML through `tests/fast_yaml.py` (libyaml). Since the 0.6 bump the
   coverage figure no longer depends on the checkout's state (`ROADMAP.md`
   §0, the 2026-10-10 finding, closed): a 0.6 bundle's drift check compares

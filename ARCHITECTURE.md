@@ -408,7 +408,8 @@ AgentEvalOps/
 │   └── agentevalops/
 │       ├── __init__.py
 │       ├── cli.py                  # entry point: `agentevalops` (run, report, replay,
-│       │                           #   validate-bundle, gate, version, doctor)
+│       │                           #   validate-bundle, sign, rescore, gate, version,
+│       │                           #   doctor)
 │       ├── registry.py             # entry-point discovery (top-level, not under core/)
 │       │
 │       ├── core/                   # LEAF: no dependency on any adapter or engine package
@@ -421,20 +422,24 @@ AgentEvalOps/
 │       │   └── errors.py
 │       │
 │       ├── orchestration/
-│       │   └── local.py            # LocalOrchestrator: the eval loop, concurrency-bounded
+│       │   ├── local.py            # LocalOrchestrator: the eval loop, concurrency-bounded
+│       │   └── verdicts.py         # how a task run is judged and a summary derived: one copy, which rescore calls too (R29)
 │       │
 │       ├── bundles/                # result-bundle read/write/validate (not under core/)
 │       │   ├── constants.py
 │       │   ├── manifest.py         # SHA-256 checksums, format version
 │       │   ├── provenance.py       # package_sha256, package-tree and invocation git probes (ADR-0007 D8; recorded from R28 (b2))
 │       │   ├── reader.py           # BundleReader (strict + recovery modes)
-│       │   ├── serializers.py
-│       │   ├── validator.py        # validate_bundle: structure, checksums, cross-file and 0.6 evidence-pack checks, drift by format
-│       │   └── writer.py           # BundleWriter
+│       │   ├── serializers.py      # to_jsonable, and the typed loaders that read a bundle's records back into their dataclasses (R29)
+│       │   ├── signing.py          # sign and verify manifest.json with ssh-keygen -Y (ADR-0008 S1-S4, V1)
+│       │   ├── validator.py        # validate_bundle: structure, checksums, cross-file and 0.6 evidence-pack checks, the three records, stopped or finished from the records, drift by format
+│       │   └── writer.py           # BundleWriter; render_bundle returns every content file's bytes (R29)
 │       │
 │       ├── replay/
-│       │   └── local.py            # LocalReplayVerifier — bundle *verification*,
-│       │                           #   not re-execution; see the callout in §7
+│       │   ├── local.py            # LocalReplayVerifier — bundle *verification*,
+│       │   │                       #   not re-execution; see the callout in §7
+│       │   ├── rebuild.py          # a bundle's run rebuilt from config.json and the plan (R29)
+│       │   └── rescore.py          # rescore: the evaluation layer, MATCH/DIFFER/CODE_CHANGED (ADR-0008)
 │       │
 │       ├── config/
 │       │   ├── loader.py           # YAML RunConfig loader
@@ -598,9 +603,9 @@ Specific choices and the reasons for them:
 
 ## 7. Replay determinism
 
-> **Status as of 2026-08-04 (docs/adr/0003-replay-semantics.md, ROADMAP row 12b): the structural half is real and has a real CLI surface; this section's reproducibility story is still target design, not what's built.** `agentevalops validate-bundle` is now the single structural entry point (`bundles/validator.py`'s `validate_bundle()`): required-file presence (version-aware — a bundle declaring format "0.4" must have `replay_command.txt`, older bundles are not penalized for lacking it), manifest checksums, and cross-file consistency (`replay/local.py`'s `LocalReplayVerifier`, now an internal helper `validate_bundle()` calls and folds findings into, not a class exposed with its own summary type). `agentevalops replay` still exists but is a deprecated alias delegating to the identical code path, with a stderr deprecation notice — not removed, not renamed to something else. `replay_command.txt` **does now exist**, written by `BundleWriter` alongside every other bundle file: the reconstructable invocation, `git_sha`/`git_dirty`, `platform_version`, `run_id`, the resolved model id, and (`azure-openai` runs only) the Azure resource name — human-readable text, not JSON, since it is read by a person deciding whether a bundle is still comparable, not parsed by a machine. **Still not built:** any `ReplayRunner` class, behavioral (recorded-output-substitution) comparison of any kind, and `tests/replay/fixtures/` — `tests/test_replay.py`/`tests/test_replay_command.py` build bundles on the fly with `tmp_path`, they don't replay a checked-in recording. The reproducibility story below (recorded-output substitution, exact tool-call match, the `MATCH`/`DIFFER`/`CODE_CHANGED` outcome vocabulary) remains unbuilt; closing that gap is real, unstarted work (W12c/W29), not a renaming exercise — `validate-bundle` performing genuine structural checks doesn't change that behavioral replay is a separate, larger, unstarted feature. From format 0.6 (ADR-0007 D1, D3, D8; R28), structural validation also holds `controls.json` to the plan hash `metadata.json` registers and to the plan's selection, checks every end-state pointer in it against `end_states.jsonl`, and counts the `evaluator.score` events against the entries in `evaluations.json`; it reads every file through `BundleReader`, and a malformed one is a finding, never a crash. At 0.6 `replay_command.txt` also records `package_sha256`, the invocation's git and the plan's hash, and `git_sha` is the package's own source tree (an editable install's checkout, else `unavailable`), not the directory the run started in; the drift warning compares `package_sha256` with the running package for a 0.6 bundle, and the recorded `git_sha` with the current checkout for older ones.
+> **Status as of 2026-11-04 (ADR-0003; ADR-0008; ROADMAP R29): the structural and evaluation layers are built; the behavioural layer is not.** `agentevalops validate-bundle` is the single structural entry point (`bundles/validator.py`'s `validate_bundle()`, with `replay/local.py`'s `LocalReplayVerifier` as its internal cross-file helper; `agentevalops replay` is a deprecated alias of it). It checks the files a bundle's format requires, the manifest's checksums and the cross-file agreements: from format 0.6, `controls.json` against the registered plan and its selection, every end-state pointer against `end_states.jsonl`, one `evaluator.score` event per evaluation result, the three records of each evaluation result against each other (`evaluations.json`, `summary.json` and the score events; ADR-0008 C1), and what a run carries against its records -- stopped or finished read from the records, not the summary: a run stopped before any evaluator judged it has no `agent.terminal` event, and every other run's output is what that event gives. With `--allowed-signers` it also verifies `manifest.json.sig`, a detached `ssh-keygen -Y` signature over the manifest that `agentevalops sign` makes (`bundles/signing.py`). `agentevalops rescore` (`replay/rescore.py`) is the evaluation layer between them (ADR-0005 D7): it validates first, rebuilds the run from `config.json` and the plan (`replay/rebuild.py`), judges each task run again from its recorded tool calls, end state and agent events through the run's own code (`orchestration/verdicts.py`), derives the summary, the policy verdict and the control coverage, renders every file in memory with the writer's renderer and the bundle's own dates, and compares. Its outcome is `MATCH` (0), `DIFFER` (1), cannot rescore (2) or `CODE_CHANGED` (3) -- the package hash, the pack's hashes, the catalogue files or an evaluator id differ from the code that wrote the bundle -- and under `CODE_CHANGED` it still reports whether the verdicts reproduce. It never runs the agent. `replay_command.txt` records the reconstructable invocation and the code's provenance, for a person to read. Golden 0.6 bundles under `tests/fixtures/bundles/` are rescored in the tests, which assert their verdict line only. **Still not built:** the behavioural layer the rest of this section describes -- a `ReplayRunner` that substitutes recorded model outputs and compares re-executed behaviour; ADR-0005 deferred it past v0.5.
 
-Replay is a tested property of the platform, not a hope. The CI pipeline includes a job that takes a checked-in bundle from `tests/replay/fixtures/`, runs `replay_command.txt`, and asserts the new bundle matches the original on a defined schema:
+The target design, not built: replay as a tested property of the platform. A CI job would take a checked-in recorded bundle, run `replay_command.txt`, and assert the new bundle matches the original on a defined schema:
 
 The new bundle must produce the same `AgentResult.success`, the same set of tool calls in the same order, the same `terminated_by` reason, and `total_cost_usd` within ±5% (tolerating provider-side pricing drift). It need not produce identical model outputs token-for-token — that would require provider cooperation we don't have — but the *behavioral* trace must match.
 

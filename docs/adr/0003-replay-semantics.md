@@ -35,6 +35,14 @@ D7** — an evaluation layer (`rescore`) between structural and behavioural
 comparison. This ADR's own decisions are unchanged; `ReplayRunner` (W12c) is
 deferred past v0.5 by the same ADR.
 
+**2026-11-04: Q5's golden fixtures and Q6's evaluation layer are built**, by
+[0008](0008-signing-and-rescore.md) and ROADMAP R29. `agentevalops rescore`
+gives `MATCH`, `DIFFER` or `CODE_CHANGED` (and cannot rescore) over a
+bundle's own records, and golden 0.6 bundles written with the mock runner
+under `tests/fixtures/bundles/` are rescored in its tests, which assert their
+verdict line only (Q5's discipline). Q2, Q3 and Q6's behavioural half -- a
+`ReplayRunner` -- remain unbuilt, as the rest of this note says.
+
 This single ADR covers both the taxonomy-adjacent replay decisions and the
 detailed, evidence-based answers to the six W12 design questions — a
 separate "design section" file was considered and rejected: the six

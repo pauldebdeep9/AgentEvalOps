@@ -532,6 +532,13 @@ only when calibrated.**
    > (b) buyer mode over MCP; (c) at least one evidence pack produced by
    > someone other than the author, against their own agent — ideally
    > inside the Global AI Assurance Sandbox.
+
+   **Amended 2026-11-04 (R29 close-out; ADR-0008 R2).** "Re-scores
+   `MATCH` on a fresh clone", here and in item 1's "re-score on a fresh
+   clone", means a fresh clone at the commit that wrote the bundle: there,
+   `MATCH`. At any later commit the code differs by `package_sha256`, and
+   rescore says `CODE_CHANGED` with every verdict reproducing. The text
+   above stays as written.
 8. **§11** — resolve three questions in place: the MCP question (yes, as
    the tool environment's transport — ADR-0005 D4); the LLM-judge
    disagreement question (surface, never average; calibrated judges only —

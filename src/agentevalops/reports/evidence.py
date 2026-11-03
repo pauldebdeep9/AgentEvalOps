@@ -17,8 +17,9 @@ the run carries a "(scripted)" tag, so a row copied out keeps it.
 ``render_evidence_report`` is a pure function of the catalogue, the plan,
 ``controls.json``'s content (``plans.coverage.control_coverage``), the
 summary, the runner and the run's ``created_at``: no clock is read, so two
-renders from one run are byte-identical. R28 (b2) has the writer call it,
-reading ``runner_id`` from ``config.json``; until then it is library code.
+renders from one run are byte-identical. The writer calls it through
+``bundles.writer.render_bundle``, with ``runner_id`` as ``config.json``
+records it, and rescore renders it again the same way to compare (R29).
 """
 
 from __future__ import annotations
