@@ -904,18 +904,6 @@ def test_control_characters_in_the_bundle_reach_no_terminal(
     assert "recorded: RESCORE: MATCH\\x1b[8m" in result.output
 
 
-class _Unhashed:
-    """The seed pack without a data hash: not ``DataHashed``."""
-
-    def __init__(self) -> None:
-        self._pack = SeedDomainPack()
-
-    def __getattr__(self, name: str) -> Any:
-        if name == "data_sha256":
-            raise AttributeError(name)
-        return getattr(self._pack, name)
-
-
 class _Packless:
     """The packed benchmark, without its pack."""
 
@@ -962,7 +950,14 @@ def _undeclared_run(tmp_path: Path, pack: Any, monkeypatch: pytest.MonkeyPatch) 
 def test_a_pack_with_no_data_hash_on_either_side_says_so(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    bundle = _undeclared_run(tmp_path, _Unhashed, monkeypatch)
+    """A pack that is not DataHashed, written and rescored: the one lookup
+    of a pack's data hash, which the plan builder and rescore share, finds
+    none on either side."""
+    monkeypatch.setattr(builder_module, "pack_data_sha256", lambda pack: None)
+    monkeypatch.setattr(rescore_module, "pack_data_sha256", lambda pack: None)
+    bundle = _undeclared_run(tmp_path, SeedDomainPack, monkeypatch)
+    plan = json.loads((bundle / "test_plan.json").read_text("utf-8"))
+    assert plan["pack"]["data_sha256"] is None
     result = _rescore(bundle)
     assert result.exit_code == 0, result.output
     assert (
