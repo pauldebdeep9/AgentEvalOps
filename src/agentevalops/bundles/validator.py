@@ -45,8 +45,10 @@ from agentevalops.bundles.constants import (
     LEGACY_BUNDLE_FORMAT_VERSIONS,
     MANIFEST_FILENAME,
     MANIFEST_SIGNATURE_FILENAME,
+    PACKAGE_HASH_FROM,
     TEST_PLAN_FILENAME,
     TOOL_CALLS_FILENAME,
+    format_tuple,
     peek_declared_format_version,
     required_files_for_version,
 )
@@ -57,22 +59,10 @@ from agentevalops.bundles.writer import _GIT_SHA_UNAVAILABLE, _capture_git_prove
 from agentevalops.core.errors import BundleError
 from agentevalops.replay.local import LocalReplayVerifier
 
-#: The first format whose metadata.json records ``package_sha256`` and whose
-#: ``git_sha`` is the package's own tree (docs/adr/0007 D8): drift is judged
-#: by the hash from here, and by the invocation's git before.
-_PACKAGE_HASH_FROM = (0, 6)
-
 #: The running package's hash, for the 0.6 drift warning. Module-level so
 #: tests inject it, as they inject ``_capture_git_provenance`` for the 0.5
 #: branch: the warning must not depend on the checkout's state.
 _current_package_sha256 = package_sha256
-
-
-def _version(value: object) -> tuple[int, ...] | None:
-    try:
-        return tuple(int(part) for part in str(value).split("."))
-    except ValueError:
-        return None
 
 
 def _evidence_pack_checks(loaded: LoadedBundle) -> list[str]:
@@ -573,8 +563,8 @@ def validate_bundle(
     # streams (docs/adr/0007 D1); a signature is verified against
     # --allowed-signers, or noted as present (docs/adr/0008 V1).
     # ------------------------------------------------------------------ #
-    format_tuple = _version(fmt_version) if fmt_version is not None else None
-    at_0_6 = format_tuple is not None and format_tuple >= _PACKAGE_HASH_FROM
+    declared = format_tuple(fmt_version) if fmt_version is not None else None
+    at_0_6 = declared is not None and declared >= PACKAGE_HASH_FROM
     if at_0_6 and loaded is not None:
         errors.extend(_evidence_pack_checks(loaded))
     if at_0_6 and loaded is not None and loaded.config.get("runner_id") is None:

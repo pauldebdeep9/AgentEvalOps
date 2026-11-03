@@ -144,6 +144,37 @@ class BundleStamp:
     invocation_git_dirty: bool | None
     azure_resource: str | None = None
 
+    @classmethod
+    def recorded(
+        cls, metadata: ResultBundleMetadata, replay_command: str
+    ) -> BundleStamp:
+        """The stamp a bundle was written with, read back from its
+        ``metadata.json`` (loaded with the typed loader) and the
+        ``azure_resource:`` line of its ``replay_command.txt`` (written
+        below, by ``_replay_command``). Raises ``ValueError`` for a bundle
+        that records no ``package_sha256``."""
+        if metadata.package_sha256 is None:
+            raise ValueError("metadata.json records no package_sha256")
+        resource = None
+        for line in replay_command.splitlines():
+            if line.startswith(_AZURE_RESOURCE_LINE):
+                value = line[len(_AZURE_RESOURCE_LINE) :]
+                resource = None if value == _GIT_SHA_UNAVAILABLE else value
+        return cls(
+            created_at=metadata.created_at,
+            platform_version=metadata.platform_version,
+            git_sha=metadata.git_sha,
+            git_dirty=metadata.git_dirty,
+            package_sha256=metadata.package_sha256,
+            invocation_git_sha=metadata.invocation_git_sha,
+            invocation_git_dirty=metadata.invocation_git_dirty,
+            azure_resource=resource,
+        )
+
+
+#: The line of replay_command.txt that names the Azure resource.
+_AZURE_RESOURCE_LINE = "azure_resource: "
+
 
 def _azure_resource() -> str | None:
     """The Azure resource the run's endpoint names, never the URL; None
@@ -421,7 +452,8 @@ def _replay_command(
     if run_config.model is not None:
         lines.append(f"model: {run_config.model}")
     if run_config.deployment is not None:
-        lines.append(f"azure_resource: {stamp.azure_resource or _GIT_SHA_UNAVAILABLE}")
+        resource = stamp.azure_resource or _GIT_SHA_UNAVAILABLE
+        lines.append(f"{_AZURE_RESOURCE_LINE}{resource}")
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 

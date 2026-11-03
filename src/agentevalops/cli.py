@@ -511,6 +511,108 @@ def validate_bundle(
 
 
 @app.command()
+def rescore(
+    bundle: Path = typer.Option(
+        ..., "--bundle", "-b", help="Path to a result bundle directory, format 0.6."
+    ),
+    json_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--json",
+            help="Also write the result as JSON to this file, outside the bundle: "
+            "the outcome, the provenance comparison and every difference.",
+        ),
+    ] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            help="Write the recomputed content files into this new or empty "
+            "folder, outside the bundle, for diffing by hand. Not a bundle: it "
+            "has no plan and no manifest.",
+        ),
+    ] = None,
+) -> None:
+    """Derive a bundle's verdicts again from its own records with the
+    running code, and compare (docs/adr/0008 R1-R6).
+
+    Read-only and offline: it never runs the agent, a model or a tool, and
+    never writes into the bundle. Exit 0 MATCH, 1 DIFFER, 2 cannot rescore,
+    3 CODE_CHANGED.
+    """
+    import json
+
+    from agentevalops.replay.rescore import (
+        EXIT_CANNOT_RESCORE,
+        RescoreError,
+        cannot_json,
+        inside,
+        render_text,
+        shares_a_file,
+        to_json,
+        write_replacing,
+    )
+    from agentevalops.replay.rescore import rescore as rescore_bundle
+
+    def as_json(doc: dict[str, Any]) -> bytes:
+        return (json.dumps(doc, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+
+    #: Set once --json is known to be safe to write.
+    json_checked: list[bool] = []
+
+    def cannot(reason: str) -> NoReturn:
+        if json_checked and json_file is not None:
+            try:
+                write_replacing(json_file, as_json(cannot_json(bundle, reason)))
+            except OSError:
+                pass
+        typer.echo(f"RESCORE: CANNOT RESCORE -- {reason}", err=True)
+        raise typer.Exit(code=EXIT_CANNOT_RESCORE)
+
+    if not bundle.is_dir():
+        cannot(f"bundle path not found: {bundle}")
+    # By file identity, never by spelling (case, symlinks, "..", firmlinks).
+    for flag, target in (("--json", json_file), ("--output", output)):
+        if target is not None and inside(target, bundle):
+            cannot(f"{flag} {target} is inside the bundle, which rescore never writes")
+    if json_file is not None:
+        if json_file.is_dir():
+            cannot(f"--json {json_file} is a folder; name a file")
+        if not json_file.parent.is_dir():
+            cannot(f"--json {json_file}: its folder does not exist")
+        if shares_a_file(json_file, bundle):
+            cannot(f"--json {json_file} is one of the bundle's files by another name")
+        if output is not None and (
+            json_file.resolve().is_relative_to(output.resolve())
+            or (output.is_dir() and inside(json_file, output))
+        ):
+            cannot(f"--json {json_file} is inside --output {output}")
+    if output is not None and output.exists():
+        if not output.is_dir() or any(output.iterdir()):
+            cannot(f"--output {output} must be a new or empty folder")
+    json_checked.append(True)
+    try:
+        result = rescore_bundle(bundle)
+    except RescoreError as exc:
+        cannot(str(exc))
+    except Exception as exc:  # noqa: BLE001 - never read as DIFFER's exit 1
+        cannot(f"unexpected error: {type(exc).__name__}: {exc}")
+    try:
+        if output is not None:
+            output.mkdir(parents=True, exist_ok=True)
+            if inside(output, bundle):
+                cannot(f"--output {output} is inside the bundle, which it never writes")
+            for name, data in result.files.items():
+                write_replacing(output / name, data)
+        if json_file is not None:
+            write_replacing(json_file, as_json(to_json(result)))
+    except OSError as exc:
+        cannot(f"cannot write the result: {exc}")
+    typer.echo(render_text(result))
+    raise typer.Exit(code=result.exit_code)
+
+
+@app.command()
 def sign(
     bundle: Path = typer.Option(
         ..., "--bundle", "-b", help="Path to a valid result bundle directory."

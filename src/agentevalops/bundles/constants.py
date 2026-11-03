@@ -136,6 +136,21 @@ _REQUIRED_FILES_BY_VERSION: dict[str, tuple[str, ...]] = {
 }
 
 
+#: The first format whose metadata.json records ``package_sha256``, the
+#: code's identity (docs/adr/0007 D8): the drift check compares it, and
+#: rescore needs it (docs/adr/0008 R5).
+PACKAGE_HASH_FROM: tuple[int, ...] = (0, 6)
+
+
+def format_tuple(version: object) -> tuple[int, ...] | None:
+    """A format version as numbers, ``"0.6"`` -> ``(0, 6)``, for comparing
+    versions in order; None when it is not one."""
+    try:
+        return tuple(int(part) for part in str(version).split("."))
+    except ValueError:
+        return None
+
+
 def required_files_for_version(version: str | None) -> tuple[str, ...]:
     """Return the required bundle files for a bundle's *declared* format
     version, not the version this running code would currently produce.

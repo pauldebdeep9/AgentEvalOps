@@ -24,7 +24,11 @@ from agentevalops.bundles.serializers import LoadError, load_run_config
 from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.perturbation import derive_seed
 from agentevalops.core.schemas import RunConfig, RunPlan, TaskSpec
-from agentevalops.plans import benchmark_descriptors, plan_from_document
+from agentevalops.plans import (
+    benchmark_descriptors,
+    benchmark_pack,
+    plan_from_document,
+)
 from agentevalops.registry import UnknownComponentError, build_benchmark, discover_all
 from agentevalops.reports.markdown import scenario_info
 
@@ -37,7 +41,9 @@ class RebuildError(ConfigurationError):
 class RebuiltRun:
     """A bundle's run as rebuilt: the benchmark narrowed as the run was, its
     tasks in the run's order, every scenario's descriptor, the report's
-    scenario info, the plan and the run config."""
+    scenario info, the plan and the run config, and the benchmark's pack
+    as the run hashed it, before narrowing (None for a benchmark without
+    one)."""
 
     benchmark: Any
     tasks: tuple[TaskSpec, ...]
@@ -45,6 +51,7 @@ class RebuiltRun:
     scenario_info: dict[str, dict[str, Any]]
     plan: RunPlan
     run_config: RunConfig
+    pack: Any = None
 
 
 def rebuild_run(
@@ -76,6 +83,7 @@ def rebuild_run(
     except ConfigurationError as exc:
         raise RebuildError(str(exc)) from None
     descriptors = benchmark_descriptors(benchmark)
+    pack = benchmark_pack(benchmark)
     if plan.declared:
         narrowed = getattr(benchmark, "narrowed", None)
         if narrowed is None:
@@ -115,4 +123,5 @@ def rebuild_run(
         scenario_info=scenario_info(tasks),
         plan=plan,
         run_config=run_config,
+        pack=pack,
     )

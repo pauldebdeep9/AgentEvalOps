@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from agentevalops.bundles.constants import format_tuple
 from agentevalops.bundles.reader import LoadedBundle
 from agentevalops.bundles.serializers import LoadError, load_trace_event, to_jsonable
 from agentevalops.orchestration.verdicts import (
@@ -232,13 +233,6 @@ def _carried(bundle: LoadedBundle) -> list[str]:
     return errors
 
 
-def _version(value: object) -> tuple[int, ...] | None:
-    try:
-        return tuple(int(part) for part in str(value).split("."))
-    except ValueError:
-        return None
-
-
 class LocalReplayVerifier:
     """Cross-file consistency checks over a ``LoadedBundle``.
 
@@ -325,7 +319,7 @@ class LocalReplayVerifier:
         # The bundle's declared format: the manifest's, as the validator
         # reads it, else metadata.json's.
         manifest = self._bundle.manifest or {}
-        version = _version(
+        version = format_tuple(
             manifest.get("bundle_format_version")
             or self._bundle.metadata.get("schema_version")
         )
