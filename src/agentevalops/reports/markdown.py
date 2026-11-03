@@ -46,6 +46,36 @@ RUNNER_NOT_RECORDED = (
     "trajectories were scripted."
 )
 
+#: docs/adr/0008 E, for both reports' "What this report does not say": what
+#: a verified signature and a rescore MATCH say, and what they do not. A
+#: report is written before anyone signs or rescores its bundle, so these
+#: stay general and say neither has happened (R29 (b2)).
+SIGNATURE_LIMITS = (
+    "A verified signature over this bundle's manifest.json says only that "
+    "the manifest, and with its checksums every file it lists, is unchanged "
+    "since a key the verifier trusts signed it. It does not say who ran the "
+    "agent, that the run happened as recorded, that the code or model was "
+    "what the bundle names, that the key was not lost or stolen, or how well "
+    "the system behaves. This report does not say whether the bundle has "
+    "been signed."
+)
+MATCH_LIMITS = (
+    "A MATCH from `agentevalops rescore` says only that the installed code, "
+    "the same by package_sha256 as the code that wrote this bundle, derives "
+    "every recorded deterministic verdict, the summary's counts and pass^k, "
+    "the policy verdict and the control coverage again from the bundle's own "
+    "recorded tool calls, end states and agent events. It cannot see a "
+    "consistent edit to those records: tool calls, end states or traces "
+    "edited, with every derived file made to match, rescore as a MATCH, and "
+    "only a signature made when the bundle was written can show the edit. It "
+    "does not say that the agent would act the same way again, anything "
+    "about model-judged results, or anything beyond the tested domain pack, "
+    "and it does not compare the versions of the package's dependencies or "
+    "of Python, or see a plugin evaluator whose code changed without a new "
+    "evaluator id. This report does not say whether the bundle has been "
+    "rescored."
+)
+
 #: Decision 6 of 2026-11-02: all either report says about a run with no
 #: system declaration's plan.
 NO_PLAN_SENTENCE = (
@@ -262,8 +292,16 @@ def render_report(
     lines.append("  (" + ", ".join(bundle_files) + ")")
     lines.append(f"- Trace event count: {len(all_events)}")
     lines.append(
-        "- Checksums: SHA-256 per file (see manifest.json; not cryptographic signing)"
+        "- Checksums: SHA-256 per file (see manifest.json); checksums are not "
+        "a signature"
     )
+    lines.append("")
+
+    # ---- limits (docs/adr/0008 E) -----------------------------------------
+    lines.append("## What this report does not say")
+    lines.append("")
+    lines.append(f"- {SIGNATURE_LIMITS}")
+    lines.append(f"- {MATCH_LIMITS}")
     lines.append("")
 
     return "\n".join(lines)

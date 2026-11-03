@@ -29,9 +29,11 @@ from typing import Any
 from agentevalops.catalogue import Catalogue, Control
 from agentevalops.core.schemas import RunPlan, RunSummary
 from agentevalops.reports.markdown import (
+    MATCH_LIMITS,
     NO_PLAN_SENTENCE,
     RUNNER_NOT_RECORDED,
     SCRIPTED_RUNNER,
+    SIGNATURE_LIMITS,
     plan_section,
     run_created_line,
 )
@@ -389,6 +391,8 @@ def _limits(declared: bool) -> list[str]:
     )
     if not declared:
         lines.append("- No scenario was selected against a declaration.")
+    lines.append(f"- {SIGNATURE_LIMITS}")
+    lines.append(f"- {MATCH_LIMITS}")
     lines.append("")
     return lines
 
