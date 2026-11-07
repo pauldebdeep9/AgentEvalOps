@@ -14,6 +14,7 @@ from agentevalops.core.schemas import (
     DeclaredTool,
     PlanExclusion,
     PlanThreshold,
+    RunLimits,
     RunPlan,
     SystemDeclaration,
     ThresholdOverride,
@@ -45,6 +46,13 @@ def to_document(plan: RunPlan) -> dict[str, Any]:
     }
     data["pack"] = None if pack["pack_id"] is None else pack
     data["system_sha256"] = None if plan.system is None else plan.system.sha256
+    if plan.system is not None:
+        # R35: an unset optional field of the declaration is left out, so
+        # it changes no plan written before it existed.
+        for f in dataclasses.fields(plan.system):
+            unset = getattr(plan.system, f.name) is None
+            if f.metadata.get("omit_when_none") and unset:
+                data["system"].pop(f.name)
     return data
 
 
@@ -72,6 +80,11 @@ def plan_from_document(doc: dict[str, Any]) -> RunPlan:
             thresholds=tuple(
                 ThresholdOverride(**override)
                 for override in system.get("thresholds") or ()
+            ),
+            run_limits=(
+                None
+                if system.get("run_limits") is None
+                else RunLimits(**system["run_limits"])
             ),
             sha256=system.get("sha256", ""),
         )

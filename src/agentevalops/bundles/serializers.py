@@ -44,7 +44,8 @@ def to_jsonable(obj: Any) -> Any:
     - ``Path``          → ``str(obj)``
     - ``list``/``tuple``→ list with elements recursively converted
     - ``dict``          → dict with str keys, values recursively converted
-    - dataclass instance→ ``{field: to_jsonable(value), …}``
+    - dataclass instance→ ``{field: to_jsonable(value), …}``, leaving out a
+      field marked ``OMIT_WHEN_NONE`` while it is None (R35)
     - anything else     → ``str(obj)``
     """
     if obj is None or isinstance(obj, (bool, int, float, str)):
@@ -61,7 +62,9 @@ def to_jsonable(obj: Any) -> Any:
         return {str(k): to_jsonable(v) for k, v in obj.items()}
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         return {
-            f.name: to_jsonable(getattr(obj, f.name)) for f in dataclasses.fields(obj)
+            f.name: to_jsonable(getattr(obj, f.name))
+            for f in dataclasses.fields(obj)
+            if not (f.metadata.get("omit_when_none") and getattr(obj, f.name) is None)
         }
     return str(obj)
 

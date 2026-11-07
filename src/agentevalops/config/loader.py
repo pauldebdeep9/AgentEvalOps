@@ -30,6 +30,7 @@ from agentevalops.core.schemas import (
     PolicySpec,
     ResourceLimits,
     RunConfig,
+    RunLimits,
     SystemDeclaration,
 )
 from agentevalops.core.types import BACKEND_AWS, AgentId, BackendId, RunId
@@ -183,6 +184,41 @@ def _as_float(value: Any, field_name: str) -> float:
         raise ConfigurationError(
             f"{field_name} must be a number, got {value!r}"
         ) from None
+
+
+def _run_limits(value: Any) -> RunLimits | None:
+    """R35: ``run_limits`` from a run config, as the run-level budget.
+    Absent, empty or both caps unset: off. A misspelt key is refused, never
+    ignored: an ignored cap would let a run spend without one."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ConfigurationError(
+            f"run_limits must be a YAML mapping, got {type(value).__name__}"
+        )
+    allowed = ("max_run_cost_usd", "max_run_tokens")
+    unknown = sorted(str(k) for k in value if k not in allowed)
+    if unknown:
+        raise ConfigurationError(
+            f"run_limits has unknown key(s) {unknown}; allowed: {list(allowed)}"
+        )
+    cost: float | None = None
+    if value.get("max_run_cost_usd") is not None:
+        cost = _as_float(value["max_run_cost_usd"], "run_limits.max_run_cost_usd")
+        if cost <= 0:
+            raise ConfigurationError(
+                f"run_limits.max_run_cost_usd must be > 0, got {cost}"
+            )
+    tokens: int | None = None
+    if value.get("max_run_tokens") is not None:
+        tokens = _as_int(value["max_run_tokens"], "run_limits.max_run_tokens")
+        if tokens <= 0:
+            raise ConfigurationError(
+                f"run_limits.max_run_tokens must be > 0, got {tokens}"
+            )
+    if cost is None and tokens is None:
+        return None
+    return RunLimits(max_run_cost_usd=cost, max_run_tokens=tokens)
 
 
 def load_run_config(path: Path) -> LoadedRunConfig:
@@ -579,13 +615,14 @@ def load_run_config(path: Path) -> LoadedRunConfig:
                 f"system declaration {system_path.name} is for pack "
                 f"'{system.pack_id}', but benchmark_options.pack is '{pack}'"
             )
-        for key in ("repetitions", "seed"):
+        for key in ("repetitions", "seed", "run_limits"):
             if key in raw:
                 raise ConfigurationError(
                     f"{key} is set in the system declaration ({system_path.name}); "
                     "remove it from the run config, which may not set it as well"
                 )
         repetitions, seed = system.repetitions, system.seed
+        run_limits = system.run_limits
     else:
         if benchmark_id == "agentic-baseline":
             raise ConfigurationError(
@@ -599,7 +636,10 @@ def load_run_config(path: Path) -> LoadedRunConfig:
                 f"repetitions must be at least 1, got {repetitions}"
             )
         seed = _as_int(raw.get("seed", 0), "seed")
-    run_config = replace(run_config, repetitions=repetitions, seed=seed)
+        run_limits = _run_limits(raw.get("run_limits"))
+    run_config = replace(
+        run_config, repetitions=repetitions, seed=seed, run_limits=run_limits
+    )
 
     return LoadedRunConfig(
         path=path,

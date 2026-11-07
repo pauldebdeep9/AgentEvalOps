@@ -105,6 +105,28 @@ class ResourceLimits:
     max_cost_usd: float = 10.0
 
 
+#: Field metadata: the serialiser leaves the field out of a record while its
+#: value is None, so an optional field added later changes no existing
+#: record (R35: ``run_limits``, ``run_budget``). A reader takes the default.
+OMIT_WHEN_NONE: dict[str, bool] = {"omit_when_none": True}
+
+
+@dataclass(frozen=True)
+class RunLimits:
+    """Caps on a whole run's spend, summed over every task run (R35; ROADMAP
+    §0, external review finding 9). ``None`` means off.
+
+    Unlike ``ResourceLimits``, which each runner checks for its own task,
+    the orchestrator enforces these between task runs: once a cap is
+    reached it starts no further task run, lets those already running
+    finish, and records each run it did not start as not evaluated, with
+    the cause ``run_budget_exhausted``.
+    """
+
+    max_run_cost_usd: float | None = None
+    max_run_tokens: int | None = None
+
+
 # ---------------------------------------------------------------------------
 # Run configuration
 # ---------------------------------------------------------------------------
@@ -150,6 +172,9 @@ class RunConfig:
     #: docs/adr/0006 D6: base of the per-(task, repetition) seeds. Unused
     #: until R26's perturbations; recorded so a run is reproducible.
     seed: int = 0
+    #: R35: the run-level budget, from the run config or the system
+    #: declaration; None (off) is left out of config.json.
+    run_limits: RunLimits | None = field(default=None, metadata=OMIT_WHEN_NONE)
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +474,9 @@ class SystemDeclaration:
     repetitions: int = 1
     seed: int = 0
     thresholds: tuple[ThresholdOverride, ...] = ()
+    #: R35: the run-level budget, declared here like repetitions and seed;
+    #: None (off) is left out of the plan.
+    run_limits: RunLimits | None = field(default=None, metadata=OMIT_WHEN_NONE)
     sha256: str = ""
 
 
@@ -578,7 +606,11 @@ class Ref:
 
 
 #: Why a task run was not evaluated (docs/adr/0006 D16, format 0.5).
-NotEvaluatedCause = Literal["infrastructure", "configuration", "environment_defect"]
+#: ``run_budget_exhausted`` (R35): the run's budget was reached before this
+#: task run started. A reader older than R35 refuses a record that holds it.
+NotEvaluatedCause = Literal[
+    "infrastructure", "configuration", "environment_defect", "run_budget_exhausted"
+]
 
 #: The policy rules a scenario may declare for the ``policy`` evaluator
 #: (ROADMAP R25). A rule names tool *roles* -- lookup, decide, notify,
@@ -834,6 +866,19 @@ class CategoryPassK:
     not_evaluated_causes: dict[str, int] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class RunBudget:
+    """A capped run's budget at its end (R35): the caps, the spend summed
+    over every task run, and whether a cap was reached -- after which no
+    further task run started."""
+
+    cap_usd: float | None
+    cap_tokens: int | None
+    spent_usd: float
+    spent_tokens: int
+    tripped: bool
+
+
 @dataclass
 class RunSummary:
     """Aggregated result of a complete orchestrator run.
@@ -867,6 +912,8 @@ class RunSummary:
     #: rolled up per category for the tasks that carry one.
     pass_k: list[PassKResult] = field(default_factory=list)
     pass_k_by_category: list[CategoryPassK] = field(default_factory=list)
+    #: R35: present only when the run had a budget.
+    run_budget: RunBudget | None = field(default=None, metadata=OMIT_WHEN_NONE)
 
 
 # ---------------------------------------------------------------------------

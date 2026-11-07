@@ -30,6 +30,7 @@ from agentevalops.core.schemas import (
     DeclaredTool,
     GateKind,
     InvolvementLevel,
+    RunLimits,
     SystemDeclaration,
     ThresholdOverride,
     ToolDataClass,
@@ -55,6 +56,7 @@ _TOP_KEYS: frozenset[str] = frozenset(
         "repetitions",
         "seed",
         "thresholds",
+        "run_limits",
     }
 )
 _TOOL_KEYS: frozenset[str] = frozenset(
@@ -62,6 +64,7 @@ _TOOL_KEYS: frozenset[str] = frozenset(
 )
 _METRIC_KEYS: frozenset[str] = frozenset({"name", "definition"})
 _THRESHOLD_KEYS: frozenset[str] = frozenset({"min_pass_k", "gate"})
+_RUN_LIMIT_KEYS: frozenset[str] = frozenset({"max_run_cost_usd", "max_run_tokens"})
 
 
 class _Reject(Exception):
@@ -228,6 +231,27 @@ def _thresholds(raw: Any) -> tuple[ThresholdOverride, ...]:
     return tuple(overrides)
 
 
+def _run_limits(value: Any) -> RunLimits | None:
+    """R35: the run-level budget. Absent, empty or both caps unset: off."""
+    if value is None:
+        return None
+    raw = _mapping(value, "run_limits")
+    _only_keys(raw, _RUN_LIMIT_KEYS, "run_limits")
+    cost = raw.get("max_run_cost_usd")
+    if cost is not None:
+        if isinstance(cost, bool) or not isinstance(cost, (int, float)):
+            raise _Reject(f"run_limits.max_run_cost_usd must be a number, got {cost!r}")
+        if cost <= 0:
+            raise _Reject(f"run_limits.max_run_cost_usd must be > 0, got {cost}")
+        cost = float(cost)
+    tokens = raw.get("max_run_tokens")
+    if tokens is not None:
+        tokens = _int(tokens, "run_limits.max_run_tokens", minimum=1)
+    if cost is None and tokens is None:
+        return None
+    return RunLimits(max_run_cost_usd=cost, max_run_tokens=tokens)
+
+
 def _parse(raw: dict[str, Any], sha256: str) -> SystemDeclaration:
     _only_keys(raw, _TOP_KEYS, "the declaration")
     involvement = raw.get("involvement")
@@ -247,6 +271,7 @@ def _parse(raw: dict[str, Any], sha256: str) -> SystemDeclaration:
         repetitions=_int(raw.get("repetitions", 1), "repetitions", minimum=1),
         seed=_int(raw.get("seed", 0), "seed"),
         thresholds=_thresholds(raw.get("thresholds")),
+        run_limits=_run_limits(raw.get("run_limits")),
         sha256=sha256,
     )
 
