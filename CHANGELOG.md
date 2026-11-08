@@ -9,6 +9,25 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **A run-level budget, `run_limits`** (2026-11-08, `9edf9e3` and slice 2;
+  ROADMAP R35, closes external review finding 9). `max_run_cost_usd` and
+  `max_run_tokens`, off unless set, in the run config or -- like
+  `repetitions` and `seed` -- the system declaration, cap a whole run's
+  spend, where `resource_limits` caps each task run. Once the spend the
+  started task runs report reaches a cap, no further task run starts; those
+  running finish; each run not started is recorded not evaluated, with the
+  new cause `run_budget_exhausted`. `summary.json` records `run_budget`
+  (caps, spend, and `tripped`: whether the budget stopped any task run),
+  and the CLI and `report.md` print one line, only when a cap is set,
+  saying whether a cap was reached and how many task runs it stopped. A
+  non-number names the field; a misspelt key or a non-positive cap is
+  refused. The gate fails closed on a hard-gated scenario not run (a
+  comparative category does not gate, as before); rescore carries the runs
+  not started, and `validate-bundle` holds each to its records (ADR-0008
+  R6, amended). A cost within float rounding of a cap has reached it. Not
+  counted: what a task run spent before its infrastructure stopped it,
+  which its result does not record. A reader older than R35 refuses a bundle
+  with a cap set (owner, Q1); bundles without one are unchanged.
 - **Rescore** (2026-11-04, `6f55bbc`, `e29b2de`; ROADMAP R29 (b2), met;
   ADR-0008 R1-R6). `agentevalops rescore --bundle DIR [--json FILE]
   [--output DIR]` derives a bundle's verdicts again from its own records with

@@ -10,6 +10,7 @@ without a schema_version bump.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -125,6 +126,28 @@ class RunLimits:
 
     max_run_cost_usd: float | None = None
     max_run_tokens: int | None = None
+
+    def reached(self, spent_usd: float, spent_tokens: int) -> bool:
+        """Whether the spend has reached a cap that is set: the one rule the
+        orchestrator asks before each task run starts, validate-bundle holds
+        a budget stop to, and the run's budget line reads at its end. A cost
+        within float rounding of its cap has reached it: ten task runs at
+        $0.10 add up to 0.9999999999999999."""
+        cost, tokens = self.max_run_cost_usd, self.max_run_tokens
+        return (
+            cost is not None
+            and (spent_usd >= cost or math.isclose(spent_usd, cost, rel_tol=1e-9))
+        ) or (tokens is not None and spent_tokens >= tokens)
+
+    def label(self) -> str:
+        """The caps that are set, as the budget line and a stopped task
+        run's detail name them: ``$0.5000, 20 tokens``."""
+        caps = []
+        if self.max_run_cost_usd is not None:
+            caps.append(f"${self.max_run_cost_usd:.4f}")
+        if self.max_run_tokens is not None:
+            caps.append(f"{self.max_run_tokens} tokens")
+        return ", ".join(caps)
 
 
 # ---------------------------------------------------------------------------
@@ -612,6 +635,9 @@ NotEvaluatedCause = Literal[
     "infrastructure", "configuration", "environment_defect", "run_budget_exhausted"
 ]
 
+#: R35: the cause of a task run the run's budget stopped before it started.
+BUDGET_STOP: NotEvaluatedCause = "run_budget_exhausted"
+
 #: The policy rules a scenario may declare for the ``policy`` evaluator
 #: (ROADMAP R25). A rule names tool *roles* -- lookup, decide, notify,
 #: refer, export -- which the domain pack maps to its tools, and looks only
@@ -869,8 +895,9 @@ class CategoryPassK:
 @dataclass(frozen=True)
 class RunBudget:
     """A capped run's budget at its end (R35): the caps, the spend summed
-    over every task run, and whether a cap was reached -- after which no
-    further task run started."""
+    over every task run, and whether it tripped -- stopped at least one
+    task run before it started. A spend can reach a cap with nothing left
+    to start; the budget then did not trip."""
 
     cap_usd: float | None
     cap_tokens: int | None

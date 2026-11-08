@@ -23,6 +23,7 @@ from typing import Any
 
 from agentevalops.core.protocols import Evaluator, PolicyChecker, Scorer
 from agentevalops.core.schemas import (
+    BUDGET_STOP,
     AgentOutput,
     EndStateRecord,
     EvaluationResult,
@@ -30,6 +31,8 @@ from agentevalops.core.schemas import (
     NotEvaluatedCause,
     PolicySpec,
     PolicyVerdict,
+    RunBudget,
+    RunLimits,
     RunSummary,
     TaskRunResult,
     TaskSpec,
@@ -410,6 +413,30 @@ def scored(
     return new
 
 
+def run_budget(limits: RunLimits | None, summary: RunSummary) -> RunBudget | None:
+    """A capped run's budget at its end (R35): its caps, its spend, and
+    whether the budget stopped any task run before it started. None for a
+    run without a budget.
+
+    The spend is the summary's totals, so rescore derives it again from the
+    records. It equals the orchestrator's running sum (local.py), which adds
+    only the task runs that started -- up to the order the floats were added
+    in, which ``RunLimits.reached`` allows for -- only while stopped and
+    carried runs record zero cost and tokens. They do: ``stopped`` gives
+    them an empty output, even a run whose infrastructure failed after its
+    runner had spent. A stopped run that recorded spend would count here and
+    not there."""
+    if limits is None:
+        return None
+    return RunBudget(
+        cap_usd=limits.max_run_cost_usd,
+        cap_tokens=limits.max_run_tokens,
+        spent_usd=summary.total_cost_usd,
+        spent_tokens=summary.total_tokens,
+        tripped=summary.not_evaluated_by_cause.get(BUDGET_STOP, 0) > 0,
+    )
+
+
 async def close_summary(
     summary: RunSummary,
     tasks: Sequence[TaskSpec],
@@ -418,11 +445,14 @@ async def close_summary(
     spec: PolicySpec,
     records: Sequence[ToolCallRecord],
     end_states: Sequence[EndStateRecord],
+    run_limits: RunLimits | None = None,
 ) -> None:
     """The summary's closing steps once every task run is tallied: the
     counts, score result and pass^k (docs/adr/0002 Axis 3; docs/adr/0006
-    D18, D20), then the run-level policy verdict over every event."""
+    D18, D20), the run's budget when it has one (R35), then the run-level
+    policy verdict over every event."""
     aggregate(summary, categories_of(tasks), len(all_events))
+    summary.run_budget = run_budget(run_limits, summary)
     summary.policy_verdict = await check_policy(
         checker, spec, summary, all_events, records, end_states
     )

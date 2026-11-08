@@ -42,6 +42,18 @@ confirmed finding is fixed with a test before the commit. In R29 (b2) this
 found a forgery that rescored as `MATCH` and ten of twelve mutations
 surviving the first tests.
 
+**A mutating reviewer never works on the only copy.** A killed session
+never runs a `finally` block, so restoring mutated files in-process is no
+safety net: on 2026-11-08 a mutation reviewer stopped mid-run with one line
+of `orchestration/local.py` removed, and four tests failed a session later.
+Before any mutating reviewer starts, commit the slice to a local WIP branch,
+so a leak shows as `git diff` against that snapshot and git can restore it;
+and let the reviewer mutate a `git worktree` of the snapshot, not the live
+tree. The package is installed editable from the live tree, so a copy's
+test run can silently import the live source: print `agentevalops.__file__`
+from the copy's run and check it points into the copy before trusting any
+result.
+
 **Don't edit files while a gate is running on the tree.** Wait for it to
 finish, or stop it first. Tests read the checkout's own git state and
 files, so an edit mid-run makes the result describe neither the old tree

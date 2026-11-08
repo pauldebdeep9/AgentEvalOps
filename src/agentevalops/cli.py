@@ -867,7 +867,7 @@ def _print_summary(summary: object, categories: dict[str, str] | None = None) ->
         typer.echo(str(summary))
         return
 
-    from agentevalops.reports.markdown import format_pass_rate
+    from agentevalops.reports.markdown import budget_line, format_pass_rate
 
     typer.echo(f"Run ID  : {summary.run_id}")
     typer.echo(
@@ -876,6 +876,8 @@ def _print_summary(summary: object, categories: dict[str, str] | None = None) ->
     typer.echo(f"Failed  : {summary.failed_tasks}")
     typer.echo(f"Cost    : ${summary.total_cost_usd:.4f}")
     typer.echo(f"Tokens  : {summary.total_tokens}")
+    if (budget := budget_line(summary)) is not None:
+        typer.echo(f"Budget  : {budget}")
     if summary.policy_verdict is not None:
         verdict = summary.policy_verdict.verdict.value.upper()
         checker = summary.policy_verdict.checker_id

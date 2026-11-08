@@ -200,6 +200,23 @@ def test_a_preflight_stopped_run_whose_preflight_passed(
     assert _fits(errors, f"records no failed preflight for {DEFECT}")
 
 
+def test_a_preflight_stopped_run_whose_output_records_spend(
+    bundles: dict[str, Path], tmp_path: Path
+) -> None:
+    """A run its scenario's preflight stopped never started, so it spent
+    nothing (R35 review)."""
+
+    def spent(summary: dict[str, Any]) -> None:
+        _run(summary, DEFECT)["output"]["total_cost_usd"] = 0.4
+
+    errors = _edit(bundles["preflight"], tmp_path, "summary.json", spent)
+    assert _fits(
+        errors,
+        f"at {DEFECT}/0: stopped by its scenario's preflight before the agent "
+        "ran, but its output records spend ($0.4000, 0 tokens)",
+    )
+
+
 def test_an_infrastructure_failure_whose_output_says_otherwise(
     bundles: dict[str, Path], tmp_path: Path
 ) -> None:

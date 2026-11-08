@@ -12,10 +12,12 @@ from agentevalops.bundles.constants import (
     required_files_for_version,
 )
 from agentevalops.core.schemas import (
+    BUDGET_STOP,
     NEGATIVE_OUTCOMES,
     CategoryPassK,
     PlanThreshold,
     RunConfig,
+    RunLimits,
     RunPlan,
     RunSummary,
     TaskRunResult,
@@ -136,6 +138,26 @@ def format_pass_rate(summary: RunSummary) -> str:
     )
 
 
+def budget_line(summary: RunSummary) -> str | None:
+    """The run's budget in one line, for the CLI and report.md (R35): the
+    caps, the spend, and whether a cap was reached -- with how many task
+    runs it stopped, or none when the spend reached a cap with nothing left
+    to start. None for a run without a budget."""
+    budget = summary.run_budget
+    if budget is None:
+        return None
+    limits = RunLimits(budget.cap_usd, budget.cap_tokens)
+    spent = f"${budget.spent_usd:.4f} and {budget.spent_tokens} tokens"
+    if budget.tripped:
+        stopped = summary.not_evaluated_by_cause.get(BUDGET_STOP, 0)
+        stop = f"reached: {stopped} task run(s) not started"
+    elif limits.reached(budget.spent_usd, budget.spent_tokens):
+        stop = "reached; no task run stopped"
+    else:
+        stop = "not reached"
+    return f"cap {limits.label()}; spent {spent}; {stop}"
+
+
 def run_created_line(created_at: str | None) -> str:
     """The line that dates both reports: when the run was created, as
     ``metadata.json`` records it -- not when the report was rendered, which
@@ -209,6 +231,8 @@ def render_report(
     lines.append(f"- Failed:        {summary.failed_tasks}")
     lines.append(f"- Total cost:    ${summary.total_cost_usd:.4f}")
     lines.append(f"- Total tokens:  {summary.total_tokens}")
+    if (budget := budget_line(summary)) is not None:
+        lines.append(f"- Run budget:    {budget}")
     lines.append(f"- Trace events:  {len(all_events)}")
     if summary.policy_verdict is not None:
         pv_line = summary.policy_verdict.verdict.value.upper()

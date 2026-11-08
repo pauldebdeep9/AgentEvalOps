@@ -379,10 +379,17 @@ seed: 0                         # base of every (task, repetition) seed
 
 evaluators: [deterministic]     # any of deterministic, tool_use, state_based, policy, in order
 
-resource_limits:                # enforced during the run
+resource_limits:                # per task run, enforced by the runner during it
   max_tokens: 100000
   max_wall_seconds: 3600.0
   max_cost_usd: 10.0
+
+run_limits:                     # the whole run's budget; off unless set; runs without a declaration only,
+  max_run_cost_usd: null        #   the declaration sets it otherwise. The spend is what the task runs report
+  max_run_tokens: null          #   on their results (a run its infrastructure stops reports none). Once it
+                                #   reaches a cap no further task run starts; those running finish; the rest
+                                #   are not evaluated (run_budget_exhausted) unless their preflight stopped
+                                #   them first, and the summary records run_budget
 
 policy:                         # checked after the run against the trace and the harness records
   policy_id: default
@@ -400,8 +407,9 @@ mock_trajectory: null           # mock runner only: known_good | known_bad, play
 runs under: the tools the system exposes with their permission class, data
 class, reversibility and external exposure; the level of human involvement;
 the intended use, out-of-scope uses and business metrics, which are recorded
-and repeated in the report, never evaluated; repetitions and seed; and
-optional thresholds that may tighten the pack's, never loosen them.
+and repeated in the report, never evaluated; repetitions and seed; an
+optional `run_limits` budget, as in the run config; and optional thresholds
+that may tighten the pack's, never loosen them.
 
 ---
 

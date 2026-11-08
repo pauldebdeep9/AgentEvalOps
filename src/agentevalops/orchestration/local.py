@@ -23,6 +23,7 @@ from agentevalops.core.protocols import (
     TraceStore,
 )
 from agentevalops.core.schemas import (
+    BUDGET_STOP,
     AgentInput,
     EndStateRecord,
     EnvHandle,
@@ -30,6 +31,7 @@ from agentevalops.core.schemas import (
     PolicySpec,
     PreflightResult,
     RunConfig,
+    RunLimits,
     RunSummary,
     TaskRunResult,
     TaskSpec,
@@ -54,6 +56,11 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _budget_detail(limits: RunLimits) -> str:
+    """Why a task run did not start: the run's budget, and its caps."""
+    return f"run budget reached before this task run started (cap {limits.label()})"
 
 
 def _cause_of(exc: Exception) -> NotEvaluatedCause:
@@ -180,10 +187,13 @@ class LocalOrchestrator:
 
         limit = max(1, self._config.max_concurrent_tasks)
         semaphore = asyncio.Semaphore(limit)
+        # R35: the cost and tokens the started task runs have reported.
+        spent_usd, spent_tokens = 0.0, 0
 
         async def _guarded(
             task: TaskSpec, repetition: int
         ) -> tuple[TaskRunResult, list[TraceEvent]]:
+            nonlocal spent_usd, spent_tokens
             if str(task.task_id) in defective:
                 result = _not_evaluated_result(
                     task,
@@ -196,7 +206,26 @@ class LocalOrchestrator:
                 )
                 return await self._scored(result, [])
             async with semaphore:
-                return await self._scored(*await self._run_task(task, repetition))
+                # R35: a task run starts only while the run's budget lasts;
+                # those already running finish, and spend is summed as each
+                # lands.
+                limits = self._config.run_limits
+                if limits is not None and limits.reached(spent_usd, spent_tokens):
+                    return await self._scored(
+                        stopped(
+                            task,
+                            _budget_detail(limits),
+                            BUDGET_STOP,
+                            [],
+                            self._evaluators,
+                            repetition=repetition,
+                        ),
+                        [],
+                    )
+                result, events = await self._run_task(task, repetition)
+                spent_usd += result.output.total_cost_usd
+                spent_tokens += result.output.total_tokens
+                return await self._scored(result, events)
 
         all_events: list[TraceEvent] = []
 
@@ -238,6 +267,7 @@ class LocalOrchestrator:
             self._policy_spec,
             self.tool_call_records,
             self.end_states,
+            self._config.run_limits,
         )
 
         return summary

@@ -62,6 +62,17 @@ build adds to the text:
   like any finished run, and the late error is logged as a warning and
   changes no result (`52e47c0`). A run with no terminal event is stopped, as
   before.
+- **Amended 2026-11-08 (R35): a budget stop is carried, and held to its
+  records.** A task run a capped run's budget stopped before it started
+  (`run_budget_exhausted`) has no `agent.terminal` event; rescore carries
+  it as recorded, like a preflight stop. `validate-bundle` holds it as the
+  R6 structural check holds a preflight stop: every evaluator records the
+  cause, its output says `infra_failure` and records no spend, it has no
+  agent trace event, tool call or end state, and `config.json` records caps
+  that the spend of the task runs that finished reaches -- read from their
+  outputs, each held to its `agent.terminal` event, not from
+  `summary.json`'s totals (`RunLimits.reached`, the orchestrator's rule). A
+  preflight stop records no spend either.
 - **Reviewed before it landed.** Four independent reviewers read the
   rescore slice through four lenses; one-line mutations of its rules showed
   ten of twelve surviving the first tests. Every confirmed finding was

@@ -648,6 +648,9 @@ known-good preflight.**
 - `RunSummary` (`core/schemas.py:321-345`) gains
   `not_evaluated_by_cause: dict[str, int]`.
 - Built in R24 (field and preflight).
+- **Amended 2026-11-08 (R35; owner, Q1).** `run_budget_exhausted` joins the
+  causes: a task run a capped run's budget stopped before it started. A
+  reader older than R35 refuses it.
 - **Preflight.** Before the agent runs a scenario, the orchestrator
   runs the scenario's `known_good` trajectory once with the scripted mock
   against a fresh environment. If it fails, the scenario is defective:

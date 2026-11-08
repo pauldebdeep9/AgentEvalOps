@@ -21,6 +21,7 @@ from typing import Any
 from agentevalops.bundles.constants import format_tuple
 from agentevalops.bundles.reader import LoadedBundle
 from agentevalops.bundles.serializers import LoadError, load_trace_event, to_jsonable
+from agentevalops.core.schemas import BUDGET_STOP, RunLimits
 from agentevalops.orchestration.verdicts import (
     is_carried,
     output_from_terminal,
@@ -124,6 +125,74 @@ def _run_of(item: dict[str, Any]) -> Run:
     return (str(item.get("task_id")), int(item.get("repetition", 0)))
 
 
+#: The causes of a task run stopped before it started, and how a carried
+#: result names the stop: such a run has no agent trace event, tool call or
+#: end state, and its output records no spend.
+_NEVER_STARTED = {
+    "environment_defect": "stopped by its scenario's preflight before the agent ran",
+    BUDGET_STOP: "stopped by the run's budget before it started",
+}
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _spend(output: dict[str, Any]) -> tuple[float, int]:
+    """The cost and tokens a task run's output records."""
+    return (
+        _number(output.get("total_cost_usd")) or 0.0,
+        int(_number(output.get("total_tokens")) or 0),
+    )
+
+
+def _evaluations(result: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        e
+        for e in result.get("evaluations") or [result.get("evaluation") or {}]
+        if isinstance(e, dict)
+    ]
+
+
+def _finished(result: dict[str, Any]) -> bool:
+    """Not stopped: a stopped run's output says ``infra_failure`` and no
+    evaluator evaluated it (R29 (b2)); a finished run's output is what its
+    ``agent.terminal`` event records, which ``_carried`` holds it to."""
+    reason = (result.get("output") or {}).get("termination_reason")
+    return not is_carried(reason) or any(
+        e.get("evaluated") for e in _evaluations(result)
+    )
+
+
+def _budget_unmet(bundle: LoadedBundle) -> str | None:
+    """Why the records cannot account for a budget stop, or None when they
+    can: config.json records the run's caps, and the spend of the task runs
+    that finished reaches one of them (``RunLimits.reached``, the
+    orchestrator's own rule). The spend is read from those runs' outputs,
+    each held to its ``agent.terminal`` event, not from summary.json's
+    totals, which no record vouches for."""
+    run_config = bundle.config.get("run_config")
+    raw = run_config.get("run_limits") if isinstance(run_config, dict) else None
+    if not isinstance(raw, dict):
+        return "config.json records no run_limits"
+    cost = _number(raw.get("max_run_cost_usd"))
+    tokens = _number(raw.get("max_run_tokens"))
+    limits = RunLimits(cost, None if tokens is None else int(tokens))
+    spent_usd, spent_tokens = 0.0, 0
+    for result in bundle.summary.get("task_results") or []:
+        if isinstance(result, dict) and _finished(result):
+            usd, used = _spend(result.get("output") or {})
+            spent_usd, spent_tokens = spent_usd + usd, spent_tokens + used
+    if limits.reached(spent_usd, spent_tokens):
+        return None
+    return (
+        f"the spend of the task runs that finished (${spent_usd:.4f}, "
+        f"{spent_tokens} tokens) reaches none of config.json's caps"
+    )
+
+
 def _carried(bundle: LoadedBundle) -> list[str]:
     """ADR-0008 R6: what rescore takes as recorded instead of recomputing --
     each scenario's preflight, the cause of a task run never evaluated, and
@@ -131,10 +200,13 @@ def _carried(bundle: LoadedBundle) -> list[str]:
 
     A run stopped by its scenario's failed preflight never reached the
     agent: a failed preflight is recorded for its scenario, and it has no
-    agent trace event, tool call or end state. A run not evaluated because
-    of the preflight or the infrastructure is not evaluated by any of its
-    evaluators, and its output says ``infra_failure``. An evaluated run has
-    its end state.
+    agent trace event, tool call or end state, and its output records no
+    spend. So for a run the run's budget stopped before it started (R35):
+    config.json records the caps, the spend of the runs that finished
+    reaches one, and the run has no agent trace event, tool call, end state
+    or spend. A run not evaluated because of the preflight, the budget or
+    the infrastructure is not evaluated by any of its evaluators, and its
+    output says ``infra_failure``. An evaluated run has its end state.
 
     Whether a run was stopped or finished is read from the records, not the
     summary (R29 (b2)): a run the orchestrator stopped -- its output says
@@ -156,22 +228,19 @@ def _carried(bundle: LoadedBundle) -> list[str]:
         for p in bundle.summary.get("preflight") or []
         if isinstance(p, dict) and not p.get("passed")
     }
+    budget_unmet = _budget_unmet(bundle)
     errors: list[str] = []
     for result in bundle.summary.get("task_results") or []:
         if not isinstance(result, dict):
             continue
         run = _run_of(result)
         where = f"{run[0]}/{run[1]}"
-        evaluations = [
-            e
-            for e in result.get("evaluations") or [result.get("evaluation") or {}]
-            if isinstance(e, dict)
-        ]
+        evaluations = _evaluations(result)
         causes = {e.get("not_evaluated_cause") for e in evaluations}
         evaluated = any(e.get("evaluated") for e in evaluations)
         output = result.get("output") or {}
         reason = output.get("termination_reason")
-        for cause in ("environment_defect", "infrastructure"):
+        for cause in ("environment_defect", "infrastructure", BUDGET_STOP):
             if cause not in causes:
                 continue
             if causes != {cause} or evaluated:
@@ -185,27 +254,39 @@ def _carried(bundle: LoadedBundle) -> list[str]:
                     f"({cause}), but its output's termination_reason is "
                     f"{reason!r}, not 'infra_failure'"
                 )
-        if "environment_defect" in causes:
-            if run[0] not in failed_preflight:
-                errors.append(
-                    f"carried result does not fit at {where}: stopped by its "
-                    "scenario's preflight, but summary.json records no failed "
-                    f"preflight for {run[0]}"
-                )
-            found = [
-                name
-                for name, runs in (
-                    ("agent trace events", agent_events),
-                    ("tool calls", tool_calls),
-                    ("an end state", end_states),
-                )
-                if run in runs
-            ]
+        if "environment_defect" in causes and run[0] not in failed_preflight:
+            errors.append(
+                f"carried result does not fit at {where}: stopped by its "
+                "scenario's preflight, but summary.json records no failed "
+                f"preflight for {run[0]}"
+            )
+        if BUDGET_STOP in causes and budget_unmet is not None:
+            errors.append(
+                f"carried result does not fit at {where}: stopped by the "
+                f"run's budget, but {budget_unmet}"
+            )
+        found = [
+            name
+            for name, runs in (
+                ("agent trace events", agent_events),
+                ("tool calls", tool_calls),
+                ("an end state", end_states),
+            )
+            if run in runs
+        ]
+        usd, used = _spend(output)
+        for cause, stop in _NEVER_STARTED.items():
+            if cause not in causes:
+                continue
             if found:
                 errors.append(
-                    f"carried result does not fit at {where}: stopped by its "
-                    "scenario's preflight before the agent ran, but the bundle "
-                    f"has {', '.join(found)} for it"
+                    f"carried result does not fit at {where}: {stop}, but the "
+                    f"bundle has {', '.join(found)} for it"
+                )
+            if usd or used:
+                errors.append(
+                    f"carried result does not fit at {where}: {stop}, but its "
+                    f"output records spend (${usd:.4f}, {used} tokens)"
                 )
         if evaluated and run not in end_states:
             errors.append(
