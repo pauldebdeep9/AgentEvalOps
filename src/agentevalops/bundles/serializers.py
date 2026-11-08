@@ -25,6 +25,7 @@ from agentevalops.core.schemas import (
     AgentOutput,
     EndStateRecord,
     EvaluationResult,
+    PassRateInterval,
     RunConfig,
     ToolCallRecord,
     TraceEvent,
@@ -176,6 +177,11 @@ def load_agent_output(data: Any) -> AgentOutput:
 def load_run_config(data: Any) -> RunConfig:
     """``config.json``'s ``run_config``."""
     return from_jsonable(RunConfig, data)
+
+
+def load_pass_rate_interval(data: Any) -> PassRateInterval:
+    """A pass^k rate's bootstrap interval (ROADMAP R36)."""
+    return from_jsonable(PassRateInterval, data)
 
 
 #: The keys the writer adds to each ``evaluations.json`` entry, beside the

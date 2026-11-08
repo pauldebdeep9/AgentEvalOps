@@ -892,6 +892,28 @@ class CategoryPassK:
     not_evaluated_causes: dict[str, int] = field(default_factory=dict)
 
 
+#: The one method a ``PassRateInterval`` records (ROADMAP R36).
+IntervalMethod = Literal["cluster-bootstrap-percentile"]
+
+
+@dataclass(frozen=True)
+class PassRateInterval:
+    """A 95% interval on a pass^k proportion (ROADMAP R36): the cluster
+    bootstrap over the ``n_scenarios`` decided scenarios -- ``b`` resamples
+    drawn with ``random.Random(seed)``, each scenario carrying its verdict
+    whole -- and the nearest-rank percentiles of the resampled proportions
+    (``scorers/bootstrap.py``, the method's only home). ``seed`` is the
+    scope's own, derived from the run's seed, so these fields reproduce the
+    interval. Context beside a rate, never a gate input."""
+
+    low: float
+    high: float
+    b: int
+    seed: int
+    n_scenarios: int
+    method: IntervalMethod = "cluster-bootstrap-percentile"
+
+
 @dataclass(frozen=True)
 class RunBudget:
     """A capped run's budget at its end (R35): the caps, the spend summed
