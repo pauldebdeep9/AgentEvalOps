@@ -137,7 +137,7 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-04, Sai2608, clean checkout at `52e47c0`)
+## Baseline (verified 2026-11-08, Sai2608, clean checkout at `5994f14`)
 
 - ruff: clean
 - mypy: clean (81 source files) — dedicated `anthropic.*` and `openai.*`
@@ -157,9 +157,9 @@ in this repo.
   `catalogue` import is the middle tier reaching the low tier, so no
   contract changed; nor did R29's `replay` → `orchestration`, `registry`,
   `bundles` and `plans` imports, all middle tier)
-- pytest: 1786 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1829 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  97.77% branch coverage on a clean checkout (`52e47c0`, R29 met). In CI the
+  98% branch coverage on a clean checkout (`5994f14`, R35 built). In CI the
   two case-insensitive path tests also skip, on Linux's case-sensitive
   disk. The
   signing tests (`tests/test_signing.py`) need `ssh-keygen` from OpenSSH 8.2

@@ -9,8 +9,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- **A run-level budget, `run_limits`** (2026-11-08, `9edf9e3` and slice 2;
-  ROADMAP R35, closes external review finding 9). `max_run_cost_usd` and
+- **A run-level budget, `run_limits`** (2026-11-08; slice 1 `9edf9e3`,
+  slice 2 `5994f14`, both green on CI and Package; ROADMAP R35, closes
+  external review finding 9). `max_run_cost_usd` and
   `max_run_tokens`, off unless set, in the run config or -- like
   `repetitions` and `seed` -- the system declaration, cap a whole run's
   spend, where `resource_limits` caps each task run. Once the spend the
