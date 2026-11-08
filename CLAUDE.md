@@ -24,7 +24,7 @@ point at a different interpreter than the one the project is installed into.
 | Import layer contracts | `$ENV/bin/lint-imports` — **only the console script works.** `python -m importlinter.cli lint-imports` exits 0 with zero output regardless of contract state (`importlinter/cli.py` has no `if __name__ == "__main__":` guard); it silently checks nothing. |
 | Test | `$ENV/bin/python -m pytest -q --cov=agentevalops --cov-report=term-missing` |
 | Smoke | `$ENV/bin/agentevalops run --config configs/toy_smoke.yaml --output runs/tmp` then `validate-bundle` / `replay` on the same dir (format 0.6, 13 files checked; the run registers a plan that declares nothing, so `gate` says `CANNOT JUDGE`, exit 2) |
-| Smoke, seed pack | `$ENV/bin/agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/tmp-pack` then `validate-bundle` / `replay` on the same dir (format 0.6, 13 files checked, `controls.json` and `evidence_report.md` among them; the plan is registered first, 26 of 26 scenarios selected; 26 scenarios pass under the four evaluators with the summary's four category lines, each ending in its pass^k, and the report's five outcome groups, repeatability table and pre-registered plan; `mock_trajectory: known_bad` fails every one), then `gate --bundle` on the same dir: `GATE: PASS`, exit 0; on the known-bad bundle `GATE: FAIL` with the three hard gates named, exit 1; on a toy bundle `GATE: CANNOT JUDGE`, exit 2; then `rescore --bundle` on the fresh seed dir: `RESCORE: MATCH`, exit 0, `Files: every recomputed file is byte-identical` (a bundle from an older commit says `CODE_CHANGED`, exit 3, with `Verdicts: reproduce`) |
+| Smoke, seed pack | `$ENV/bin/agentevalops run --config configs/agentic_baseline_mock.yaml --output runs/tmp-pack` then `validate-bundle` / `replay` on the same dir (format 0.6, 13 files checked, `controls.json` and `evidence_report.md` among them; the plan is registered first, 26 of 26 scenarios selected; 26 scenarios pass under the four evaluators with the summary's four category lines, each ending in its pass^k and its 95% CI, a `Pass^k` line with the overall interval, and the report's five outcome groups, repeatability table and pre-registered plan; `mock_trajectory: known_bad` fails every one), then `gate --bundle` on the same dir: `GATE: PASS`, exit 0; on the known-bad bundle `GATE: FAIL` with the three hard gates named, exit 1; on a toy bundle `GATE: CANNOT JUDGE`, exit 2; then `rescore --bundle` on the fresh seed dir: `RESCORE: MATCH`, exit 0, `Files: every recomputed file is byte-identical` (a bundle from an older commit says `CODE_CHANGED`, exit 3, with `Verdicts: reproduce`) |
 
 The `Makefile` targets invoke bare executables and are therefore only safe with
 the env already activated. Prefer the absolute-path commands above.
@@ -137,10 +137,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-08, Sai2608, clean checkout at `5994f14`)
+## Baseline (verified 2026-11-09, Sai2608, clean checkout at `a828ce3`)
 
 - ruff: clean
-- mypy: clean (81 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (82 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -157,9 +157,9 @@ in this repo.
   `catalogue` import is the middle tier reaching the low tier, so no
   contract changed; nor did R29's `replay` → `orchestration`, `registry`,
   `bundles` and `plans` imports, all middle tier)
-- pytest: 1829 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1901 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  98% branch coverage on a clean checkout (`5994f14`, R35 built). In CI the
+  98% branch coverage on a clean checkout (`a828ce3`, R36 met). In CI the
   two case-insensitive path tests also skip, on Linux's case-sensitive
   disk. The
   signing tests (`tests/test_signing.py`) need `ssh-keygen` from OpenSSH 8.2
@@ -167,8 +167,8 @@ in this repo.
   `AGENTEVALOPS_REQUIRE_SSH_KEYGEN=1`, as CI sets it, they fail instead.
   They make throwaway keys in their own temp dirs and never touch `~/.ssh`
   or a running agent. The
-  suite takes about two and a half minutes without coverage and four with
-  it on this machine, under two minutes per CI job. A toy, a seed, a
+  suite takes about four minutes without coverage and five with it on
+  this machine, under two minutes per CI job. A toy, a seed, a
   known-bad and two carried-result bundles are written once per session
   and shared (`tests/conftest.py`, `tests/reference_bundles.py`): a test
   that changes one copies it first, and the session fails if any shared

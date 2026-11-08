@@ -708,6 +708,12 @@ per scope from the run's `seed`, so rescore reproduces them. Context
 beside a rate; a threshold reads the rate. The confidence intervals the
 W25 cut dropped (ROADMAP §0) are back by the owner's R36 brief.
 
+**Amended 2026-11-09 (owner; R36 slice 3, `a828ce3`).** Each interval
+names its own denominator, the decided scenarios, while the rate keeps
+every scenario as its denominator; at 0/n or n/n a display-only
+rule-of-three bound stands beside the zero-width interval; and the
+recorded seed is the 64-character hex of the derived integer.
+
 **Implementation note — 2026-11-01 (R27 slice 3, `628c1d2`).** pass^k
 groups by `task_id` as written, in `scorers/pass_k.py`, into
 `RunSummary.pass_k` and `.pass_k_by_category` (content on summary.json
