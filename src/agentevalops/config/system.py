@@ -37,7 +37,27 @@ from agentevalops.core.schemas import (
     ToolPermission,
 )
 
-__all__ = ["load_system_declaration"]
+__all__ = [
+    "BOOTSTRAP_SAMPLES_DEFAULT",
+    "bootstrap_samples_problem",
+    "load_system_declaration",
+]
+
+#: R36: resamples per pass^k interval when neither home sets them.
+BOOTSTRAP_SAMPLES_DEFAULT = 10_000
+#: The fewest resamples an interval may be drawn from; 0 turns them off.
+_BOOTSTRAP_SAMPLES_MIN = 100
+
+
+def bootstrap_samples_problem(value: int) -> str | None:
+    """What is wrong with *value* as ``bootstrap_samples``, or None: the one
+    rule both homes apply -- 0 (no intervals) or at least 100."""
+    if value == 0 or value >= _BOOTSTRAP_SAMPLES_MIN:
+        return None
+    return (
+        f"bootstrap_samples must be 0 (off) or at least {_BOOTSTRAP_SAMPLES_MIN}, "
+        f"got {value}"
+    )
 
 #: Derived from the ``ToolSpec`` literals, never hand-kept (the loader's
 #: allowlists drifted once; see ``config/loader.py``).
@@ -55,6 +75,7 @@ _TOP_KEYS: frozenset[str] = frozenset(
         "business_metrics",
         "repetitions",
         "seed",
+        "bootstrap_samples",
         "thresholds",
         "run_limits",
     }
@@ -252,6 +273,17 @@ def _run_limits(value: Any) -> RunLimits | None:
     return RunLimits(max_run_cost_usd=cost, max_run_tokens=tokens)
 
 
+def _bootstrap_samples(value: Any) -> int | None:
+    """R36: ``bootstrap_samples`` as declared; None when not declared."""
+    if value is None:
+        return None
+    samples = _int(value, "bootstrap_samples")
+    problem = bootstrap_samples_problem(samples)
+    if problem is not None:
+        raise _Reject(problem)
+    return samples
+
+
 def _parse(raw: dict[str, Any], sha256: str) -> SystemDeclaration:
     _only_keys(raw, _TOP_KEYS, "the declaration")
     involvement = raw.get("involvement")
@@ -270,6 +302,7 @@ def _parse(raw: dict[str, Any], sha256: str) -> SystemDeclaration:
         business_metrics=_metrics(raw.get("business_metrics")),
         repetitions=_int(raw.get("repetitions", 1), "repetitions", minimum=1),
         seed=_int(raw.get("seed", 0), "seed"),
+        bootstrap_samples=_bootstrap_samples(raw.get("bootstrap_samples")),
         thresholds=_thresholds(raw.get("thresholds")),
         run_limits=_run_limits(raw.get("run_limits")),
         sha256=sha256,
@@ -286,8 +319,9 @@ def load_system_declaration(path: Path) -> SystemDeclaration:
     an empty or repeated tool, a permission or data class outside the
     ``ToolSpec`` vocabulary, ``reversible`` disagreeing with the
     permission, a business metric without a definition, ``repetitions``
-    below 1, a non-integer ``seed``, or a threshold outside the categories,
-    the ``[0, 1]`` range or the gate kinds.
+    below 1, a non-integer ``seed``, a ``bootstrap_samples`` that is not 0
+    or at least 100, or a threshold outside the categories, the ``[0, 1]``
+    range or the gate kinds.
     """
     if not path.exists():
         raise ConfigurationError(f"System declaration not found: {path}")

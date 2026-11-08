@@ -698,6 +698,16 @@ both places is a load error, so a bundle's plan and its config cannot
 disagree. An agentic-baseline run without a declaration refuses to start
 (owner's condition, 2026-11-01).
 
+**Implementation note — 2026-11-09 (R36, `17610e0` and slice 2).**
+`bootstrap_samples` joins `repetitions` and `seed` in both places, under
+the same rule. pass^k's rates -- each category's and the overall -- carry
+a 95% interval, a cluster bootstrap over the decided scenarios, each
+carrying its pass^k verdict whole, so a scenario's repetitions never
+tighten it (`scorers/bootstrap.py`). `aggregate()` derives them, seeded
+per scope from the run's `seed`, so rescore reproduces them. Context
+beside a rate; a threshold reads the rate. The confidence intervals the
+W25 cut dropped (ROADMAP §0) are back by the owner's R36 brief.
+
 **Implementation note — 2026-11-01 (R27 slice 3, `628c1d2`).** pass^k
 groups by `task_id` as written, in `scorers/pass_k.py`, into
 `RunSummary.pass_k` and `.pass_k_by_category` (content on summary.json

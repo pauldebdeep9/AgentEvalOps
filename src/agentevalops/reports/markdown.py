@@ -15,6 +15,7 @@ from agentevalops.core.schemas import (
     BUDGET_STOP,
     NEGATIVE_OUTCOMES,
     CategoryPassK,
+    PassRateInterval,
     PlanThreshold,
     RunConfig,
     RunLimits,
@@ -264,7 +265,11 @@ def render_report(
 
     # ---- outcomes by kind of harm (MGF-Agentic §1.2.2; ROADMAP R26) ------
     if summary.pass_k:
-        lines.extend(repeatability_section(summary, scenario_info or {}))
+        lines.extend(
+            repeatability_section(
+                summary, scenario_info or {}, run_config.bootstrap_samples
+            )
+        )
 
     if scenario_info:
         lines.extend(
@@ -274,7 +279,9 @@ def render_report(
         )
 
     if plan is not None:
-        lines.extend(plan_section(plan, summary))
+        lines.extend(
+            plan_section(plan, summary, intervals=bool(run_config.bootstrap_samples))
+        )
 
     # ---- policy checks ---------------------------------------------------
     lines.append("## Policy Checks")
@@ -445,19 +452,45 @@ def _causes(roll_up: CategoryPassK) -> str:
     )
 
 
+def interval_text(interval: PassRateInterval | None, decided: int) -> str:
+    """A pass^k rate's 95% interval in words, two decimals (R36), or why it
+    has none: its decided scenarios number one, or none."""
+    if interval is not None:
+        return (
+            f"95% interval {interval.low:.2f}–{interval.high:.2f} over "
+            f"{interval.n_scenarios} decided scenarios"
+        )
+    if decided == 1:
+        return "1 scenario — interval omitted"
+    return f"{decided} decided scenarios — no interval"
+
+
 def repeatability_section(
-    summary: RunSummary, scenario_info: Mapping[str, Mapping[str, Any]]
+    summary: RunSummary,
+    scenario_info: Mapping[str, Mapping[str, Any]],
+    bootstrap_samples: int | None = None,
 ) -> list[str]:
     """pass^k per scenario and per category (ROADMAP R27; docs/adr/0006
-    D18, D20): raw counts and k, no intervals; a not-evaluated scenario
-    always with its cause."""
+    D18, D20): raw counts and k; a not-evaluated scenario always with its
+    cause. When the run drew *bootstrap_samples* (R36), each category's
+    rate and the overall one with its 95% interval, or why it has none --
+    context; the gate reads the rate."""
     k = max(r.k for r in summary.pass_k)
     lines = [f"## Repeatability (pass^k, k = {k})", ""]
+    if bootstrap_samples:
+        intervals = (
+            "Each rate's 95% interval is a cluster bootstrap over its decided "
+            f"scenarios ({bootstrap_samples} resamples, nearest-rank "
+            "percentiles, seeded from the run's seed): context beside the rate, "
+            "which is what the gate reads."
+        )
+    else:
+        intervals = "Raw counts; no confidence intervals."
     lines.append(
         f"Each scenario ran {k} time{'s' if k != 1 else ''}; it passes only if "
         "every repetition passed. A scenario with a repetition that was not "
         "evaluated is not evaluated, not failed, and its cause is named "
-        "(docs/adr/0006 D20). Raw counts; no confidence intervals."
+        f"(docs/adr/0006 D20). {intervals}"
     )
     lines.append("")
     for roll_up in summary.pass_k_by_category:
@@ -467,8 +500,23 @@ def repeatability_section(
         )
         if roll_up.not_evaluated:
             line += f"; {roll_up.not_evaluated} not evaluated ({_causes(roll_up)})"
+        if bootstrap_samples:
+            decided = roll_up.passed + roll_up.failed
+            line += f"; {interval_text(roll_up.interval, decided)}"
         lines.append(line)
-    if summary.pass_k_by_category:
+    if bootstrap_samples:
+        passed = sum(1 for r in summary.pass_k if r.pass_k is True)
+        decided = sum(1 for r in summary.pass_k if r.pass_k is not None)
+        line = (
+            f"- Overall: {passed}/{len(summary.pass_k)} scenarios passed all "
+            f"{k} repetitions"
+        )
+        if decided < len(summary.pass_k):
+            line += f"; {len(summary.pass_k) - decided} not evaluated"
+        lines.append(
+            f"{line}; {interval_text(summary.overall_pass_k_interval, decided)}"
+        )
+    if summary.pass_k_by_category or bootstrap_samples:
         lines.append("")
     lines.append(
         "| Scenario | Category | k | Passed | Failed | Not evaluated | pass^k |"
@@ -516,12 +564,17 @@ def threshold_status(threshold: PlanThreshold, roll_up: CategoryPassK | None) ->
     return "below (comparative threshold; does not gate)"
 
 
-def plan_section(plan: RunPlan, summary: RunSummary) -> list[str]:
+def plan_section(
+    plan: RunPlan, summary: RunSummary, *, intervals: bool = False
+) -> list[str]:
     """The pre-registered plan repeated (docs/adr/0005 D6; testing-framework
     3.6.1, 3.7.1): the declaration's intended use, out-of-scope uses and
     business metrics, never evaluated; the selection; and each threshold
     with its source and the run's standing against it. A plan that declared
-    nothing gets one sentence and nothing else (decision 6 of 2026-11-02)."""
+    nothing gets one sentence and nothing else (decision 6 of 2026-11-02).
+    With *intervals* -- report.md's, when the run drew them (R36); never the
+    evidence report's -- the observed rate carries its 95% interval as
+    context; the status is the rate's against the threshold."""
     system = plan.system
     if not plan.declared or system is None:
         return ["## Test plan", "", NO_PLAN_SENTENCE, ""]
@@ -573,6 +626,11 @@ def plan_section(plan: RunPlan, summary: RunSummary) -> list[str]:
         for threshold in plan.thresholds:
             roll_up = roll_ups.get(threshold.category)
             observed = "-" if roll_up is None else _rate(roll_up.pass_k_rate)
+            if intervals and roll_up is not None and roll_up.interval is not None:
+                observed += (
+                    f" (95% interval {roll_up.interval.low:.2f}–"
+                    f"{roll_up.interval.high:.2f})"
+                )
             status = threshold_status(threshold, roll_up)
             lines.append(
                 f"| {threshold.category} | {threshold.min_pass_k} | "

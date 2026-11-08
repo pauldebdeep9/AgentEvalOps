@@ -18,6 +18,7 @@ than evaluated. No second copy of any of these rules exists.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
@@ -29,9 +30,11 @@ from agentevalops.core.schemas import (
     EvaluationResult,
     EvaluatorContext,
     NotEvaluatedCause,
+    PassKResult,
     PolicySpec,
     PolicyVerdict,
     RunBudget,
+    RunConfig,
     RunLimits,
     RunSummary,
     TaskRunResult,
@@ -42,6 +45,7 @@ from agentevalops.core.schemas import (
     TraceEventKind,
 )
 from agentevalops.core.types import RunId
+from agentevalops.scorers.bootstrap import ci_seed, pass_k_interval
 from agentevalops.scorers.pass_k import pass_k_by_category, pass_k_results
 from agentevalops.scorers.simple import SimpleScorer
 
@@ -191,12 +195,17 @@ def aggregate(
     summary: RunSummary,
     categories: Mapping[str, str],
     trace_event_count: int,
+    seed: int,
+    bootstrap_samples: int | None,
 ) -> None:
     """The post-run aggregation over a summary whose task runs are all
     tallied: the failed count (docs/adr/0002, Axis 3: passed + failed +
     not_evaluated == total), the trace length, the score result, and pass^k
     per scenario and per category (*categories* maps task id to category;
-    docs/adr/0006 D18, D20)."""
+    docs/adr/0006 D18, D20) -- each rate, overall and per category, with its
+    95% interval when *bootstrap_samples* is set (R36): *bootstrap_samples*
+    resamples, each scope seeded from the run's *seed* (``ci_seed``). The
+    one place the orchestrator and rescore both derive them."""
     summary.failed_tasks = (
         summary.total_tasks - summary.passed_tasks - summary.not_evaluated_tasks
     )
@@ -207,6 +216,26 @@ def aggregate(
     )
     summary.pass_k = pass_k_results(summary.task_results)
     summary.pass_k_by_category = pass_k_by_category(summary.pass_k, dict(categories))
+    if not bootstrap_samples:
+        return
+    b = bootstrap_samples
+    summary.overall_pass_k_interval = pass_k_interval(
+        summary.pass_k, b, ci_seed(seed, "overall")
+    )
+    members: dict[str, list[PassKResult]] = {}
+    for result in summary.pass_k:
+        category = categories.get(result.task_id)
+        if category is not None:
+            members.setdefault(category, []).append(result)
+    summary.pass_k_by_category = [
+        replace(
+            roll_up,
+            interval=pass_k_interval(
+                members[roll_up.category], b, ci_seed(seed, roll_up.category)
+            ),
+        )
+        for roll_up in summary.pass_k_by_category
+    ]
 
 
 def categories_of(tasks: Sequence[TaskSpec]) -> dict[str, str]:
@@ -445,14 +474,22 @@ async def close_summary(
     spec: PolicySpec,
     records: Sequence[ToolCallRecord],
     end_states: Sequence[EndStateRecord],
-    run_limits: RunLimits | None = None,
+    run_config: RunConfig,
 ) -> None:
     """The summary's closing steps once every task run is tallied: the
-    counts, score result and pass^k (docs/adr/0002 Axis 3; docs/adr/0006
-    D18, D20), the run's budget when it has one (R35), then the run-level
-    policy verdict over every event."""
-    aggregate(summary, categories_of(tasks), len(all_events))
-    summary.run_budget = run_budget(run_limits, summary)
+    counts, score result and pass^k with its intervals (docs/adr/0002 Axis
+    3; docs/adr/0006 D18, D20; R36), the run's budget when it has one (R35),
+    then the run-level policy verdict over every event. *run_config* is the
+    run's own -- the orchestrator's, or the one rescore reads from the
+    bundle's config.json -- so seed, B and the caps come from one place."""
+    aggregate(
+        summary,
+        categories_of(tasks),
+        len(all_events),
+        run_config.seed,
+        run_config.bootstrap_samples,
+    )
+    summary.run_budget = run_budget(run_config.run_limits, summary)
     summary.policy_verdict = await check_policy(
         checker, spec, summary, all_events, records, end_states
     )

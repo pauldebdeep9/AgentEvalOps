@@ -267,7 +267,7 @@ class LocalOrchestrator:
             self._policy_spec,
             self.tool_call_records,
             self.end_states,
-            self._config.run_limits,
+            self._config,
         )
 
         return summary

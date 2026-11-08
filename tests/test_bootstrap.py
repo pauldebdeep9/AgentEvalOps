@@ -59,12 +59,14 @@ def _verdicts(outcomes: list[bool | None], k: int = 1) -> list[PassKResult]:
 
 def _oracle(outcomes: list[bool], b: int, seed: int) -> tuple[float, float]:
     """The method as the R36 brief states it, written out independently of
-    the module: B resamples of n scenarios drawn with replacement, each the
+    the module: B resamples of n scenarios drawn with replacement from the
+    verdicts in their canonical order (fails, then passes), each the
     proportion of passes; nearest rank at floor(0.025(B-1)) and
     ceil(0.975(B-1)) of the sorted proportions."""
     rng = random.Random(seed)
     n = len(outcomes)
-    props = sorted(sum(rng.choices(outcomes, k=n)) / n for _ in range(b))
+    population = sorted(outcomes)
+    props = sorted(sum(rng.choices(population, k=n)) / n for _ in range(b))
     return props[math.floor(0.025 * (b - 1))], props[math.ceil(0.975 * (b - 1))]
 
 
@@ -135,6 +137,18 @@ def test_the_interval_is_the_method_as_stated() -> None:
     )
 
 
+@pytest.mark.parametrize("b", [1, 2, 3, 5, 8, 13])
+def test_exactly_b_resamples_are_drawn(b: int) -> None:
+    """At small B every resample shows in the bounds, so one too many or
+    too few moves them (self-mutation pass: at B = 2000 over 20 scenarios
+    an extra draw changed nothing the other tests read)."""
+    outcomes = [True, False, True, True, False, True, False]
+    seed = ci_seed(11, "overall")
+    interval = pass_k_interval(_verdicts(outcomes), b, seed)
+    assert interval is not None
+    assert (interval.low, interval.high) == _oracle(outcomes, b, seed)
+
+
 def test_the_same_inputs_and_seed_give_the_same_interval() -> None:
     seed = ci_seed(7, "overall")
     first = pass_k_interval(_verdicts(list(SIXTY)), 1000, seed)
@@ -158,6 +172,19 @@ def test_a_scenarios_repetitions_ride_inside_its_verdict() -> None:
     thrice = pass_k_interval(_verdicts(list(SIXTY), k=3), 2000, seed)
     assert once is not None and once == thrice
     assert thrice is not None and thrice.n_scenarios == 20
+
+
+def test_the_scenarios_order_does_not_move_the_interval() -> None:
+    """Slice 2: the decided verdicts are resampled in a canonical order, so
+    the interval is a function of how many of the n passed, B and the seed.
+    Fail-first: interleaving the passes and fails moved it."""
+    seed = ci_seed(7, "overall")
+    interleaved = [n % 5 < 3 for n in range(20)]
+    assert sorted(interleaved) == sorted(SIXTY)
+    blocked = pass_k_interval(_verdicts(list(SIXTY)), 2000, seed)
+    mixed = pass_k_interval(_verdicts(interleaved), 2000, seed)
+    reverse = pass_k_interval(_verdicts(list(reversed(SIXTY))), 2000, seed)
+    assert blocked == mixed == reverse
 
 
 def test_not_evaluated_scenarios_are_left_out_of_the_resampling() -> None:

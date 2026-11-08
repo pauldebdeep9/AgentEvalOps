@@ -198,6 +198,11 @@ class RunConfig:
     #: R35: the run-level budget, from the run config or the system
     #: declaration; None (off) is left out of config.json.
     run_limits: RunLimits | None = field(default=None, metadata=OMIT_WHEN_NONE)
+    #: R36: resamples per pass^k interval, from the run config or the system
+    #: declaration; the loader always sets it (10,000 unless set; 0 turns
+    #: intervals off). None -- a record from before R36, or a config built
+    #: without the loader -- derives no interval, and is left out.
+    bootstrap_samples: int | None = field(default=None, metadata=OMIT_WHEN_NONE)
 
 
 # ---------------------------------------------------------------------------
@@ -497,6 +502,9 @@ class SystemDeclaration:
     repetitions: int = 1
     seed: int = 0
     thresholds: tuple[ThresholdOverride, ...] = ()
+    #: R36: resamples per pass^k interval, declared here like repetitions
+    #: and seed; None (not declared: the loader's default) is left out.
+    bootstrap_samples: int | None = field(default=None, metadata=OMIT_WHEN_NONE)
     #: R35: the run-level budget, declared here like repetitions and seed;
     #: None (off) is left out of the plan.
     run_limits: RunLimits | None = field(default=None, metadata=OMIT_WHEN_NONE)
@@ -863,7 +871,8 @@ class PassKResult:
     was not evaluated, since not evaluated is not failed; ``False``
     otherwise. A ``None`` verdict always carries ``not_evaluated_cause``:
     the first such repetition's cause, or ``"mixed"`` when the repetitions'
-    causes differ. Raw counts; no confidence interval (the W25 cut).
+    causes differ. Raw counts; the intervals (R36) are over scenarios, so
+    they ride the category roll-ups and the summary, not a scenario.
     """
 
     task_id: str
@@ -873,23 +882,6 @@ class PassKResult:
     not_evaluated: int
     pass_k: bool | None
     not_evaluated_cause: str | None = None
-
-
-@dataclass(frozen=True)
-class CategoryPassK:
-    """pass^k rolled up over one category's scenarios: ``pass_k_rate`` is
-    passing scenarios over scenarios; ``not_evaluated_causes`` counts the
-    not-evaluated scenarios by cause. What the plan's thresholds are held
-    against (docs/adr/0005 D6)."""
-
-    category: str
-    k: int
-    scenarios: int
-    passed: int
-    failed: int
-    not_evaluated: int
-    pass_k_rate: float
-    not_evaluated_causes: dict[str, int] = field(default_factory=dict)
 
 
 #: The one method a ``PassRateInterval`` records (ROADMAP R36).
@@ -912,6 +904,26 @@ class PassRateInterval:
     seed: int
     n_scenarios: int
     method: IntervalMethod = "cluster-bootstrap-percentile"
+
+
+@dataclass(frozen=True)
+class CategoryPassK:
+    """pass^k rolled up over one category's scenarios: ``pass_k_rate`` is
+    passing scenarios over scenarios; ``not_evaluated_causes`` counts the
+    not-evaluated scenarios by cause. What the plan's thresholds are held
+    against (docs/adr/0005 D6). ``interval`` (R36) is the 95% interval on
+    the pass^k proportion of its decided scenarios -- context, never what a
+    threshold reads -- and is left out when the run derives none."""
+
+    category: str
+    k: int
+    scenarios: int
+    passed: int
+    failed: int
+    not_evaluated: int
+    pass_k_rate: float
+    not_evaluated_causes: dict[str, int] = field(default_factory=dict)
+    interval: PassRateInterval | None = field(default=None, metadata=OMIT_WHEN_NONE)
 
 
 @dataclass(frozen=True)
@@ -961,6 +973,11 @@ class RunSummary:
     #: rolled up per category for the tasks that carry one.
     pass_k: list[PassKResult] = field(default_factory=list)
     pass_k_by_category: list[CategoryPassK] = field(default_factory=list)
+    #: R36: the 95% interval on the pass^k proportion over every decided
+    #: scenario; left out when the run derives none.
+    overall_pass_k_interval: PassRateInterval | None = field(
+        default=None, metadata=OMIT_WHEN_NONE
+    )
     #: R35: present only when the run had a budget.
     run_budget: RunBudget | None = field(default=None, metadata=OMIT_WHEN_NONE)
 

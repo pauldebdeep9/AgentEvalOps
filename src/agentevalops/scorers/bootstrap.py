@@ -12,7 +12,8 @@ so a bundle rescored anywhere gives byte-identical intervals.
   inside the verdict, so they can never tighten the interval -- and yields
   one proportion. Draws are ``rng.choices(verdicts, k=n)``: an index of
   ``floor(rng.random() * n)``, the same algorithm in every supported
-  Python.
+  Python, over the verdicts sorted (fails, then passes), so the interval
+  depends on how many of the n passed, never on the scenarios' order.
 - **Percentiles: nearest rank, no interpolation.** Sorted ascending, the
   low bound is the proportion at index floor(0.025 (b-1)) and the high at
   ceil(0.975 (b-1)), computed in integers so no float rounding moves them.
@@ -60,7 +61,7 @@ def pass_k_interval(
     the scope's own (``ci_seed``) and is recorded with the interval."""
     if b < 1:
         raise ValueError(f"a bootstrap needs at least one resample, not {b}")
-    decided = [r.pass_k for r in verdicts if r.pass_k is not None]
+    decided = sorted(r.pass_k for r in verdicts if r.pass_k is not None)
     n = len(decided)
     if n < 2:
         return None

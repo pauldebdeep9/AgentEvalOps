@@ -9,6 +9,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Bootstrap intervals on pass^k** (2026-11-09; slice 1 `17610e0`, then
+  slice 2; ROADMAP R36). Each pass^k rate in `summary.json` -- per
+  category, and `overall_pass_k_interval` over every scenario -- carries a
+  seeded 95% interval (`low`, `high`, `b`, `seed`, `n_scenarios`,
+  `method`): a cluster bootstrap over the decided scenarios with
+  nearest-rank percentiles (`scorers/bootstrap.py`). `bootstrap_samples`,
+  beside `repetitions` and `seed` in the declaration or the run config,
+  sets the resamples: 10,000 unless set, 0 for none, else at least 100; a
+  non-number names the field. Rescore reproduces the intervals byte for
+  byte; a bundle from before R36 gets none. `report.md` states each
+  interval, or why there is none, and shows it beside the observed rate
+  in the thresholds table; the gate reads the rate, as before. A reader
+  older than R36 refuses a summary with an interval.
 - **A run-level budget, `run_limits`** (2026-11-08; slice 1 `9edf9e3`,
   slice 2 `5994f14`, both green on CI and Package; ROADMAP R35, closes
   external review finding 9). `max_run_cost_usd` and

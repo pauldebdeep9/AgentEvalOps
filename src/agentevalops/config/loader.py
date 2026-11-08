@@ -24,7 +24,11 @@ from typing import Any
 
 import yaml
 
-from agentevalops.config.system import load_system_declaration
+from agentevalops.config.system import (
+    BOOTSTRAP_SAMPLES_DEFAULT,
+    bootstrap_samples_problem,
+    load_system_declaration,
+)
 from agentevalops.core.errors import ConfigurationError
 from agentevalops.core.schemas import (
     PolicySpec,
@@ -586,10 +590,11 @@ def load_run_config(path: Path) -> LoadedRunConfig:
     # ------------------------------------------------------------------
     # The seed pack never runs without a pre-registered plan, and the plan
     # starts from the declaration: an agentic-baseline run without one
-    # refuses to start here, before anything is built. ``repetitions`` and
-    # ``seed`` live in one place -- the declaration when there is one, the
-    # run config's top level otherwise -- so a bundle's plan and its config
-    # cannot disagree about either.
+    # refuses to start here, before anything is built. ``repetitions``,
+    # ``seed``, ``bootstrap_samples`` (R36) and ``run_limits`` (R35) live in
+    # one place -- the declaration when there is one, the run config's top
+    # level otherwise -- so a bundle's plan and its config cannot disagree
+    # about any of them.
     system: SystemDeclaration | None = None
     system_path: Path | None = None
     system_raw = raw.get("system")
@@ -615,7 +620,7 @@ def load_run_config(path: Path) -> LoadedRunConfig:
                 f"system declaration {system_path.name} is for pack "
                 f"'{system.pack_id}', but benchmark_options.pack is '{pack}'"
             )
-        for key in ("repetitions", "seed", "run_limits"):
+        for key in ("repetitions", "seed", "bootstrap_samples", "run_limits"):
             if key in raw:
                 raise ConfigurationError(
                     f"{key} is set in the system declaration ({system_path.name}); "
@@ -623,6 +628,11 @@ def load_run_config(path: Path) -> LoadedRunConfig:
                 )
         repetitions, seed = system.repetitions, system.seed
         run_limits = system.run_limits
+        bootstrap_samples = (
+            BOOTSTRAP_SAMPLES_DEFAULT
+            if system.bootstrap_samples is None
+            else system.bootstrap_samples
+        )
     else:
         if benchmark_id == "agentic-baseline":
             raise ConfigurationError(
@@ -637,8 +647,21 @@ def load_run_config(path: Path) -> LoadedRunConfig:
             )
         seed = _as_int(raw.get("seed", 0), "seed")
         run_limits = _run_limits(raw.get("run_limits"))
+        raw_samples = raw.get("bootstrap_samples")
+        bootstrap_samples = (
+            BOOTSTRAP_SAMPLES_DEFAULT
+            if raw_samples is None
+            else _as_int(raw_samples, "bootstrap_samples")
+        )
+        problem = bootstrap_samples_problem(bootstrap_samples)
+        if problem is not None:
+            raise ConfigurationError(problem)
     run_config = replace(
-        run_config, repetitions=repetitions, seed=seed, run_limits=run_limits
+        run_config,
+        repetitions=repetitions,
+        seed=seed,
+        run_limits=run_limits,
+        bootstrap_samples=bootstrap_samples,
     )
 
     return LoadedRunConfig(

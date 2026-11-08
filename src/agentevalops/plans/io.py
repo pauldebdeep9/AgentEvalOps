@@ -77,6 +77,7 @@ def plan_from_document(doc: dict[str, Any]) -> RunPlan:
             ),
             repetitions=system.get("repetitions", 1),
             seed=system.get("seed", 0),
+            bootstrap_samples=system.get("bootstrap_samples"),
             thresholds=tuple(
                 ThresholdOverride(**override)
                 for override in system.get("thresholds") or ()

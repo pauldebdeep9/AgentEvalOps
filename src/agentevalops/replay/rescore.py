@@ -433,7 +433,7 @@ async def _derive(
         run_policy_spec(records.policy_spec),
         records.tool_calls,
         records.end_states,
-        run_config.run_limits,
+        run_config,
     )
     return _Derived(summary, all_events, carried, tuple(restopped))
 

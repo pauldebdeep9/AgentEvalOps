@@ -376,6 +376,8 @@ benchmark_scenario: smoke       # alias of benchmark_options.scenario
 system: null                    # agentic-baseline: the system declaration, relative to this file; required
 repetitions: 1                  # runs without a declaration only; the declaration sets both otherwise
 seed: 0                         # base of every (task, repetition) seed
+bootstrap_samples: 10000        # resamples per pass^k interval (95%, cluster bootstrap over scenarios); 0 turns
+                                #   intervals off, else at least 100; runs without a declaration only, as above
 
 evaluators: [deterministic]     # any of deterministic, tool_use, state_based, policy, in order
 
@@ -407,9 +409,9 @@ mock_trajectory: null           # mock runner only: known_good | known_bad, play
 runs under: the tools the system exposes with their permission class, data
 class, reversibility and external exposure; the level of human involvement;
 the intended use, out-of-scope uses and business metrics, which are recorded
-and repeated in the report, never evaluated; repetitions and seed; an
-optional `run_limits` budget, as in the run config; and optional thresholds
-that may tighten the pack's, never loosen them.
+and repeated in the report, never evaluated; repetitions, seed and
+`bootstrap_samples`; an optional `run_limits` budget, as in the run config;
+and optional thresholds that may tighten the pack's, never loosen them.
 
 ---
 

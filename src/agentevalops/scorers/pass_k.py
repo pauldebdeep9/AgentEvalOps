@@ -8,8 +8,9 @@ evaluated (not evaluated is not failed, D20), and then carries a cause --
 the first repetition's, or ``"mixed"`` when the repetitions' causes
 differ -- so "not evaluated" never appears without one; otherwise it
 *fails*. Per category, the pass^k rate is passing scenarios over
-scenarios. Raw counts and k only: confidence intervals were cut at the
-W25 checkpoint (ROADMAP §0).
+scenarios. Raw counts and k here; each rate's 95% interval is
+``scorers/bootstrap.py``'s, which ``aggregate()`` adds (ROADMAP R36,
+reinstating what the W25 cut dropped).
 """
 
 from __future__ import annotations
