@@ -169,6 +169,10 @@ def test_the_shipped_config_produces_verdicts_in_three_categories(
     assert lines == [
         f"  {category:<17}  {n}/{n} evaluated passed (0 not evaluated)"
         f"; pass^1 {n}/{n} scenarios"  # R27: pass^k on every category line
+        # R36: its 95% interval over the decided scenarios, and at n/n the
+        # display-only rule-of-three bound beside it.
+        f", 95% CI [1.00, 1.00] over {n} decided"
+        f", 95% one-sided lower bound ~ {max(0.0, 1 - 3 / n):.2f} (rule of three)"
         for category, n in counts.items()
     ]
     assert list(counts)[:3] == ["task_execution", "tool_calling", "policy_compliance"]

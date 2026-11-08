@@ -150,7 +150,7 @@ def from_jsonable(cls: type[T], data: Any, *, where: str = "") -> T:
     }
     try:
         return cls(**kwargs)
-    except TypeError as exc:
+    except (TypeError, ValueError) as exc:
         raise LoadError(f"{where}: {exc}") from None
 
 

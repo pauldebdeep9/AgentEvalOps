@@ -452,17 +452,73 @@ def _causes(roll_up: CategoryPassK) -> str:
     )
 
 
-def interval_text(interval: PassRateInterval | None, decided: int) -> str:
-    """A pass^k rate's 95% interval in words, two decimals (R36), or why it
-    has none: its decided scenarios number one, or none."""
-    if interval is not None:
-        return (
-            f"95% interval {interval.low:.2f}–{interval.high:.2f} over "
-            f"{interval.n_scenarios} decided scenarios"
-        )
+#: Under the Repeatability heading once, verbatim, when the run drew
+#: intervals (owner, R36 slice 3).
+INTERVAL_HONESTY = (
+    "The interval is the 2.5th–97.5th percentile of B scenario-level bootstrap "
+    "resamples of this run's decided scenarios, derived from the run seed. It "
+    "expresses sampling uncertainty over these scenarios only; it says nothing "
+    "about scenarios outside the registered plan, and the gate judges the "
+    "observed rate, not the interval. At 0/n or n/n the interval is zero-width "
+    "and carries no uncertainty information; the rule-of-three bound beside it "
+    "is display-only."
+)
+
+
+def ci_text(interval: PassRateInterval) -> str:
+    """A pass^k rate's 95% interval, naming its own denominator, two
+    decimals: ``95% CI [a, b] over n decided`` (owner decision 1,
+    2026-11-09; the CLI and report.md)."""
+    return (
+        f"95% CI [{interval.low:.2f}, {interval.high:.2f}] over "
+        f"{interval.n_scenarios} decided"
+    )
+
+
+def rule_of_three(interval: PassRateInterval, passed: int) -> str | None:
+    """At 0/n or n/n, where the interval is zero-width, the one-sided 95%
+    rule-of-three bound to show beside it -- 1 - 3/n below all-pass, 3/n
+    above all-fail, held to [0, 1] -- else None. Display only: it never
+    enters summary.json (owner decision 2, 2026-11-09)."""
+    n = interval.n_scenarios
+    if passed == n:
+        return f"95% one-sided lower bound ~ {max(0.0, 1 - 3 / n):.2f} (rule of three)"
+    if passed == 0:
+        return f"95% one-sided upper bound ~ {min(1.0, 3 / n):.2f} (rule of three)"
+    return None
+
+
+def _no_interval(decided: int) -> str:
+    """Why a rate has no interval: one decided scenario, or none."""
     if decided == 1:
         return "1 scenario — interval omitted"
     return f"{decided} decided scenarios — no interval"
+
+
+def overall_pass_k(summary: RunSummary) -> str:
+    """``pass^k p/t scenarios (p/d decided)``: the rate over every scenario,
+    the gate's denominator, beside passed-of-decided, the interval's
+    (owner decision 1)."""
+    k = max(r.k for r in summary.pass_k)
+    passed = sum(1 for r in summary.pass_k if r.pass_k is True)
+    decided = sum(1 for r in summary.pass_k if r.pass_k is not None)
+    return (
+        f"pass^{k} {passed}/{len(summary.pass_k)} scenarios "
+        f"({passed}/{decided} decided)"
+    )
+
+
+def _interval_clause(
+    interval: PassRateInterval | None, passed: int, decided: int, b: int
+) -> str:
+    """report.md's words for a rate's interval: ``95% CI [a, b] over n
+    decided (B=b)``, the rule-of-three bound at an extreme, or why there
+    is none."""
+    if interval is None:
+        return f"; {_no_interval(decided)}"
+    clause = f"; {ci_text(interval)} (B={b})"
+    bound = rule_of_three(interval, passed)
+    return clause if bound is None else f"{clause}; {bound}"
 
 
 def repeatability_section(
@@ -473,25 +529,21 @@ def repeatability_section(
     """pass^k per scenario and per category (ROADMAP R27; docs/adr/0006
     D18, D20): raw counts and k; a not-evaluated scenario always with its
     cause. When the run drew *bootstrap_samples* (R36), each category's
-    rate and the overall one with its 95% interval, or why it has none --
-    context; the gate reads the rate."""
+    rate and the overall one with its 95% interval, naming its denominator,
+    or why it has none, and the honesty line once -- context; the gate
+    reads the rate."""
     k = max(r.k for r in summary.pass_k)
     lines = [f"## Repeatability (pass^k, k = {k})", ""]
-    if bootstrap_samples:
-        intervals = (
-            "Each rate's 95% interval is a cluster bootstrap over its decided "
-            f"scenarios ({bootstrap_samples} resamples, nearest-rank "
-            "percentiles, seeded from the run's seed): context beside the rate, "
-            "which is what the gate reads."
-        )
-    else:
-        intervals = "Raw counts; no confidence intervals."
-    lines.append(
+    intro = (
         f"Each scenario ran {k} time{'s' if k != 1 else ''}; it passes only if "
         "every repetition passed. A scenario with a repetition that was not "
         "evaluated is not evaluated, not failed, and its cause is named "
-        f"(docs/adr/0006 D20). {intervals}"
+        "(docs/adr/0006 D20)."
     )
+    if bootstrap_samples:
+        lines.extend([intro, "", INTERVAL_HONESTY])
+    else:
+        lines.append(f"{intro} Raw counts; no confidence intervals.")
     lines.append("")
     for roll_up in summary.pass_k_by_category:
         line = (
@@ -501,21 +553,22 @@ def repeatability_section(
         if roll_up.not_evaluated:
             line += f"; {roll_up.not_evaluated} not evaluated ({_causes(roll_up)})"
         if bootstrap_samples:
-            decided = roll_up.passed + roll_up.failed
-            line += f"; {interval_text(roll_up.interval, decided)}"
+            line += _interval_clause(
+                roll_up.interval,
+                roll_up.passed,
+                roll_up.passed + roll_up.failed,
+                bootstrap_samples,
+            )
         lines.append(line)
     if bootstrap_samples:
         passed = sum(1 for r in summary.pass_k if r.pass_k is True)
         decided = sum(1 for r in summary.pass_k if r.pass_k is not None)
-        line = (
-            f"- Overall: {passed}/{len(summary.pass_k)} scenarios passed all "
-            f"{k} repetitions"
+        clause = _interval_clause(
+            summary.overall_pass_k_interval, passed, decided, bootstrap_samples
         )
-        if decided < len(summary.pass_k):
-            line += f"; {len(summary.pass_k) - decided} not evaluated"
-        lines.append(
-            f"{line}; {interval_text(summary.overall_pass_k_interval, decided)}"
-        )
+        if summary.overall_pass_k_interval is not None:
+            clause = "," + clause[1:]
+        lines.append(f"- Overall: {overall_pass_k(summary)}{clause}")
     if summary.pass_k_by_category or bootstrap_samples:
         lines.append("")
     lines.append(
@@ -627,10 +680,7 @@ def plan_section(
             roll_up = roll_ups.get(threshold.category)
             observed = "-" if roll_up is None else _rate(roll_up.pass_k_rate)
             if intervals and roll_up is not None and roll_up.interval is not None:
-                observed += (
-                    f" (95% interval {roll_up.interval.low:.2f}–"
-                    f"{roll_up.interval.high:.2f})"
-                )
+                observed += f" ({ci_text(roll_up.interval)})"
             status = threshold_status(threshold, roll_up)
             lines.append(
                 f"| {threshold.category} | {threshold.min_pass_k} | "

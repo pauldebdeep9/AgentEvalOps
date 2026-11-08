@@ -23,15 +23,38 @@ from reference_bundles import CONFIGS, ReferenceBundles
 from typer.testing import CliRunner
 
 from agentevalops.bundles.validator import validate_bundle
-from agentevalops.cli import app
+from agentevalops.cli import app, pass_k_phrase
 from agentevalops.config.loader import load_run_config
 from agentevalops.core.errors import ConfigurationError
+from agentevalops.core.schemas import (
+    CategoryPassK,
+    PassKResult,
+    PassRateInterval,
+    RunSummary,
+)
+from agentevalops.core.types import RunId
 from agentevalops.plans.io import to_document
+from agentevalops.reports.markdown import repeatability_section
 from agentevalops.scorers.bootstrap import ci_seed
 
 FIXTURES = Path(__file__).parent / "fixtures" / "bundles"
 HOMES = ("run config", "system declaration")
 PRICE = 0.25
+
+#: Under the Repeatability heading once, verbatim (owner, R36 slice 3).
+HONESTY = (
+    "The interval is the 2.5th–97.5th percentile of B scenario-level bootstrap "
+    "resamples of this run's decided scenarios, derived from the run seed. It "
+    "expresses sampling uncertainty over these scenarios only; it says nothing "
+    "about scenarios outside the registered plan, and the gate judges the "
+    "observed rate, not the interval. At 0/n or n/n the interval is zero-width "
+    "and carries no uncertainty information; the rule-of-three bound beside it "
+    "is display-only."
+)
+
+
+def _hex(seed: int, scope: str) -> str:
+    return f"{ci_seed(seed, scope):064x}"
 
 
 def _toy(tmp_path: Path, **changes: Any) -> Path:
@@ -171,7 +194,7 @@ def test_a_run_records_an_interval_overall_and_per_category(
         "low": 1.0,
         "high": 1.0,
         "b": 10_000,
-        "seed": ci_seed(seed, "overall"),
+        "seed": _hex(seed, "overall"),
         "n_scenarios": 26,
         "method": "cluster-bootstrap-percentile",
     }
@@ -180,7 +203,7 @@ def test_a_run_records_an_interval_overall_and_per_category(
             "low": 1.0,
             "high": 1.0,
             "b": 10_000,
-            "seed": ci_seed(seed, roll_up["category"]),
+            "seed": _hex(seed, roll_up["category"]),
             "n_scenarios": roll_up["scenarios"],
             "method": "cluster-bootstrap-percentile",
         }
@@ -220,6 +243,8 @@ def test_rescoring_twice_gives_byte_identical_intervals(
         written.append((out / "summary.json").read_bytes())
     assert written[0] == written[1] == (bundle / "summary.json").read_bytes()
     assert b"overall_pass_k_interval" in written[0]
+    seed = _json(bundle / "config.json")["run_config"]["seed"]
+    assert f'"seed": "{_hex(seed, "overall")}"'.encode() in written[0]
 
 
 @pytest.mark.parametrize(
@@ -239,8 +264,12 @@ def test_a_golden_bundle_rescores_with_no_interval_and_no_verdict_moved(
     result = CliRunner().invoke(
         app, ["rescore", "--bundle", str(FIXTURES / name), "--output", str(out)]
     )
-    assert result.exit_code in (0, 3), result.output
-    assert "Verdicts: reproduce" in result.output
+    assert result.exit_code == 3, result.output
+    lines = result.output.splitlines()
+    assert any(line.startswith("Verdicts: reproduce -- ") for line in lines), lines
+    assert result.output.rstrip().endswith(
+        "RESCORE: CODE_CHANGED -- the verdicts reproduce under the running code"
+    )
     assert "interval" not in (out / "summary.json").read_text("utf-8")
 
 
@@ -249,12 +278,9 @@ def test_a_golden_bundle_rescores_with_no_interval_and_no_verdict_moved(
 # ---------------------------------------------------------------------------
 
 
-def test_report_md_states_each_interval_or_why_there_is_none(tmp_path: Path) -> None:
+def _capped(tmp_path: Path) -> tuple[Path, str]:
     """Five scenarios at $0.25 with a $0.50 cap: TE1 and TE3 run, TC1, PC5
-    and RB5 do not. task_execution has two decided scenarios and an
-    interval; the other categories none decided. Overall, two decided of
-    five. The thresholds table shows the interval beside the rate the gate
-    reads; the evidence report is untouched."""
+    and RB5 do not -- two decided of five."""
     out = tmp_path / "capped"
     config = _seed(
         tmp_path,
@@ -267,32 +293,132 @@ def test_report_md_states_each_interval_or_why_there_is_none(tmp_path: Path) -> 
         },
         {"run_limits": {"max_run_cost_usd": 2 * PRICE}},
     )
-    _run(config, out)
+    return out, _run(config, out)
+
+
+def test_each_interval_names_its_denominator_in_report_md_and_the_cli(
+    tmp_path: Path,
+) -> None:
+    """Owner decision 1 (2026-11-09): the rate keeps every scenario as its
+    denominator; each interval names its own, and the overall line shows
+    passed-of-decided beside passed-of-all. Fail-first: slice 2's wording."""
+    out, output = _capped(tmp_path)
     report = (out / "report.md").read_text("utf-8")
+    overall = (
+        "pass^1 2/5 scenarios (2/2 decided), 95% CI [1.00, 1.00] over 2 decided"
+    )
+    assert (
+        f"- Overall: {overall} (B=10000); "
+        "95% one-sided lower bound ~ 0.00 (rule of three)"
+    ) in report
+    assert (
+        f"Pass^k  : {overall}, 95% one-sided lower bound ~ 0.00 (rule of three)"
+    ) in output
     assert (
         "- task_execution: 2/2 scenarios passed all 1 repetitions; "
-        "95% interval 1.00–1.00 over 2 decided scenarios"
+        "95% CI [1.00, 1.00] over 2 decided (B=10000); "
+        "95% one-sided lower bound ~ 0.00 (rule of three)"
     ) in report
     assert (
         "- tool_calling: 0/1 scenarios passed all 1 repetitions; 1 not evaluated "
         "(run_budget_exhausted); 0 decided scenarios — no interval"
     ) in report
     assert (
-        "- Overall: 2/5 scenarios passed all 1 repetitions; 3 not evaluated; "
-        "95% interval 1.00–1.00 over 2 decided scenarios"
-    ) in report
-    assert "10000 resamples" in report
-    assert (
         "| task_execution | 0.9 | pack | hard | pack | "
-        "1.0 (95% interval 1.00–1.00) | met |"
+        "1.0 (95% CI [1.00, 1.00] over 2 decided) | met |"
     ) in report
     assert "| tool_calling | 1.0 | pack | hard | pack | 0.0 |" in report
-    evidence = (out / "evidence_report.md").read_text("utf-8")
-    assert "interval" not in evidence
+    assert report.count(HONESTY) == 1
+    assert "Raw counts; no confidence intervals." not in report
+    assert "interval" not in (out / "evidence_report.md").read_text("utf-8")
+
+
+def test_the_cli_shows_each_interval_with_its_denominator(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    """The seed run: every scenario passes, so every interval is [1.00, 1.00]
+    and the rule-of-three bound stands beside it (decision 2)."""
+    output = reference_bundles["seed"].output
+    assert (
+        "task_execution     6/6 evaluated passed (0 not evaluated); pass^1 6/6 "
+        "scenarios, 95% CI [1.00, 1.00] over 6 decided, "
+        "95% one-sided lower bound ~ 0.50 (rule of three)"
+    ) in output
+    assert (
+        "Pass^k  : pass^1 26/26 scenarios (26/26 decided), 95% CI [1.00, 1.00] "
+        "over 26 decided, 95% one-sided lower bound ~ 0.88 (rule of three)"
+    ) in output
+
+
+def test_an_all_fail_set_shows_the_upper_rule_of_three_bound(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    bundle = reference_bundles["known-bad"].path
+    report = (bundle / "report.md").read_text("utf-8")
+    assert (
+        "- Overall: pass^1 0/26 scenarios (0/26 decided), 95% CI [0.00, 0.00] "
+        "over 26 decided (B=10000); 95% one-sided upper bound ~ 0.12 (rule of three)"
+    ) in report
+    assert "rule of three" not in (bundle / "summary.json").read_text("utf-8")
+
+
+def _roll_up(passed: int, failed: int, low: float, high: float) -> CategoryPassK:
+    n = passed + failed
+    return CategoryPassK(
+        category="task_execution",
+        k=1,
+        scenarios=n,
+        passed=passed,
+        failed=failed,
+        not_evaluated=0,
+        pass_k_rate=passed / n,
+        interval=PassRateInterval(
+            low=low, high=high, b=1000, seed="0" * 64, n_scenarios=n
+        ),
+    )
+
+
+def test_no_rule_of_three_bound_between_the_extremes() -> None:
+    """3 of 5 passed: the interval alone, on both surfaces."""
+    roll_up = _roll_up(3, 2, 0.2, 1.0)
+    assert pass_k_phrase(roll_up) == (
+        "; pass^1 3/5 scenarios, 95% CI [0.20, 1.00] over 5 decided"
+    )
+    summary = RunSummary(
+        run_id=RunId("mixed"),
+        pass_k=[
+            PassKResult(f"S{n}", 1, int(n < 3), int(n >= 3), 0, n < 3)
+            for n in range(5)
+        ],
+        pass_k_by_category=[roll_up],
+        overall_pass_k_interval=roll_up.interval,
+    )
+    lines = repeatability_section(summary, {}, 1000)
+    assert (
+        "- task_execution: 3/5 scenarios passed all 1 repetitions; "
+        "95% CI [0.20, 1.00] over 5 decided (B=1000)"
+    ) in lines
+    assert (
+        "- Overall: pass^1 3/5 scenarios (3/5 decided), 95% CI [0.20, 1.00] "
+        "over 5 decided (B=1000)"
+    ) in lines
+    assert not any("rule of three" in line for line in lines)
+
+
+def test_the_rule_of_three_bound_is_display_only_and_clamped() -> None:
+    """All of two passed: 1 - 3/2 is below zero, so the bound reads 0.00."""
+    assert pass_k_phrase(_roll_up(2, 0, 1.0, 1.0)) == (
+        "; pass^1 2/2 scenarios, 95% CI [1.00, 1.00] over 2 decided, "
+        "95% one-sided lower bound ~ 0.00 (rule of three)"
+    )
+    assert pass_k_phrase(_roll_up(0, 40, 0.0, 0.0)) == (
+        "; pass^1 0/40 scenarios, 95% CI [0.00, 0.00] over 40 decided, "
+        "95% one-sided upper bound ~ 0.07 (rule of three)"
+    )
 
 
 def test_report_md_omits_the_interval_of_a_single_scenario(tmp_path: Path) -> None:
-    out = tmp_path / "five"
+    out = tmp_path / "three"
     config = _seed(
         tmp_path,
         {"benchmark_options": {"pack": "seed", "scenarios": ["TE1", "TE3", "TC1"]}},

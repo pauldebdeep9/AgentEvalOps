@@ -845,10 +845,19 @@ def category_lines(summary: RunSummary, categories: dict[str, str]) -> list[str]
 def pass_k_phrase(roll_up: CategoryPassK) -> str:
     """``; pass^k a/b scenarios``, with the not-evaluated scenarios and
     their causes when there are any -- never "not evaluated" without a
-    cause (ROADMAP R27; docs/adr/0006 D20)."""
+    cause (ROADMAP R27; docs/adr/0006 D20) -- and the 95% interval naming
+    its denominator when the run drew one, with the rule-of-three bound at
+    an extreme (R36)."""
+    from agentevalops.reports.markdown import ci_text, rule_of_three
+
     phrase = f"; pass^{roll_up.k} {roll_up.passed}/{roll_up.scenarios} scenarios"
     if roll_up.not_evaluated:
         phrase += f", {roll_up.not_evaluated} not evaluated ({causes_phrase(roll_up)})"
+    if roll_up.interval is not None:
+        phrase += f", {ci_text(roll_up.interval)}"
+        bound = rule_of_three(roll_up.interval, roll_up.passed)
+        if bound is not None:
+            phrase += f", {bound}"
     return phrase
 
 
@@ -867,7 +876,13 @@ def _print_summary(summary: object, categories: dict[str, str] | None = None) ->
         typer.echo(str(summary))
         return
 
-    from agentevalops.reports.markdown import budget_line, format_pass_rate
+    from agentevalops.reports.markdown import (
+        budget_line,
+        ci_text,
+        format_pass_rate,
+        overall_pass_k,
+        rule_of_three,
+    )
 
     typer.echo(f"Run ID  : {summary.run_id}")
     typer.echo(
@@ -878,6 +893,12 @@ def _print_summary(summary: object, categories: dict[str, str] | None = None) ->
     typer.echo(f"Tokens  : {summary.total_tokens}")
     if (budget := budget_line(summary)) is not None:
         typer.echo(f"Budget  : {budget}")
+    if (interval := summary.overall_pass_k_interval) is not None:
+        passed = sum(1 for r in summary.pass_k if r.pass_k is True)
+        line = f"{overall_pass_k(summary)}, {ci_text(interval)}"
+        if (bound := rule_of_three(interval, passed)) is not None:
+            line += f", {bound}"
+        typer.echo(f"Pass^k  : {line}")
     if summary.policy_verdict is not None:
         verdict = summary.policy_verdict.verdict.value.upper()
         checker = summary.policy_verdict.checker_id

@@ -131,7 +131,7 @@ def test_the_interval_is_the_method_as_stated() -> None:
         low=interval.low,
         high=interval.high,
         b=2000,
-        seed=seed,
+        seed=f"{seed:064x}",
         n_scenarios=20,
         method="cluster-bootstrap-percentile",
     )
@@ -217,10 +217,11 @@ def test_fewer_than_two_decided_scenarios_have_no_interval(
 
 
 def test_two_decided_scenarios_have_one() -> None:
-    interval = pass_k_interval(_verdicts([True, False]), 1000, ci_seed(7, "overall"))
+    seed = ci_seed(7, "overall")
+    interval = pass_k_interval(_verdicts([True, False]), 1000, seed)
     assert interval is not None
     assert interval.n_scenarios == 2
-    assert (interval.low, interval.high) == _oracle([True, False], 1000, interval.seed)
+    assert (interval.low, interval.high) == _oracle([True, False], 1000, seed)
 
 
 @pytest.mark.parametrize("b", [0, -1])
@@ -242,12 +243,47 @@ def test_the_interval_round_trips_through_its_loader() -> None:
         "low": interval.low,
         "high": interval.high,
         "b": 1000,
-        "seed": ci_seed(7, "overall"),
+        "seed": f"{ci_seed(7, 'overall'):064x}",
         "n_scenarios": 20,
         "method": "cluster-bootstrap-percentile",
     }
     assert load_pass_rate_interval(data) == interval
     assert from_jsonable(PassRateInterval, data) == interval
+
+
+def test_the_seed_is_recorded_as_sixty_four_hex_digits() -> None:
+    """Owner decision 4 (2026-11-09): the 256-bit seed is recorded as its
+    64-character lowercase hex, which any JSON reader keeps whole; the
+    generator is still seeded with the integer. Fail-first: the record
+    held the integer."""
+    seed = ci_seed(7, "overall")
+    interval = pass_k_interval(_verdicts(list(SIXTY)), 1000, seed)
+    assert interval is not None
+    assert interval.seed == f"{seed:064x}"
+    assert len(interval.seed) == 64 and int(interval.seed, 16) == seed
+    small = pass_k_interval(_verdicts(list(SIXTY)), 1000, 5)
+    assert small is not None and small.seed == "0" * 63 + "5"
+
+
+@pytest.mark.parametrize(
+    "seed",
+    [
+        12345,
+        "ABCDEF" + "0" * 58,
+        "0" * 63,
+        "0" * 65,
+        "g" + "0" * 63,
+    ],
+)
+def test_a_seed_that_is_not_sixty_four_lowercase_hex_digits_does_not_load(
+    seed: object,
+) -> None:
+    """Hex only: no released bundle carries an interval, so no shim reads an
+    integer seed."""
+    interval = pass_k_interval(_verdicts(list(SIXTY)), 1000, ci_seed(7, "overall"))
+    data = {**to_jsonable(interval), "seed": seed}
+    with pytest.raises(ValueError, match="seed"):
+        load_pass_rate_interval(data)
 
 
 def test_a_record_with_another_method_does_not_load() -> None:

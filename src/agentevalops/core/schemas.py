@@ -11,6 +11,7 @@ without a schema_version bump.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -884,6 +885,9 @@ class PassKResult:
     not_evaluated_cause: str | None = None
 
 
+#: A ``PassRateInterval``'s seed: a 256-bit integer as 64 lowercase hex digits.
+_SEED_HEX = re.compile(r"[0-9a-f]{64}")
+
 #: The one method a ``PassRateInterval`` records (ROADMAP R36).
 IntervalMethod = Literal["cluster-bootstrap-percentile"]
 
@@ -895,15 +899,23 @@ class PassRateInterval:
     drawn with ``random.Random(seed)``, each scenario carrying its verdict
     whole -- and the nearest-rank percentiles of the resampled proportions
     (``scorers/bootstrap.py``, the method's only home). ``seed`` is the
-    scope's own, derived from the run's seed, so these fields reproduce the
-    interval. Context beside a rate, never a gate input."""
+    scope's own, derived from the run's seed, as the 64-character lowercase
+    hex of the 256-bit integer the generator is seeded with -- whole in any
+    JSON reader (owner decision 4, 2026-11-09) -- so these fields reproduce
+    the interval. Context beside a rate, never a gate input."""
 
     low: float
     high: float
     b: int
-    seed: int
+    seed: str
     n_scenarios: int
     method: IntervalMethod = "cluster-bootstrap-percentile"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.seed, str) or not _SEED_HEX.fullmatch(self.seed):
+            raise ValueError(
+                f"seed must be 64 lowercase hex digits, got {self.seed!r}"
+            )
 
 
 @dataclass(frozen=True)

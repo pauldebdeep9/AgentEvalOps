@@ -58,7 +58,8 @@ def pass_k_interval(
     """The 95% interval on the pass^k proportion of *verdicts*' decided
     scenarios, from *b* cluster-bootstrap resamples drawn with
     ``random.Random(seed)``; None when fewer than two are decided. *seed* is
-    the scope's own (``ci_seed``) and is recorded with the interval."""
+    the scope's own (``ci_seed``), and is recorded with the interval as its
+    64-character hex."""
     if b < 1:
         raise ValueError(f"a bootstrap needs at least one resample, not {b}")
     decided = sorted(r.pass_k for r in verdicts if r.pass_k is not None)
@@ -68,4 +69,6 @@ def pass_k_interval(
     rng = random.Random(seed)
     proportions = [sum(rng.choices(decided, k=n)) / n for _ in range(b)]
     low, high = percentile_bounds(proportions)
-    return PassRateInterval(low=low, high=high, b=b, seed=seed, n_scenarios=n)
+    return PassRateInterval(
+        low=low, high=high, b=b, seed=f"{seed:064x}", n_scenarios=n
+    )
