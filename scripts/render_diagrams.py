@@ -111,6 +111,7 @@ STRUCTURE = [
         ("plans", ["declaration to plan;", "control coverage;", "the fail-closed gate"]),
         ("replay", ["cross-file checks;", "rebuild; rescore"]),
         ("reports", ["report.md;", "evidence report"]),
+        ("triage", ["a reviewer's verdicts", "beside a bundle:", "frame, sidecar"]),
         ("observability", ["OpenTelemetry scaffold;", "emits nothing yet"]),
     ]),
     ("shared", "Shared services", [
