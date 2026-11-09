@@ -9,8 +9,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- **Where runs first fail** (2026-11-09; R37 slice 1 `3e52a67`, then
-  slice 2; slice 3 follows). `report.md` gains a matrix of the failed task
+- **Where runs first fail** (2026-11-09; R37 complete: `0e0751d`,
+  `3e52a67`, `e51aa4a`, `adaf6f8` and slice 3, each green on CI and
+  Package). `report.md` gains a matrix of the failed task
   runs -- rows the last completed stage, columns the stage of the first
   failure -- over six harness stages (parse, issue, gate, exec, handle,
   finish), judged from the failing evaluations' record citations by a
@@ -19,7 +20,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   runs are counted apart (`reports/heatmap.py`). Derived at render time
   from records a 0.5+ bundle already holds: no new file, no schema change,
   and rescore re-renders it byte for byte. An all-pass run says the
-  matrix is empty.
+  matrix is empty. Scripted known-bad trajectories pin all five kinds of
+  cell (`tests/test_transition_cells.py`).
+- **A script step, `observe`** (2026-11-09; R37 slice 3). `{"observe":
+  text}` in a scripted trajectory emits an `agent.observation` event --
+  what the scripted agent makes of the result it just got -- so a script
+  can complete a call's "handle" stage. The scripted mock is the first
+  runner to emit `agent.observation`, which leaves the enum guard's
+  allowlist.
 - **Bootstrap intervals on pass^k** (2026-11-09; R36 complete: slices
   `17610e0`, `57f4f56`, `a828ce3` and the close-out, each green on CI and
   Package). Each pass^k rate in `summary.json` -- per category, and

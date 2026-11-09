@@ -224,6 +224,9 @@ class MockAgentRunner:
             if s.kind == "say":
                 yield _event(TraceEventKind.AGENT_PLAN, {"plan": s.text})
                 step += 1
+            elif s.kind == "observe":
+                yield _event(TraceEventKind.AGENT_OBSERVATION, {"observation": s.text})
+                step += 1
             elif s.kind == "call":
                 yield _event(
                     TraceEventKind.AGENT_TOOL_CALL,

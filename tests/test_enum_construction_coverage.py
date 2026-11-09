@@ -76,16 +76,12 @@ _ALLOWLIST: dict[type, frozenset[str]] = {
     # "no roadmap-item comment" rule stays visible even for an enum with
     # nothing currently reserved.
     TerminationReason: frozenset(),
-    TraceEventKind: frozenset(
-        {
-            # ROADMAP.md row 14 (SWE-bench spike, W14+) via
-            # agents/langgraph_runner.py's own module docstring, which
-            # defers file/sandbox observation tooling to "a code-editing
-            # benchmark (SWE-bench, later)" -- a richer agent loop's
-            # natural companion event, distinct from AGENT_TOOL_RESULT.
-            "AGENT_OBSERVATION",
-        }
-    ),
+    # AGENT_OBSERVATION wired 2026-11-09 (ROADMAP R37 slice 3): the scripted
+    # mock's ``observe`` step emits it (agents/mock_runner.py), so a script
+    # can complete a call's "handle" stage. No model runner emits one yet --
+    # row 14's SWE-bench spike still defers that -- but the member is
+    # constructed, so it is no longer allowlisted.
+    TraceEventKind: frozenset(),
     Verdict: frozenset(),  # WARN wired 2026-08-03; nothing reserved here.
 }
 
@@ -96,7 +92,8 @@ _ALLOWLIST: dict[type, frozenset[str]] = {
 #: drops an entry whose file no longer reads the member.
 _READERS: dict[str, frozenset[Path]] = {
     # ROADMAP R37: reports/heatmap.py stages a cited agent.observation event
-    # as "handle"; no runner emits one yet, so the member stays allowlisted.
+    # as "handle" and only reads the member. Since R37 slice 3 the scripted
+    # mock's observe step emits it, which is what counts as wiring it.
     "TraceEventKind.AGENT_OBSERVATION": frozenset(
         {_SRC_ROOT / "reports" / "heatmap.py"}
     ),

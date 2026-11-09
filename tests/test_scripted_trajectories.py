@@ -99,6 +99,30 @@ def test_scripted_run_emits_a_completed_trajectory() -> None:
     assert (terminal["success"], terminal["final_answer"]) == (True, "42")
 
 
+def test_an_observe_step_emits_an_observation_on_the_last_result() -> None:
+    """R37 slice 3: ``observe`` is what the scripted agent makes of the
+    result it just got -- an ``agent.observation`` event, the one that
+    completes a call's "handle" stage. Fail-first: the step was refused."""
+    env = toy_environment(TaskId("t-1"))
+    script = [
+        {"call": "calculator", "arguments": {"expression": "6 * 7"}},
+        {"observe": "The product is 42."},
+        {"finish": "42"},
+    ]
+    events = _run(MockAgentRunner(scripts={"t-1": script}), _input(env))
+    assert [e.kind for e in events] == [
+        TraceEventKind.AGENT_PLAN,
+        TraceEventKind.AGENT_TOOL_CALL,
+        TraceEventKind.AGENT_TOOL_RESULT,
+        TraceEventKind.AGENT_OBSERVATION,
+        TraceEventKind.AGENT_FINAL_ANSWER,
+        TraceEventKind.AGENT_TERMINAL,
+    ]
+    assert events[3].payload == {"observation": "The product is 42."}
+    assert [e.step_index for e in events] == list(range(6))
+    assert parse_script([{"observe": "x"}]) == (ScriptStep(kind="observe", text="x"),)
+
+
 def test_script_without_finish_is_an_agent_error() -> None:
     events = _run(
         MockAgentRunner(scripts={"t-1": [{"say": "thinking"}]}),
@@ -145,6 +169,8 @@ def test_scripted_call_to_an_unknown_tool_is_recorded_as_such() -> None:
         {"call": ""},
         {"call": 3},
         {"say": ["not", "text"]},
+        {"observe": {"not": "text"}},
+        {"say": "x", "observe": "y"},
         {"call": "a", "arguments": ["x"]},
         {"jump": "x"},
     ],

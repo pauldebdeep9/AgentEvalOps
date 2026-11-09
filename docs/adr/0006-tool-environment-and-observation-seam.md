@@ -578,6 +578,12 @@ runner control.**
 - Today's metadata-driven mode stays the default, so existing toy configs
   and tests are unchanged.
 
+**Implementation note — 2026-11-09 (R37 slice 3).** A fourth step,
+`observe` (text), emits an `AGENT_OBSERVATION` event: what the scripted
+agent makes of the result it just got. It lets a script complete a
+call's "handle" stage in report.md's "Where runs first fail" matrix; the
+scripted mock is the first runner to emit the event.
+
 ### C. Evaluation and policy
 
 **D12. Evaluators and the policy checker receive an `EvaluatorContext`.**

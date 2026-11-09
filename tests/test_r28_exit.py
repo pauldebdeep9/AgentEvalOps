@@ -170,7 +170,10 @@ def test_a_bundle_with_one_score_event_removed_fails(
 
 def test_policy_verdict_is_gone_and_evaluator_score_left_the_allowlist() -> None:
     assert "POLICY_VERDICT" not in TraceEventKind.__members__
-    assert enum_coverage._ALLOWLIST[TraceEventKind] == frozenset({"AGENT_OBSERVATION"})
+    assert "EVALUATOR_SCORE" not in enum_coverage._ALLOWLIST[TraceEventKind]
+    # AGENT_OBSERVATION, the last entry, left it in R37 slice 3: the
+    # scripted mock's observe step emits it.
+    assert enum_coverage._ALLOWLIST[TraceEventKind] == frozenset()
 
 
 # (b) package_sha256 is identical for LF and CRLF copies and changes on a

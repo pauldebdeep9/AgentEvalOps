@@ -200,7 +200,7 @@ so its checksums cover them all.
 | `evaluations.json` | One entry per evaluator per task run, with the records it cites |
 | `policy.json` | The run-level policy verdict |
 | `summary.json` | Task results with their derived verdicts, counts, not-evaluated causes, preflight results, pass^k per scenario and per category |
-| `report.md` | Task results, repeatability, outcomes by kind of harm, the pre-registered plan, policy checks, a trace summary |
+| `report.md` | Task results, repeatability, outcomes by kind of harm, where runs first fail (a matrix of each failed run's last completed stage against the stage of its first failure), the pre-registered plan, policy checks, a trace summary |
 | `replay_command.txt` | The invocation that produced the bundle and the code provenance, for a human to judge drift |
 | `manifest.json` | Format version, the required-file list, each file's size and sha256, writer version |
 | `test_plan.json` | Registered before the first task: the declaration, the selected and excluded scenarios with reasons, thresholds with sources, every seed, the pack's scenario and data hashes. A run with no declaration registers a plan that says so (`declared: false`), which the gate cannot judge |
