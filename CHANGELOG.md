@@ -148,6 +148,27 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- **Refs decide a rescore by the bundle's era; `state_based` cites the
+  terminal** (2026-11-09; R42 slice 1, `8f4dfb2`, green on CI and
+  Package). A judged `state_based` failure cites the run's
+  `agent.terminal` trace event, so a state-only failure lands in "Where
+  runs first fail"'s finish column instead of unattributed; passes and
+  not-applicable results cite nothing. A new bundle records
+  `refs_version` (1) in `metadata.json`. For such a bundle, and for any
+  bundle the running code wrote, a forged or dropped ref -- in an
+  evaluation or a control verdict -- is a `DIFFER` naming the run and the
+  evaluator; an older bundle's refs are shown as "refs (evidence)", and it
+  rescores `CODE_CHANGED` with its verdicts reproducing. `rescore` and
+  `validate-bundle` print the era on a `Refs:` line, and `rescore --json`
+  carries it, so a bundle demoted to pre-R42 trust reads as one (ADR-0008
+  R3, as amended). **A reader older than R42 refuses a bundle that records
+  `refs_version`** -- a one-way step, as R35 and R36 took.
+- **The heatmap prefers a cited call that went wrong** (2026-11-09; R42
+  slice 2, `17a7361`, green on CI and Package). A run's first failure
+  among its cited tool calls is the earliest one that was denied, faulted,
+  errored or did not run, and only when none did, the earliest cited call;
+  the section's reading line says so. Render-only. The seed known-bad
+  bundle moves PC2 from parse -> issue to issue -> gate.
 - **The rule-of-three bound is left out up to three decided scenarios**
   (2026-11-09; R37, `0e0751d` and its follow-up). Beside an interval of
   two or three decided scenarios it read "~ 0.00" (or "~ 1.00" at
