@@ -137,10 +137,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-09, Sai2608, clean checkout at `ab2a663`)
+## Baseline (verified 2026-11-09, Sai2608, clean checkout at `4c521c1`)
 
 - ruff: clean
-- mypy: clean (83 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (88 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -156,17 +156,24 @@ in this repo.
   proven against an injected violation first; R28 (a)'s `plans` →
   `catalogue` import is the middle tier reaching the low tier, so no
   contract changed; nor did R29's `replay` → `orchestration`, `registry`,
-  `bundles` and `plans` imports, all middle tier)
-- pytest: 1950 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+  `bundles` and `plans` imports, all middle tier; with R38 slice 3, `triage`
+  joined the middle tier, the five confined-import contracts' sources and
+  the catalogue and environments contracts' forbidden lists -- not the
+  adapter-independence contract -- proven against injected violations
+  first: 9 kept before the edit, 3 broken after, 9 kept once removed)
+- pytest: 2017 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  98% branch coverage on a clean checkout (`ab2a663`, R37 met). In CI the
+  98% branch coverage on a clean checkout (`4c521c1`, R38 met). In CI the
   two case-insensitive path tests also skip, on Linux's case-sensitive
   disk. The
   signing tests (`tests/test_signing.py`) need `ssh-keygen` from OpenSSH 8.2
-  or newer: locally they skip, naming what is missing; with
-  `AGENTEVALOPS_REQUIRE_SSH_KEYGEN=1`, as CI sets it, they fail instead.
-  They make throwaway keys in their own temp dirs and never touch `~/.ssh`
-  or a running agent. The
+  or newer: where it is missing or older they skip, naming what is
+  missing, and with `AGENTEVALOPS_REQUIRE_SSH_KEYGEN=1`, as CI sets it,
+  they fail instead. Since 2026-11-09 `ssh-keygen` signs on this machine,
+  so they run locally -- the triage walker's signed-bundle byte-identity
+  test among them, with a throwaway key in its own temp HOME. They make
+  throwaway keys in their own temp dirs and never touch `~/.ssh` or a
+  running agent. The
   suite takes about four minutes without coverage and five with it on
   this machine, under two minutes per CI job. A toy, a seed, a
   known-bad and two carried-result bundles are written once per session
