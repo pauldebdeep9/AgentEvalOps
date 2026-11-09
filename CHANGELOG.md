@@ -130,11 +130,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- **The rule-of-three bound is left out below three decided scenarios**
-  (2026-11-09; R37 step 0). Beside an interval of two decided scenarios it
-  read "~ 0.00" (or "~ 1.00" at all-fail) and said nothing; the CLI and
-  `report.md` now show the interval alone there, and the bound from three
-  decided scenarios up. The honesty line is unchanged.
+- **The rule-of-three bound is left out up to three decided scenarios**
+  (2026-11-09; R37, `0e0751d` and its follow-up). Beside an interval of
+  two or three decided scenarios it read "~ 0.00" (or "~ 1.00" at
+  all-fail) and said nothing; the CLI and `report.md` now show the
+  interval alone there, and the bound from four decided scenarios up,
+  where it first says something (all-pass: ~ 0.25). The first cut left it
+  out below three only. The honesty line is unchanged.
 - **A run whose runner yielded its `agent.terminal` event is finished**
   (2026-11-04, `52e47c0`): if the runner's stream raises after it, the run is
   still harvested and judged, and the late error is a logged warning that

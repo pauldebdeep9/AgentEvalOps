@@ -400,10 +400,12 @@ def test_no_rule_of_three_bound_between_the_extremes() -> None:
     assert not any("rule of three" in line for line in lines)
 
 
-def test_the_rule_of_three_bound_is_left_out_below_three_decided() -> None:
-    """R37 step 0: below three decided scenarios the bound would read 0.00
-    or 1.00 and say nothing, so it is left out; the interval stays.
-    Fail-first: two of two passed printed "lower bound ~ 0.00"."""
+def test_the_rule_of_three_bound_is_left_out_up_to_three_decided() -> None:
+    """Up to three decided scenarios the bound would read 0.00 or 1.00 and
+    say nothing, so it is left out; the interval stays. From four it first
+    says something (all-pass: 1 - 3/4 = 0.25). Fail-first (R37 step 0 of
+    2026-11-09; the threshold moved from three to four): three of three
+    passed printed "lower bound ~ 0.00"."""
     assert pass_k_phrase(_roll_up(2, 0, 1.0, 1.0)) == (
         "; pass^1 2/2 scenarios, 95% CI [1.00, 1.00] over 2 decided"
     )
@@ -411,8 +413,10 @@ def test_the_rule_of_three_bound_is_left_out_below_three_decided() -> None:
         "; pass^1 0/2 scenarios, 95% CI [0.00, 0.00] over 2 decided"
     )
     assert pass_k_phrase(_roll_up(3, 0, 1.0, 1.0)) == (
-        "; pass^1 3/3 scenarios, 95% CI [1.00, 1.00] over 3 decided, "
-        "95% one-sided lower bound ~ 0.00 (rule of three)"
+        "; pass^1 3/3 scenarios, 95% CI [1.00, 1.00] over 3 decided"
+    )
+    assert pass_k_phrase(_roll_up(0, 3, 0.0, 0.0)) == (
+        "; pass^1 0/3 scenarios, 95% CI [0.00, 0.00] over 3 decided"
     )
     assert pass_k_phrase(_roll_up(4, 0, 1.0, 1.0)) == (
         "; pass^1 4/4 scenarios, 95% CI [1.00, 1.00] over 4 decided, "

@@ -491,10 +491,11 @@ def rule_of_three(interval: PassRateInterval, passed: int) -> str | None:
     """At 0/n or n/n, where the interval is zero-width, the one-sided 95%
     rule-of-three bound to show beside it -- 1 - 3/n below all-pass, 3/n
     above all-fail -- else None. Display only: it never enters summary.json
-    (owner decision 2, 2026-11-09). Below three decided scenarios it would
-    read 0.00 or 1.00 and say nothing, so it is left out (R37 step 0)."""
+    (owner decision 2, 2026-11-09). Up to three decided scenarios it would
+    read 0.00 or 1.00 and say nothing, so it is left out; from four it
+    first says something (R37 step 0s, 0e0751d and the next)."""
     n = interval.n_scenarios
-    if n < 3:
+    if n <= 3:
         return None
     if passed == n:
         return f"95% one-sided lower bound ~ {1 - 3 / n:.2f} (rule of three)"
