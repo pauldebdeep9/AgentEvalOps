@@ -9,6 +9,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Where runs first fail** (2026-11-09; R37 slice 1 `3e52a67`, then
+  slice 2; slice 3 follows). `report.md` gains a matrix of the failed task
+  runs -- rows the last completed stage, columns the stage of the first
+  failure -- over six harness stages (parse, issue, gate, exec, handle,
+  finish), judged from the failing evaluations' record citations by a
+  fixed precedence, with an "unattributed" column for a run that cites
+  none; every failed run lands in exactly one cell, and not-evaluated
+  runs are counted apart (`reports/heatmap.py`). Derived at render time
+  from records a 0.5+ bundle already holds: no new file, no schema change,
+  and rescore re-renders it byte for byte. An all-pass run says the
+  matrix is empty.
 - **Bootstrap intervals on pass^k** (2026-11-09; R36 complete: slices
   `17610e0`, `57f4f56`, `a828ce3` and the close-out, each green on CI and
   Package). Each pass^k rate in `summary.json` -- per category, and

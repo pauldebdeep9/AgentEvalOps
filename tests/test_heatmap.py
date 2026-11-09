@@ -360,6 +360,27 @@ def test_a_finish_tool_call_the_environment_never_saw_is_not_a_harness_call() ->
     )
 
 
+def test_a_call_that_never_reached_the_environment_shifts_nothing() -> None:
+    """A malformed call (no harness record) before a recorded one: trace
+    events are matched to records by tool name, not position, so the
+    recorded call's issue still follows parse (self-mutation pass: the
+    finish test alone could not tell name from position)."""
+    trace = [
+        _event(0, K.AGENT_PLAN),
+        _event(1, K.AGENT_TOOL_CALL, tool_name="status_update"),
+        _event(2, K.AGENT_TOOL_RESULT, tool_name="status_update"),
+        _event(3, K.AGENT_TOOL_CALL, tool_name="case_lookup"),
+        _event(4, K.AGENT_TOOL_RESULT, tool_name="case_lookup"),
+        _event(5, K.AGENT_TERMINAL),
+    ]
+    run = _run(_eval("deterministic", _ref("trace", 3)))
+    assert _only(transition_matrix([run], [_call(0)], trace)) == (
+        "parse",
+        "issue",
+        ("TE1:case_lookup",),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Which runs enter, and determinism
 # ---------------------------------------------------------------------------

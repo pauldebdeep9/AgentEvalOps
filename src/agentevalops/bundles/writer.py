@@ -279,6 +279,7 @@ def render_bundle(
             plan,
             runner_id,
             created_at,
+            tool_calls,
         ),
         CONTROLS_FILENAME: _json(controls),
         EVIDENCE_REPORT_FILENAME: (evidence_report + "\n").encode("utf-8"),
@@ -371,13 +372,15 @@ def _report(
     plan: RunPlan | None = None,
     runner_id: str | None = None,
     created_at: str | None = None,
+    tool_calls: Sequence[ToolCallRecord] = (),
 ) -> bytes:
     """report.md. *scenario_info* (R26) is the tasks' outcome groups and
     variants from the benchmark, for the outcomes section; *plan* (R27)
     the pre-registered plan, for the report to repeat -- content in the
     report, never a change to the bundle's shape. *created_at* dates it,
     the run's own timestamp, as metadata.json records it (ADR-0008
-    decision 9)."""
+    decision 9). *tool_calls* are the run's harness records, for the
+    "Where runs first fail" matrix (R37)."""
     return render_report(
         run_config,
         summary,
@@ -387,6 +390,7 @@ def _report(
         plan,
         runner_id,
         created_at,
+        tool_calls,
     ).encode("utf-8")
 
 

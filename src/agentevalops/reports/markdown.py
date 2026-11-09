@@ -23,8 +23,13 @@ from agentevalops.core.schemas import (
     RunSummary,
     TaskRunResult,
     TaskSpec,
+    ToolCallRecord,
     TraceEvent,
+    TraceEventKind,
 )
+from agentevalops.reports.heatmap import COLUMNS as TRANSITION_COLUMNS
+from agentevalops.reports.heatmap import ROWS as TRANSITION_ROWS
+from agentevalops.reports.heatmap import TransitionMatrix, transition_matrix
 
 #: This project's labels for MGF-Agentic §1.2.2's five kinds of harm
 #: (docs/imda-alignment.md §6), in the section's order.
@@ -177,8 +182,12 @@ def render_report(
     plan: RunPlan | None = None,
     runner_id: str | None = None,
     created_at: str | None = None,
+    tool_calls: Sequence[ToolCallRecord] = (),
 ) -> str:
     """Return a plain Markdown report string for a completed run.
+
+    *tool_calls* are the run's harness records, for the "Where runs first
+    fail" matrix (R37); a render given none says the matrix needs them.
 
     *created_at* is the run's own timestamp, as ``metadata.json`` records
     it, and dates the report (``run_created_line``); the report reads no
@@ -277,6 +286,9 @@ def render_report(
                 run_config, summary, scenario_info, runner_id == SCRIPTED_RUNNER
             )
         )
+
+    if summary.task_results:
+        lines.extend(transition_section(summary, all_events, tool_calls))
 
     if plan is not None:
         lines.extend(
@@ -522,6 +534,71 @@ def _interval_clause(
     clause = f"; {ci_text(interval)} (B={b})"
     bound = rule_of_three(interval, passed)
     return clause if bound is None else f"{clause}; {bound}"
+
+
+#: The "Where runs first fail" section's reading line (R37).
+TRANSITION_READING = (
+    "Rows: the last completed stage. Columns: the stage of the first failure, "
+    "judged from the failing evaluations' record citations."
+)
+
+
+def _matrix_cell(matrix: TransitionMatrix, row: str, column: str) -> str:
+    """``count (scenario:tool, ...)``, or a dash when the cell is empty."""
+    labels = matrix.labels(row, column)
+    return f"{len(labels)} ({', '.join(labels)})" if labels else "–"
+
+
+def transition_section(
+    summary: RunSummary,
+    all_events: Sequence[TraceEvent],
+    tool_calls: Sequence[ToolCallRecord],
+) -> list[str]:
+    """Where the run's failed task runs first fail (ROADMAP R37): rows the
+    last completed stage, columns the stage of the first failure, from
+    ``reports/heatmap.py`` over the run's own records -- derived at render
+    time, so a re-render reproduces it. Not-evaluated runs are counted
+    apart. The ``parse`` column shows only when a run failed there."""
+    lines = ["## Where runs first fail", ""]
+    if not any(
+        r.evaluation.evaluated and not r.evaluation.passed
+        for r in summary.task_results
+    ):
+        return [*lines, "No failed task runs; the matrix is empty.", ""]
+    if not tool_calls and any(
+        e.kind is TraceEventKind.AGENT_TOOL_CALL
+        and e.payload.get("tool_name") != "finish"
+        for e in all_events
+    ):
+        return [
+            *lines,
+            "The matrix needs the run's tool-call records; this render was "
+            "given none.",
+            "",
+        ]
+    matrix = transition_matrix(summary.task_results, tool_calls, all_events)
+    counts = (
+        f"{matrix.failed} failed task run{'s' if matrix.failed != 1 else ''} "
+        f"of {matrix.task_runs}"
+    )
+    if matrix.not_evaluated:
+        verb = "is" if matrix.not_evaluated == 1 else "are"
+        counts += f"; {matrix.not_evaluated} not evaluated {verb} not in the matrix"
+    lines += [TRANSITION_READING, f"{counts}.", ""]
+    columns = [
+        c
+        for c in TRANSITION_COLUMNS
+        if c != "parse" or any(cell.column == "parse" for cell in matrix.cells)
+    ]
+    header = ["From \\ In", *columns]
+    lines.append("| " + " | ".join(header) + " |")
+    lines.append("|" + "|".join("-" * (len(h) + 2) for h in header) + "|")
+    for row in TRANSITION_ROWS:
+        if any(cell.row == row for cell in matrix.cells):
+            cells = " | ".join(_matrix_cell(matrix, row, c) for c in columns)
+            lines.append(f"| {row} | {cells} |")
+    lines.append("")
+    return lines
 
 
 def repeatability_section(
