@@ -137,10 +137,10 @@ abandoned strategy in a different project. If `pip check` reports breakage
 here, assume a sibling project's install first, report it, and don't fix it
 in this repo.
 
-## Baseline (verified 2026-11-09, Sai2608, clean checkout at `a828ce3`)
+## Baseline (verified 2026-11-09, Sai2608, clean checkout at `ab2a663`)
 
 - ruff: clean
-- mypy: clean (82 source files) — dedicated `anthropic.*` and `openai.*`
+- mypy: clean (83 source files) — dedicated `anthropic.*` and `openai.*`
   mypy overrides in `pyproject.toml` (mirroring the pre-existing
   `opentelemetry.*` one) keep CI (which installs only `.[dev]`) green
   despite both SDKs being lazily-imported optional deps. Sai2608 has
@@ -157,9 +157,9 @@ in this repo.
   `catalogue` import is the middle tier reaching the low tier, so no
   contract changed; nor did R29's `replay` → `orchestration`, `registry`,
   `bundles` and `plans` imports, all middle tier)
-- pytest: 1901 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
+- pytest: 1950 passed, 1 skipped (opt-in `@pytest.mark.live`), 1 xfailed (the
   M-prefix look-alike, pending a verified check-letter table; ADR-0006 D26),
-  98% branch coverage on a clean checkout (`a828ce3`, R36 met). In CI the
+  98% branch coverage on a clean checkout (`ab2a663`, R37 met). In CI the
   two case-insensitive path tests also skip, on Linux's case-sensitive
   disk. The
   signing tests (`tests/test_signing.py`) need `ssh-keygen` from OpenSSH 8.2
