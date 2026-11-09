@@ -172,6 +172,9 @@ threshold or has a not-evaluated scenario, and 2 when it cannot judge (a
 run that declared no system, an invalid or tampered bundle). A comparative threshold is
 reported and never gates. `report --run-id <id>` prints a bundle's
 `report.md`; `replay` is a deprecated alias of `validate-bundle`.
+`triage --bundle <dir>` walks a seeded sample of a bundle's task runs and
+records a reviewer's verdict on each beside the bundle, never in it
+([docs/triage.md](docs/triage.md)).
 
 The other toy configs show one outcome each: `toy_failure.yaml` (wrong
 answers, evaluations fail), `toy_policy_violation.yaml` (cost ceiling,

@@ -9,6 +9,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Triage, `agentevalops triage`** (2026-11-09; R38 complete: `dad2c25`,
+  `102c484`, `dc46670` and the close-out, each green on CI and Package).
+  Walks a seeded sample of a bundle's task runs -- every failed run and a
+  share of the passing ones (`--passing-share`, 0.2), shuffled from the
+  run's own seed -- one screen per run, and asks a reviewer for a verdict
+  (pass, fail, defer) and a note before showing the harness's findings.
+  The verdicts go to `<bundle>.triage.jsonl` beside the bundle, never in
+  it; `--summarize` counts them, the reviewer x harness 2x2 first with its
+  blind-spot and over-strict cells named. No model is called
+  (`docs/triage.md`).
 - **Where runs first fail** (2026-11-09; R37 complete: `0e0751d`,
   `3e52a67`, `e51aa4a`, `adaf6f8` and slice 3, each green on CI and
   Package). `report.md` gains a matrix of the failed task
