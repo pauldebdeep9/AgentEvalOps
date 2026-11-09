@@ -122,7 +122,8 @@ If your change requires any of these, open a feature request first.
 2. Add tasks to the scenario's task list.
 3. Add a YAML config under `configs/` (use an existing config as a template).
 4. Add tests under `tests/test_toy_scenarios.py`.
-5. Document the scenario in `README.md` and `docs/local-demo.md`.
+5. Document the scenario in `docs/usage.md` (the toy configs paragraph) and
+   `docs/local-demo.md`.
 
 ---
 
@@ -145,7 +146,7 @@ Before changing the format:
 1. Check whether existing fixture bundles in `tests/` need updating.
 2. Bump `BUNDLE_FORMAT_VERSION` if the change is not backward-compatible.
 3. Update `BundleValidator`'s required-file list if files are added or removed.
-4. Update `README.md` bundle anatomy table and `docs/local-demo.md` if the
+4. Update the bundle table in `docs/usage.md` and `docs/local-demo.md` if the
    file set changes.
 5. Add or update tests in `tests/test_bundle_manifest.py` and
    `tests/test_bundle_validator.py`.
@@ -157,8 +158,9 @@ Before changing the format:
 - **New CLI command**: update `README.md` Quickstart, `docs/local-demo.md`,
   and add a test in `tests/test_cli.py`.
 - **New toy scenario**: follow the steps in "Adding a new toy scenario" above;
-  also update `README.md` scenario reference table and `docs/local-demo.md`.
-- **New config key**: update `README.md` config reference, `CONTRIBUTING.md`
+  also update the toy configs paragraph in `docs/usage.md` and
+  `docs/local-demo.md`.
+- **New config key**: update the config reference in `docs/usage.md`, `CONTRIBUTING.md`
   scope note if relevant, and add coverage in `tests/test_config_loader.py`.
 - **Changed public API** (schemas, protocols): mypy strict will catch callers;
   update affected tests and docs.
