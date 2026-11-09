@@ -89,19 +89,34 @@ _ALLOWLIST: dict[type, frozenset[str]] = {
     Verdict: frozenset(),  # WARN wired 2026-08-03; nothing reserved here.
 }
 
+#: Files that only read a member -- compare an event's kind against it --
+#: and never construct it, so they do not count as wiring it: the textual
+#: check's documented limitation, made explicit for each case that exists.
+#: A reference anywhere else still counts; ``test_readers_still_read``
+#: drops an entry whose file no longer reads the member.
+_READERS: dict[str, frozenset[Path]] = {
+    # ROADMAP R37: reports/heatmap.py stages a cited agent.observation event
+    # as "handle"; no runner emits one yet, so the member stays allowlisted.
+    "TraceEventKind.AGENT_OBSERVATION": frozenset(
+        {_SRC_ROOT / "reports" / "heatmap.py"}
+    ),
+}
+
 
 def _non_test_src_files() -> list[Path]:
     return sorted(_SRC_ROOT.rglob("*.py"))
 
 
 def _construction_site_count(enum_cls: type, member_name: str) -> int:
-    """Count textual occurrences of ``EnumClass.MEMBER`` in non-test src/."""
+    """Count textual occurrences of ``EnumClass.MEMBER`` in non-test src/,
+    leaving out the member's own ``_READERS``."""
     pattern = re.compile(
         rf"\b{re.escape(enum_cls.__name__)}\.{re.escape(member_name)}\b"
     )
+    readers = _READERS.get(f"{enum_cls.__name__}.{member_name}", frozenset())
     count = 0
     for path in _non_test_src_files():
-        if path == _SCHEMAS_FILE:
+        if path == _SCHEMAS_FILE or path in readers:
             continue
         count += len(pattern.findall(path.read_text(encoding="utf-8")))
     return count
@@ -145,3 +160,15 @@ def test_allowlist_has_no_stale_entries() -> None:
         "src/agentevalops/ -- remove them from _ALLOWLIST, they are no "
         "longer unwired."
     )
+
+
+def test_readers_still_read() -> None:
+    """A ``_READERS`` file that no longer names its member is a stale
+    exclusion: drop it, so nothing hides behind it."""
+    stale = [
+        f"{qualified} in {path.relative_to(_SRC_ROOT)}"
+        for qualified, paths in _READERS.items()
+        for path in sorted(paths)
+        if qualified not in path.read_text(encoding="utf-8")
+    ]
+    assert not stale, f"_READERS entries {stale} no longer read their member"
