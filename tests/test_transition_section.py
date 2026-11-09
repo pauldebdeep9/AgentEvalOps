@@ -38,7 +38,9 @@ FIXTURES = Path(__file__).parent / "fixtures" / "bundles"
 HEADING = "## Where runs first fail"
 READING = (
     "Rows: the last completed stage. Columns: the stage of the first failure, "
-    "judged from the failing evaluations' record citations."
+    "judged from the failing evaluations' record citations. A cited tool call "
+    "that went wrong -- denied, faulted, erroring or not executed -- is the "
+    "first failure before any cited call that ran cleanly."
 )
 HEADER = "| From \\ In | issue | gate | exec | handle | finish | unattributed |"
 
@@ -238,3 +240,29 @@ def test_an_empty_cell_is_a_dash_never_a_zero(
     assert rows
     assert all(" 0 " not in row for row in rows)
     assert any("–" in row for row in rows)
+
+
+def test_the_known_bad_reading_with_the_preference(
+    reference_bundles: ReferenceBundles,
+) -> None:
+    """The seed known-bad bundle's matrix, re-asserted under R42's
+    preference (D-R42-4). One run moved, on purpose: PC2's tool_use
+    evaluation cites its clean case_lookup and status_update (calls 0 and
+    1), its policy evaluation the denied send_notice and the approved one
+    after it (2 and 3), so the denied call is now the first failure --
+    issue -> gate, where the smallest index had put it at parse -> issue.
+    The other 22 runs at parse -> issue cite no call that went wrong."""
+    summary, events, calls = _records(reference_bundles["known-bad"].path)
+    matrix = transition_matrix(summary.task_results, calls, events)
+    assert (matrix.task_runs, matrix.failed, matrix.not_evaluated) == (26, 26, 0)
+    assert sum(cell.count for cell in matrix.cells) == matrix.failed
+    assert {(c.row, c.column): c.count for c in matrix.cells} == {
+        ("parse", "issue"): 22,
+        ("issue", "gate"): 1,
+        ("issue", "exec"): 1,
+        ("exec", "handle"): 2,
+    }
+    assert matrix.labels("issue", "gate") == ("PC2:send_notice",)
+    assert "PC2:case_lookup" not in matrix.labels("parse", "issue")
+    assert matrix.labels("issue", "exec") == ("RB2:case_lookup",)
+    assert matrix.labels("exec", "handle") == ("PC7:send_notice", "RB1:case_lookup")

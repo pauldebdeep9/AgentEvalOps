@@ -245,6 +245,95 @@ def test_a_cited_tool_call_outranks_a_cited_trace_event() -> None:
 
 
 # ---------------------------------------------------------------------------
+# 1b. The preference: a cited call that went wrong comes first (R42, D-R42-4)
+# ---------------------------------------------------------------------------
+
+
+def test_the_heatmap_prefers_the_problematic_cited_record() -> None:
+    """tool_use cites both calls -- the satisfied lookup and the later
+    status update, which ran but faulted. The faulted call is the first
+    failure: the run moves off parse -> issue, to issue -> exec. (Fail-first:
+    the smallest cited index put it at parse -> issue.)"""
+    calls = [_call(0), _call(1, "status_update", fault="malformed")]
+    run = _run(_eval("tool_use", _ref("tool_calls", 0), _ref("tool_calls", 1)))
+    trace = _trace(("case_lookup", "status_update"))
+    assert _only(transition_matrix([run], calls, trace)) == (
+        "issue",
+        "exec",
+        ("TE1:status_update",),
+    )
+
+
+@pytest.mark.parametrize(
+    ("later", "column"),
+    [
+        # Each way a call goes wrong; the first two ran all the same.
+        (_call(1, "status_update", fault="timeout"), "exec"),
+        (_call(1, "status_update", error=True), "exec"),
+        (_call(1, "status_update", executed=False), "exec"),
+        (_call(1, "status_update", approval="denied", executed=False), "gate"),
+    ],
+    ids=["fault", "error", "not-executed", "denied"],
+)
+def test_each_kind_of_problem_is_preferred_over_an_earlier_clean_call(
+    later: ToolCallRecord, column: str
+) -> None:
+    """The clean lookup is cited by tool_use, the later call by policy: the
+    later call is the first failure, staged from its own record."""
+    run = _run(
+        _eval("tool_use", _ref("tool_calls", 0)),
+        _eval("policy", _ref("tool_calls", 1)),
+    )
+    trace = _trace(("case_lookup", "status_update"))
+    assert _only(transition_matrix([run], [_call(0), later], trace)) == (
+        "issue",
+        column,
+        ("TE1:status_update",),
+    )
+
+
+def test_all_clean_citations_keep_the_smallest_index() -> None:
+    """No cited call went wrong: the smallest cited index decides, with the
+    clean-call rules (tool_use's citation makes it an issue)."""
+    calls = [_call(0), _call(1, "status_update")]
+    run = _run(
+        _eval("policy", _ref("tool_calls", 1)),
+        _eval("tool_use", _ref("tool_calls", 0), _ref("tool_calls", 1)),
+    )
+    trace = _trace(("case_lookup", "status_update"))
+    assert _only(transition_matrix([run], calls, trace)) == (
+        "parse",
+        "issue",
+        ("TE1:case_lookup",),
+    )
+
+
+def test_an_uncited_problem_does_not_move_the_run() -> None:
+    """The faulted call is in the run's records but no failing evaluation
+    cites it: the preference reads cited records only."""
+    calls = [_call(0), _call(1, "status_update", fault="timeout")]
+    run = _run(_eval("tool_use", _ref("tool_calls", 0)))
+    trace = _trace(("case_lookup", "status_update"))
+    assert _only(transition_matrix([run], calls, trace)) == (
+        "parse",
+        "issue",
+        ("TE1:case_lookup",),
+    )
+
+
+def test_the_preference_reads_tool_call_refs_only() -> None:
+    """No call is cited; the plan (step 0) and the faulted call's result
+    (step 2) are. Trace refs keep the smallest step: the plan."""
+    calls = [_call(0, fault="timeout")]
+    run = _run(_eval("deterministic", _ref("trace", 2), _ref("trace", 0)))
+    assert _only(transition_matrix([run], calls, _trace())) == (
+        "start",
+        "parse",
+        ("TE1",),
+    )
+
+
+# ---------------------------------------------------------------------------
 # 2. Else a cited trace event: the stage by its kind
 # ---------------------------------------------------------------------------
 

@@ -22,11 +22,15 @@ failed run lands in exactly one cell, so the cells sum to the failed runs.
 **The column: the first failure, by fixed precedence,** from the failing
 evaluations' refs.
 
-1. A cited tool call: the smallest cited index, its stage from the record.
-   Denied and not executed: ``gate``. A fault, an error, or not executed:
-   ``exec``. Executed cleanly: ``issue`` when a ``tool_use`` evaluation
-   cites it, else ``handle`` (a ``state_based`` or ``policy`` judgement of
-   what the agent did with a clean result).
+1. A cited tool call: the smallest cited index among the cited calls that
+   went wrong -- denied, a fault, an error, or not executed -- and only
+   when none did, the smallest cited index (R42, D-R42-4: ``tool_use``
+   cites broadly, and a satisfied lookup before the call that failed is
+   not where the run first failed). Its stage from the record. Denied and
+   not executed: ``gate``. A fault, an error, or not executed: ``exec``.
+   Executed cleanly: ``issue`` when a ``tool_use`` evaluation cites it,
+   else ``handle`` (a ``state_based`` or ``policy`` judgement of what the
+   agent did with a clean result).
 2. Else a cited trace event: the smallest cited step, its stage by kind --
    plan ``parse``, tool call ``issue``, tool result ``exec``, observation
    ``handle``, final answer or terminal ``finish``.
@@ -217,6 +221,17 @@ def _failing(result: TaskRunResult) -> list[EvaluationResult]:
     ]
 
 
+def _went_wrong(call: ToolCallRecord) -> bool:
+    """A call the harness records as a problem: denied, a fault, an
+    error, or not executed (D-R42-4)."""
+    return (
+        call.approval == "denied"
+        or call.fault is not None
+        or bool(call.error)
+        or not call.executed
+    )
+
+
 def _place(result: TaskRunResult, run: _Run) -> tuple[str, str, str]:
     """(row, column, label) of one failed task run."""
     own = (run.task, result.repetition)
@@ -231,7 +246,8 @@ def _place(result: TaskRunResult, run: _Run) -> tuple[str, str, str]:
             elif ref.stream == "trace" and ref.index in run.by_step:
                 cited_steps.append(ref.index)
     if cited_calls:
-        index = min(i for i, _ in cited_calls)
+        wrong = [i for i, _ in cited_calls if _went_wrong(run.calls[run.position[i]])]
+        index = min(wrong) if wrong else min(i for i, _ in cited_calls)
         position = run.position[index]
         call = run.calls[position]
         if call.approval == "denied" and not call.executed:

@@ -304,7 +304,9 @@ def test_every_failed_run_is_in_one_cell_and_the_not_evaluated_beside(
         "## Where runs first fail",
         "",
         "Rows: the last completed stage. Columns: the stage of the first failure, "
-        "judged from the failing evaluations' record citations.",
+        "judged from the failing evaluations' record citations. A cited tool "
+        "call that went wrong -- denied, faulted, erroring or not executed -- is "
+        "the first failure before any cited call that ran cleanly.",
         "7 failed task runs of 8; 1 not evaluated is not in the matrix.",
         "",
         "| From \\ In | issue | gate | exec | handle | finish | unattributed |",

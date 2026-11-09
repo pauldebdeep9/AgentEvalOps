@@ -540,7 +540,9 @@ def _interval_clause(
 #: The "Where runs first fail" section's reading line (R37).
 TRANSITION_READING = (
     "Rows: the last completed stage. Columns: the stage of the first failure, "
-    "judged from the failing evaluations' record citations."
+    "judged from the failing evaluations' record citations. A cited tool call "
+    "that went wrong -- denied, faulted, erroring or not executed -- is the "
+    "first failure before any cited call that ran cleanly."
 )
 
 
