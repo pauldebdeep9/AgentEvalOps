@@ -117,3 +117,98 @@ def test_a_line_from_another_run_is_refused(tmp_path: Path) -> None:
     append_annotation(bundle, "other-run", "TE1", 0, "fail", "", now=_clock(T0))
     with pytest.raises(TriageError, match="other-run"):
         load_annotations(bundle, RUN)
+
+
+@pytest.mark.parametrize(
+    ("line", "field"),
+    [
+        (
+            {
+                "repetition": 0,
+                "verdict": "fail",
+                "note": "",
+                "annotated_at": "t",
+                "run_id": RUN,
+            },
+            "task_id",
+        ),
+        (
+            {
+                "task_id": "TE1",
+                "repetition": "0",
+                "verdict": "fail",
+                "note": "",
+                "annotated_at": "t",
+                "run_id": RUN,
+            },
+            "repetition",
+        ),
+        (
+            {
+                "task_id": "TE1",
+                "repetition": True,
+                "verdict": "fail",
+                "note": "",
+                "annotated_at": "t",
+                "run_id": RUN,
+            },
+            "repetition",
+        ),
+        (
+            {
+                "task_id": "TE1",
+                "repetition": 0,
+                "verdict": "fail",
+                "note": 3,
+                "annotated_at": "t",
+                "run_id": RUN,
+            },
+            "note",
+        ),
+        (
+            {
+                "task_id": "TE1",
+                "repetition": 0,
+                "verdict": "maybe",
+                "note": "",
+                "annotated_at": "t",
+                "run_id": RUN,
+            },
+            "verdict",
+        ),
+        (
+            {
+                "task_id": "TE1",
+                "repetition": 0,
+                "verdict": "fail",
+                "note": "",
+                "annotated_at": "t",
+                "run_id": RUN,
+                "annotator": 7,
+            },
+            "annotator",
+        ),
+        (
+            {
+                "task_id": "TE1",
+                "repetition": 0,
+                "verdict": "fail",
+                "note": "",
+                "annotated_at": "t",
+                "run_id": RUN,
+                "mood": "x",
+            },
+            "mood",
+        ),
+        (["not", "an", "object"], "object"),
+    ],
+)
+def test_a_line_with_a_missing_or_wrong_typed_field_names_it(
+    tmp_path: Path, line: object, field: str
+) -> None:
+    """R38 slice 3: each of store.py's defensive checks, by an edit it
+    catches; a blank line is skipped."""
+    bundle = tmp_path / "seed-1"
+    sidecar_path(bundle).write_text("\n" + json.dumps(line) + "\n", encoding="utf-8")
+    with pytest.raises(TriageError, match=f"line 2: .*{field}"):
+        load_annotations(bundle, RUN)

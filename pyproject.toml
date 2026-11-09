@@ -215,7 +215,7 @@ type = "layers"
 containers = ["agentevalops"]
 layers = [
     "cli",
-    "agents:benchmarks:bundles:config:domain_packs:evaluators:observability:orchestration:plans:policy:registry:replay:reports:scorers:stores",
+    "agents:benchmarks:bundles:config:domain_packs:evaluators:observability:orchestration:plans:policy:registry:replay:reports:scorers:stores:triage",
     # ADR-0006 D8's low tier: shared data and machinery the adapters build
     # on, importing only core. "|" makes the two independent siblings.
     "catalogue | environments",
@@ -277,6 +277,7 @@ source_modules = [
     "agentevalops.reports",
     "agentevalops.scorers",
     "agentevalops.stores",
+    "agentevalops.triage",
 ]
 forbidden_modules = ["anthropic", "langgraph", "langchain_anthropic"]
 
@@ -311,6 +312,7 @@ source_modules = [
     "agentevalops.reports",
     "agentevalops.scorers",
     "agentevalops.stores",
+    "agentevalops.triage",
 ]
 forbidden_modules = ["opentelemetry"]
 
@@ -359,6 +361,7 @@ source_modules = [
     "agentevalops.reports",
     "agentevalops.scorers",
     "agentevalops.stores",
+    "agentevalops.triage",
 ]
 forbidden_modules = ["boto3", "botocore"]
 
@@ -395,6 +398,7 @@ source_modules = [
     "agentevalops.reports",
     "agentevalops.scorers",
     "agentevalops.stores",
+    "agentevalops.triage",
 ]
 forbidden_modules = ["openai"]
 
@@ -434,6 +438,7 @@ source_modules = [
     "agentevalops.reports",
     "agentevalops.scorers",
     "agentevalops.stores",
+    "agentevalops.triage",
     "agentevalops.catalogue",
     "agentevalops.environments",
 ]
@@ -466,6 +471,7 @@ forbidden_modules = [
     "agentevalops.reports",
     "agentevalops.scorers",
     "agentevalops.stores",
+    "agentevalops.triage",
 ]
 
 # ADR-0006 D8: the tool environments import nothing from agentevalops except
@@ -493,4 +499,5 @@ forbidden_modules = [
     "agentevalops.reports",
     "agentevalops.scorers",
     "agentevalops.stores",
+    "agentevalops.triage",
 ]

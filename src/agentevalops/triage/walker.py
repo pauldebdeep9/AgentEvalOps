@@ -33,6 +33,7 @@ from agentevalops.bundles.serializers import (
     load_tool_call,
 )
 from agentevalops.core.schemas import EndStateRecord, TaskRunResult, ToolCallRecord
+from agentevalops.replay.rebuild import RebuildError, rebuild_run
 from agentevalops.triage.frame import (
     DEFAULT_PASSING_SHARE,
     Frame,
@@ -56,6 +57,7 @@ __all__ = [
     "TriageView",
     "WalkResult",
     "agreement",
+    "load_task_info",
     "load_view",
     "render_screen",
     "walk",
@@ -167,6 +169,27 @@ def load_view(
     return TriageView(
         Path(bundle), run_id, frame, records, _runner_label(loaded.config)
     )
+
+
+def load_task_info(bundle: Path) -> tuple[dict[str, TaskInfo], str | None]:
+    """Each task's text and category, rebuilt from the bundle's own
+    config.json and plan (``rebuild_run``, the R29 (b1) machinery) -- or
+    none, and why, when the run cannot be rebuilt here (its benchmark or
+    pack is not installed, say): the walk goes on without them."""
+    loaded = BundleReader(Path(bundle)).read()
+    if loaded.test_plan is None:
+        return {}, "the bundle records no test plan"
+    try:
+        rebuilt = rebuild_run(loaded.config, loaded.test_plan)
+    except RebuildError as exc:
+        return {}, str(exc)
+    return {
+        str(t.task_id): TaskInfo(
+            t.description,
+            str(rebuilt.scenario_info.get(str(t.task_id), {}).get("category") or ""),
+        )
+        for t in rebuilt.tasks
+    }, None
 
 
 # ---------------------------------------------------------------------------

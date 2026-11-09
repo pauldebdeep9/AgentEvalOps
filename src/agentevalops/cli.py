@@ -612,6 +612,120 @@ def rescore(
     raise typer.Exit(code=result.exit_code)
 
 
+class _TerminalPrompter:
+    """The triage walker's Prompter on the terminal (R38): typer's echo and
+    prompt; an end of input quits the session as ``q`` would."""
+
+    def show(self, text: str) -> None:
+        typer.echo(text)
+
+    def ask(self, prompt: str) -> str:
+        try:
+            return str(
+                typer.prompt(
+                    prompt.rstrip(), default="", show_default=False, prompt_suffix=" "
+                )
+            )
+        except typer.Abort:
+            return "q"
+
+
+@app.command()
+def triage(
+    bundle: Path = typer.Option(
+        ..., "--bundle", "-b", help="Path to a result bundle directory."
+    ),
+    seed: Annotated[
+        int | None,
+        typer.Option(
+            "--seed",
+            help="Order the walk from this seed instead of the run's own (two "
+            "reviewers of one bundle see one order unless one of them sets it).",
+        ),
+    ] = None,
+    annotator: Annotated[
+        str | None,
+        typer.Option(
+            "--annotator",
+            help="Recorded with each verdict; nothing is recorded without it.",
+        ),
+    ] = None,
+    include_not_evaluated: Annotated[
+        bool,
+        typer.Option(
+            "--include-not-evaluated",
+            help="Walk the task runs the harness did not evaluate as well.",
+        ),
+    ] = False,
+    show_findings_first: Annotated[
+        bool,
+        typer.Option(
+            "--show-findings-first",
+            help="Show the harness's findings before asking for a verdict.",
+        ),
+    ] = False,
+    passing_share: Annotated[
+        float,
+        typer.Option(
+            "--passing-share",
+            min=0.0,
+            max=1.0,
+            help="The share of passing task runs sampled into the walk, always "
+            "rounded up: the passing slice is where an evaluator's blind spots "
+            "hide.",
+        ),
+    ] = 0.2,
+    summarize: Annotated[
+        bool,
+        typer.Option(
+            "--summarize",
+            help="Print the verdicts recorded so far as counts instead of walking.",
+        ),
+    ] = False,
+) -> None:
+    """Walk a deterministic sample of a bundle's task runs and record a
+    verdict and a note on each (ROADMAP R38): every failed run and a share
+    of the passing ones, shuffled, the verdict asked before the harness's
+    findings are shown. The verdicts go to <bundle>.triage.jsonl beside the
+    bundle, which is never written. --summarize counts them: the reviewer's
+    verdict against the harness's first. No model is called. Exit 2 when the
+    bundle or its sidecar cannot be read."""
+    from agentevalops.core.errors import AgentEvalOpsError
+    from agentevalops.triage.store import load_annotations, sidecar_path
+    from agentevalops.triage.summary import render_summary
+    from agentevalops.triage.summary import summarize as summarize_triage
+    from agentevalops.triage.walker import load_task_info, load_view, walk
+
+    try:
+        view = load_view(
+            bundle,
+            seed=seed,
+            passing_share=passing_share,
+            include_not_evaluated=include_not_evaluated,
+        )
+        task_info, problem = load_task_info(bundle)
+        if summarize:
+            annotations = load_annotations(bundle, view.run_id)
+            if not annotations:
+                where = sidecar_path(bundle)
+                typer.echo(f"No triage annotations beside this bundle ({where}).")
+                return
+            typer.echo(render_summary(summarize_triage(view, annotations, task_info)))
+            return
+        if problem is not None:
+            typer.echo(f"Task text and categories are not available: {problem}")
+        walk(
+            view,
+            _TerminalPrompter(),
+            task_info=task_info,
+            annotator=annotator,
+            show_findings_first=show_findings_first,
+        )
+    except (AgentEvalOpsError, ValueError) as exc:
+        typer.echo(f"Cannot triage {bundle}: {exc}", err=True)
+        raise typer.Exit(code=2) from None
+
+
 @app.command()
 def sign(
     bundle: Path = typer.Option(
@@ -794,8 +908,6 @@ def _task_info(benchmark: Any) -> dict[str, dict[str, Any]]:
     except Exception:  # noqa: BLE001 - a summary line must never fail a run
         return {}
     return scenario_info(tasks)
-
-
 
 
 def _categories(scenario_info: dict[str, dict[str, Any]]) -> dict[str, str]:

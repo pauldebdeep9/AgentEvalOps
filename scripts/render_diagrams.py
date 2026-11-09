@@ -94,7 +94,7 @@ DARK = Palette(
 
 STRUCTURE = [
     ("interface", "Interface", [
-        ("cli", ["run, gate, report, sign,", "validate-bundle, replay,", "rescore, version, doctor"]),
+        ("cli", ["run, gate, report, sign,", "validate-bundle, replay,", "rescore, triage,", "version, doctor"]),
     ]),
     ("engine", "Engine and adapters", [
         ("orchestration", ["the run loop: preflight,", "k repetitions, scoring;", "verdicts rescore reuses"]),

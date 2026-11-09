@@ -9,7 +9,8 @@
 <text x="383" y="76" font-family='"SFMono-Regular", Menlo, Consolas, monospace' font-size="13" font-weight="600" fill="#0969da" text-anchor="start">cli</text>
 <text x="383" y="94" font-family='"Inter", -apple-system, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' font-size="11" font-weight="400" fill="#59636e" text-anchor="start">run, gate, report, sign,</text>
 <text x="383" y="108" font-family='"Inter", -apple-system, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' font-size="11" font-weight="400" fill="#59636e" text-anchor="start">validate-bundle, replay,</text>
-<text x="383" y="122" font-family='"Inter", -apple-system, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' font-size="11" font-weight="400" fill="#59636e" text-anchor="start">rescore, version, doctor</text>
+<text x="383" y="122" font-family='"Inter", -apple-system, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' font-size="11" font-weight="400" fill="#59636e" text-anchor="start">rescore, triage,</text>
+<text x="383" y="136" font-family='"Inter", -apple-system, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' font-size="11" font-weight="400" fill="#59636e" text-anchor="start">version, doctor</text>
 <rect x="20" y="182" width="860" height="390" rx="10" fill="#f2f8f4" stroke="#c2dccb" stroke-width="1"/>
 <text x="36" y="204" font-family='"Inter", -apple-system, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif' font-size="11" font-weight="600" fill="#1a7f37" text-anchor="start" letter-spacing="0.08em">ENGINE AND ADAPTERS</text>
 <rect x="36" y="216" width="156" height="76" rx="6" fill="#ffffff" stroke="#d0d7de" stroke-width="1"/>
