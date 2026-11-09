@@ -54,6 +54,17 @@ test run can silently import the live source: print `agentevalops.__file__`
 from the copy's run and check it points into the copy before trusting any
 result.
 
+**Each reviewer gets its own scripts.** On 2026-11-09 one reviewer's
+mutation reached another reviewer's worktree through a shared scratch
+script: both kept their driver and mutation scripts under the same names
+in the session's shared scratchpad, one overwrote the other's with copies
+pointing at its own worktree, and the other's next mutation landed there
+(R42; reverted, the affected runs repeated). Give each reviewer its own
+copy of any driver or mutation script, parameterized by its worktree path
+and asserting it, in a directory only that reviewer writes -- no shared
+mutable scratch between reviewers -- and have the script refuse to mutate
+unless `git -C <worktree> diff` is empty.
+
 **Don't edit files while a gate is running on the tree.** Wait for it to
 finish, or stop it first. Tests read the checkout's own git state and
 files, so an edit mid-run makes the result describe neither the old tree
