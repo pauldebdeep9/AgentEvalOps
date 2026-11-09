@@ -73,6 +73,52 @@ build adds to the text:
   outputs, each held to its `agent.terminal` event, not from
   `summary.json`'s totals (`RunLimits.reached`, the orchestrator's rule). A
   preflight stop records no spend either.
+- **Amended 2026-11-09 (R42; owner, revised D-R42-2): an evaluation's refs
+  decide by the bundle's era.** From R42 the `state_based` evaluator cites
+  the run's `agent.terminal` event on a judged failure (ADR-0006 D17), and
+  a writer records `refs_version` (1) in `metadata.json`. For a bundle that
+  records it -- and for any bundle the running code wrote, so that deleting
+  the marker does not change the rule -- an evaluation's refs and a control
+  verdict's stay among R3's deciding fields: a forged or dropped ref is a
+  `DIFFER` naming the run and the evaluator. For an older bundle the
+  deciding fields are `applicable`, `evaluated`, `passed`, `score` and
+  `not_evaluated_cause`; its refs -- its evaluations' and its control
+  verdicts', which repeat them -- are compared and shown as "refs
+  (evidence)", so it rescores `CODE_CHANGED` with its verdicts reproducing.
+  The policy verdict keeps its citations and refs among its deciding
+  fields. **The first version of this amendment was wrong.** It took refs
+  out of the deciding set for every bundle, reasoning that a forged ref
+  would still change `report.md`'s matrix and so fail R3's byte comparison
+  of the reports. It does not: rescore renders `report.md` from the
+  results it derives, the recorded `report.md` was rendered from the true
+  results too, and a forger who edits refs only in the JSON records leaves
+  the two equal. The R42 review built such bundles -- refs moved or
+  emptied in the three records, or in `controls.json` alone, which no
+  three-record check covers -- and each validated and rescored `MATCH`.
+  The marker is a new key: a reader older than R42 refuses a bundle that
+  records it (the one-way step R35 and R36 took), where the first version
+  had claimed no reader break. "The running code wrote the bundle" is read
+  from recorded bytes, by R2's comparison: every provenance item reads
+  `same` -- `metadata.json`'s `package_sha256` against the hash of the
+  running package's files, the plan's pack `scenarios_sha256` and
+  `data_sha256` against the installed pack's, `controls.json`'s catalogue
+  hashes against the running catalogue's, and each evaluation's
+  `evaluator_id` against the configured evaluator's; an item not compared
+  (a toy run's pack) counts as the same. The same comparison makes the
+  outcome `CODE_CHANGED`, so a refs difference is either deciding or the
+  outcome is `CODE_CHANGED`: no refs forgery reads `MATCH`. A forger who
+  deletes the marker and also edits one of those recorded items (the era
+  downgrade) demotes the bundle to pre-R42 trust: its refs are evidence,
+  and it rescores `CODE_CHANGED` with its verdicts reproducing. That is
+  accepted because it is visible. `rescore` prints a `Refs:` line saying
+  what decided and why -- `deciding (refs_version 1)`, `evidence (pre-R42
+  bundle)`, or, for a bundle the running code wrote that records no marker,
+  which only an edit makes, `deciding (no refs_version, but the running
+  code wrote this bundle)` -- and `validate-bundle` prints the era the
+  bundle records, so a supposedly new bundle claiming to be old reads as
+  one. At pre-R42 trust the defence against tampering is the signature
+  (S1-S4, verified by V1), as for any bundle written before R42; C1 does
+  not cover `controls.json`.
 - **Reviewed before it landed.** Four independent reviewers read the
   rescore slice through four lenses; one-line mutations of its rules showed
   ten of twelve surviving the first tests. Every confirmed finding was

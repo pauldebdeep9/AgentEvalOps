@@ -50,6 +50,7 @@ from agentevalops.bundles.constants import (
     TOOL_CALLS_FILENAME,
     format_tuple,
     peek_declared_format_version,
+    recorded_refs_era,
     required_files_for_version,
 )
 from agentevalops.bundles.provenance import package_sha256
@@ -182,6 +183,10 @@ class BundleValidationResult:
     #: Set when ``allowed_signers`` was given and the signature verified
     #: (docs/adr/0008 V1).
     signer: Signer | None = None
+    #: R42: the era metadata.json's ``refs_version`` records -- whether a
+    #: rescore holds the refs among the deciding fields by the marker alone.
+    #: ``None`` when metadata.json does not parse as an object.
+    refs_era: str | None = None
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -216,6 +221,7 @@ def validate_bundle(
     bundle_git_dirty: bool | None = None
     bundle_package_sha: str | None = None
     registered_plan_sha: str | None = None
+    refs_era: str | None = None
 
     # ------------------------------------------------------------------ #
     # 1. Directory check
@@ -479,6 +485,7 @@ def validate_bundle(
                 registered_plan_sha = plan_sha if isinstance(plan_sha, str) else None
                 pkg = meta_obj.get("package_sha256")
                 bundle_package_sha = pkg if isinstance(pkg, str) else None
+                refs_era = recorded_refs_era(meta_obj.get("refs_version"))[1]
         except (json.JSONDecodeError, OSError):
             pass  # already caught by check 8
 
@@ -648,4 +655,5 @@ def validate_bundle(
         evaluation_count=evaluation_count,
         policy_verdict=policy_verdict,
         signer=signer,
+        refs_era=refs_era,
     )

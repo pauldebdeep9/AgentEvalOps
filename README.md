@@ -143,6 +143,7 @@ Manifest:      PASS
 Trace events:  336
 Evaluations:   72
 Policy:        PASS
+Refs:          deciding (refs_version 1)
 Files checked: 13
 Status:        PASS
 ```
@@ -325,6 +326,18 @@ the writer's own renderer and the bundle's own dates, and compares.
 | `DIFFER` | 1 | The code is the same and something is not; each difference is named, and a report's first differing line |
 | cannot rescore | 2 | The bundle does not validate, predates format 0.6, or names a benchmark, pack or evaluator that is not installed |
 | `CODE_CHANGED` | 3 | The package hash, the pack's scenarios or data hash, the catalogue files or an evaluator's id differ from the code that wrote the bundle; the verdict line still says whether every verdict reproduces under the running code, and names the ones that moved |
+
+An evaluation's refs, and a control verdict's, decide for a bundle written
+from R42 on (its `metadata.json` records `refs_version`) and for any bundle
+the running code wrote; an older bundle's refs are compared and shown as
+"refs (evidence)", so it rescores `CODE_CHANGED` with its verdicts
+reproducing. Both commands print the era: `rescore`'s `Refs:` line says
+whether the refs decided and why -- `deciding (refs_version 1)`, `evidence
+(pre-R42 bundle)`, or `deciding (no refs_version, but the running code
+wrote this bundle)`, which only an edited bundle shows -- and
+`validate-bundle`'s says what the bundle records. A bundle whose marker is
+deleted and whose recorded code is edited reads as one written before R42,
+and is trusted as one: its signature is the defence against tampering.
 
 `--json FILE` writes the result as JSON: the outcome, the provenance
 comparison and every difference, and the reason when the bundle cannot be

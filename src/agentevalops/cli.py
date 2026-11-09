@@ -1042,6 +1042,8 @@ def _print_validation_result(bundle: Path, result: BundleValidationResult) -> No
     typer.echo(f"Evaluations:   {result.evaluation_count}")
     if result.policy_verdict is not None:
         typer.echo(f"Policy:        {result.policy_verdict.upper()}")
+    if result.refs_era is not None:
+        typer.echo(f"Refs:          {result.refs_era}")
     typer.echo(f"Files checked: {result.checked_files}")
     if result.signer is not None:
         typer.echo(

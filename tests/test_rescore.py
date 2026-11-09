@@ -517,6 +517,10 @@ def _control_state(doc: dict[str, Any]) -> None:
     doc["controls"][0]["state"] = "uncovered"
 
 
+def _control_dropped(doc: dict[str, Any]) -> None:
+    del doc["controls"][0]
+
+
 def _policy_verdict(doc: dict[str, Any]) -> None:
     doc["verdict"] = "fail"
 
@@ -528,7 +532,16 @@ def _summary_pass_k(doc: dict[str, Any]) -> None:
 @pytest.mark.parametrize(
     ("name", "change", "named"),
     [
-        ("controls.json", _control_state, ": state recorded "),
+        (
+            "controls.json",
+            _control_state,
+            "  ! control mgf-agentic:1.1.3: state recorded ",
+        ),
+        (
+            "controls.json",
+            _control_dropped,
+            "  ! control mgf-agentic:1.1.3: present recorded false, rescored true",
+        ),
         ("policy.json", _policy_verdict, "  ! policy: verdict recorded "),
         ("summary.json", _summary_pass_k, "  ! summary: pass_k recorded "),
     ],

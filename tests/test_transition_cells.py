@@ -13,12 +13,16 @@ the unattributed column, and leaves one not evaluated:
 - RB2, the pack's scheduled ``malformed_result`` fault on ungated
   ``case_lookup``: issue -> exec.
 - PC7, a clean ``send_notice`` that leaks an identifier, cited by
-  ``policy``: exec -> handle. (``state_based`` cites no record -- it
-  judges the end state -- so ``policy`` is the evaluator that cites a
-  clean call here.)
+  ``policy``: exec -> handle. (``state_based`` cites only the run's
+  terminal, never a call -- it judges the end state -- so ``policy`` is the
+  evaluator that cites a clean call here.)
 - TE4, a notice without the AI disclosure, denied, then retried with it,
   the denied attempt cited by ``tool_use``: issue -> gate.
-- TE3, judged by ``state_based`` alone, which cites nothing: unattributed.
+- TE3, judged by ``state_based`` alone, which since R42 cites the run's
+  ``agent.terminal`` event: exec -> finish (moved there on purpose by R42
+  from the unattributed column).
+- TC2, judged by ``tool_use`` alone, a known-bad that finishes without a
+  call: the missing required calls leave nothing to cite -- unattributed.
 - TC1, its known-good and known-bad swapped, fails its preflight: not
   evaluated, counted beside the matrix, never in it.
 
@@ -53,7 +57,7 @@ from agentevalops.reports.heatmap import TransitionMatrix, transition_matrix
 
 PACK = "seed-transition-cells"
 #: The run's scenarios, in the pack's order.
-SCENARIOS = ["TE1", "TE3", "TE4", "TE5", "TC1", "PC7", "RB2"]
+SCENARIOS = ["TE1", "TE3", "TE4", "TE5", "TC1", "TC2", "PC7", "RB2"]
 
 
 def _notice(case: str, codes: list[str], *, disclosed: bool) -> dict[str, Any]:
@@ -127,7 +131,7 @@ def _te5(s: dict[str, Any]) -> None:
 
 
 def _te3(s: dict[str, Any]) -> None:
-    """Judged by state_based alone, which cites no record."""
+    """Judged by state_based alone, which cites the terminal (R42)."""
     s["applicable_evaluators"] = ["state_based"]
     s["expected"] = {"expected_end_state": s["expected"]["expected_end_state"]}
 
@@ -162,6 +166,14 @@ def _te4(s: dict[str, Any]) -> None:
     ]
 
 
+def _tc2(s: dict[str, Any]) -> None:
+    """Judged by tool_use alone; the known-bad finishes without a call, so
+    no record is there to cite."""
+    s["applicable_evaluators"] = ["tool_use"]
+    s["expected"] = {"tool_use": s["expected"]["tool_use"]}
+    s["known_bad"] = [{"finish": "C4: nothing to do"}]
+
+
 def _tc1(s: dict[str, Any]) -> None:
     """Its known-good broken, so its preflight fails."""
     s["known_good"], s["known_bad"] = s["known_bad"], s["known_good"]
@@ -174,6 +186,7 @@ EDITS: dict[str, Callable[[dict[str, Any]], None]] = {
     "TE4": _te4,
     "TE5": _te5,
     "TC1": _tc1,
+    "TC2": _tc2,
 }
 
 
@@ -264,15 +277,25 @@ def test_a_denied_tool_retried_lands_in_gate(matrix: TransitionMatrix) -> None:
     assert matrix.labels("issue", "gate") == ("TE4:send_notice",)
 
 
+def test_a_state_only_failure_lands_in_finish_not_unattributed(
+    matrix: TransitionMatrix,
+) -> None:
+    """R42: state_based cites the terminal on a judged failure, so TE3 --
+    judged by state_based alone, after its last call ran -- lands in the
+    finish column, from exec. Fail-first: before R42 it was unattributed."""
+    assert matrix.labels("exec", "finish") == ("TE3",)
+    assert "TE3" not in matrix.labels("finish", "unattributed")
+
+
 def test_every_failed_run_is_in_one_cell_and_the_not_evaluated_beside(
     bundle: Path, matrix: TransitionMatrix
 ) -> None:
-    """The invariant on the scripted bundle, as report.md renders it: six
-    failed runs in six cells, the unattributed one among them; TC1, not
-    evaluated, is stated beside the matrix and in no cell."""
-    assert (matrix.task_runs, matrix.failed, matrix.not_evaluated) == (7, 6, 1)
+    """The invariant on the scripted bundle, as report.md renders it: seven
+    failed runs in seven cells, the unattributed one (TC2) among them; TC1,
+    not evaluated, is stated beside the matrix and in no cell."""
+    assert (matrix.task_runs, matrix.failed, matrix.not_evaluated) == (8, 7, 1)
     assert sum(cell.count for cell in matrix.cells) == matrix.failed
-    assert matrix.labels("finish", "unattributed") == ("TE3",)
+    assert matrix.labels("finish", "unattributed") == ("TC2",)
     assert not any("TC1" in label for cell in matrix.cells for label in cell.labels)
     assert validate_bundle(bundle).errors == []
     report = (bundle / "report.md").read_text("utf-8").splitlines()
@@ -282,15 +305,15 @@ def test_every_failed_run_is_in_one_cell_and_the_not_evaluated_beside(
         "",
         "Rows: the last completed stage. Columns: the stage of the first failure, "
         "judged from the failing evaluations' record citations.",
-        "6 failed task runs of 7; 1 not evaluated is not in the matrix.",
+        "7 failed task runs of 8; 1 not evaluated is not in the matrix.",
         "",
         "| From \\ In | issue | gate | exec | handle | finish | unattributed |",
         "|-----------|-------|------|------|--------|--------|--------------|",
         "| parse | 1 (TE1:refer_to_officer) | – | – | – | – | – |",
         "| issue | – | 1 (TE4:send_notice) | 1 (RB2:case_lookup) | – | – | – |",
-        "| exec | – | – | – | 1 (PC7:send_notice) | – | – |",
+        "| exec | – | – | – | 1 (PC7:send_notice) | 1 (TE3) | – |",
         "| handle | 1 (TE5:refer_to_officer) | – | – | – | – | – |",
-        "| finish | – | – | – | – | – | 1 (TE3) |",
+        "| finish | – | – | – | – | – | 1 (TC2) |",
         "",
         report[start + 13],
     ]

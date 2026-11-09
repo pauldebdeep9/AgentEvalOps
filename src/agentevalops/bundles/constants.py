@@ -141,6 +141,34 @@ _REQUIRED_FILES_BY_VERSION: dict[str, tuple[str, ...]] = {
 #: rescore needs it (docs/adr/0008 R5).
 PACKAGE_HASH_FROM: tuple[int, ...] = (0, 6)
 
+#: R42: the citation norm a writer follows, recorded as metadata.json's
+#: ``refs_version``. 1: every failing evaluation cites what it judged
+#: (ADR-0006 D17) -- from R42, when state_based began citing the terminal.
+#: A bundle written before R42 records none.
+REFS_VERSION: int = 1
+#: R42 (ADR-0008 R3, as amended): rescore holds an evaluation's refs, and a
+#: control verdict's, among the deciding fields for a bundle that records
+#: at least this ``refs_version`` -- or that the running code wrote; an
+#: older bundle's refs are evidence, shown.
+REFS_DECIDE_FROM: int = 1
+
+
+def recorded_refs_era(marker: object) -> tuple[bool, str]:
+    """What a bundle's recorded ``refs_version`` says of its refs (R42):
+    whether the marker alone makes them decide, and the era both
+    ``validate-bundle`` and ``rescore`` print. A marker is a whole number,
+    not a bool, at or after ``REFS_DECIDE_FROM``; a bundle that records
+    none was written before R42."""
+    if (
+        isinstance(marker, int)
+        and not isinstance(marker, bool)
+        and marker >= REFS_DECIDE_FROM
+    ):
+        return True, f"deciding (refs_version {marker})"
+    if marker is None:
+        return False, "evidence (pre-R42 bundle)"
+    return False, f"evidence (unrecognised refs_version {marker!r})"
+
 
 def format_tuple(version: object) -> tuple[int, ...] | None:
     """A format version as numbers, ``"0.6"`` -> ``(0, 6)``, for comparing

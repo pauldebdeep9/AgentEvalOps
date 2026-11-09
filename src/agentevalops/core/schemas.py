@@ -913,9 +913,7 @@ class PassRateInterval:
 
     def __post_init__(self) -> None:
         if not isinstance(self.seed, str) or not _SEED_HEX.fullmatch(self.seed):
-            raise ValueError(
-                f"seed must be 64 lowercase hex digits, got {self.seed!r}"
-            )
+            raise ValueError(f"seed must be 64 lowercase hex digits, got {self.seed!r}")
 
 
 @dataclass(frozen=True)
@@ -1061,3 +1059,8 @@ class ResultBundleMetadata:
     package_sha256: str | None = None
     invocation_git_sha: str = "unavailable"
     invocation_git_dirty: bool | None = None
+    #: R42: the writer's citation norm (``bundles/constants.py``
+    #: ``REFS_VERSION``); absent -- left out of the record -- in a bundle
+    #: written before R42. A reader older than R42 refuses a bundle that
+    #: records it (the R35/R36 one-way step).
+    refs_version: int | None = field(default=None, metadata=OMIT_WHEN_NONE)

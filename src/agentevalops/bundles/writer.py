@@ -44,6 +44,7 @@ from agentevalops.bundles.constants import (
     CONTROLS_FILENAME,
     END_STATES_FILENAME,
     EVIDENCE_REPORT_FILENAME,
+    REFS_VERSION,
     REPLAY_COMMAND_FILENAME,
     REQUIRED_BUNDLE_FILES,
     TOOL_CALLS_FILENAME,
@@ -143,6 +144,9 @@ class BundleStamp:
     invocation_git_sha: str
     invocation_git_dirty: bool | None
     azure_resource: str | None = None
+    #: R42: the citation norm the writer followed; None for a bundle
+    #: written before it, so a re-render leaves it out as the bundle did.
+    refs_version: int | None = None
 
     @classmethod
     def recorded(
@@ -169,6 +173,7 @@ class BundleStamp:
             invocation_git_sha=metadata.invocation_git_sha,
             invocation_git_dirty=metadata.invocation_git_dirty,
             azure_resource=resource,
+            refs_version=metadata.refs_version,
         )
 
 
@@ -312,6 +317,7 @@ def _metadata(
             package_sha256=stamp.package_sha256,
             invocation_git_sha=stamp.invocation_git_sha,
             invocation_git_dirty=stamp.invocation_git_dirty,
+            refs_version=stamp.refs_version,
         )
     )
 
@@ -564,6 +570,7 @@ class BundleWriter:
             invocation_git_sha=invocation_git_sha,
             invocation_git_dirty=invocation_git_dirty,
             azure_resource=_azure_resource(),
+            refs_version=REFS_VERSION,
         )
         files = render_bundle(
             run_config,

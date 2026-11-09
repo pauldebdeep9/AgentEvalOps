@@ -49,6 +49,7 @@ from agentevalops.bundles.constants import (
     PACKAGE_HASH_FROM,
     REPLAY_COMMAND_FILENAME,
     format_tuple,
+    recorded_refs_era,
 )
 from agentevalops.bundles.provenance import package_sha256
 from agentevalops.bundles.reader import BundleReader, LoadedBundle
@@ -107,15 +108,18 @@ LAYER = "evaluation"
 
 #: R3: the fields of an evaluation result that decide a MATCH. Notes are
 #: shown when they differ, and do not decide; the evaluator id names the
-#: result, and a changed one is R2's fifth item.
+#: result, and a changed one is R2's fifth item. Refs decide too, by the
+#: bundle's era (ADR-0008 R3, as amended 2026-11-09): see ``refs_decide``.
 EVALUATION_FIELDS = (
     "applicable",
     "evaluated",
     "passed",
     "score",
     "not_evaluated_cause",
-    "refs",
 )
+#: R42: how an older bundle's refs difference is shown -- evidence, not
+#: deciding.
+EVIDENCE_FIELD = "refs (evidence)"
 #: R3: the summary's counts and pass^k.
 SUMMARY_FIELDS = (
     "passed_tasks",
@@ -178,6 +182,9 @@ class Rescore:
     carried: tuple[str, ...]
     task_runs: int
     evaluations: int
+    #: R42: whether the refs decided, and the era line that says why.
+    refs_deciding: bool
+    refs_era: str
     files: dict[str, bytes] = field(repr=False)
 
     @property
@@ -274,7 +281,9 @@ def _rescore(bundle: Path) -> Rescore:
         end_states=records.end_states,
         scenario_info=rebuilt.scenario_info,
     )
-    verdicts, notes = _compare_results(loaded, files, derived.carried)
+    provenance = _provenance(loaded, rebuilt, configured, evaluators, files)
+    refs_deciding, era = refs_era(metadata, provenance)
+    verdicts, notes = _compare_results(loaded, files, derived.carried, refs_deciding)
     reports = tuple(
         d
         for name in REPORTS
@@ -290,7 +299,7 @@ def _rescore(bundle: Path) -> Rescore:
     ]
     return Rescore(
         bundle=bundle,
-        provenance=_provenance(loaded, rebuilt, configured, evaluators, files),
+        provenance=provenance,
         verdicts=verdicts,
         reports=reports,
         notes=notes,
@@ -298,6 +307,8 @@ def _rescore(bundle: Path) -> Rescore:
         carried=_carried(records.summary, derived),
         task_runs=len(judged),
         evaluations=sum(len(r.evaluations) for r in judged),
+        refs_deciding=refs_deciding,
+        refs_era=era,
         files=files,
     )
 
@@ -498,6 +509,7 @@ def _compare_results(
     loaded: LoadedBundle,
     files: Mapping[str, bytes],
     carried: Mapping[tuple[str, int], TaskRunResult],
+    refs_deciding: bool,
 ) -> tuple[tuple[Difference, ...], tuple[Difference, ...]]:
     """R3, each recorded file against the one the writer renders from the
     derived results: every evaluation of every task run that was not
@@ -527,6 +539,15 @@ def _compare_results(
                 shown.append(
                     Difference(where, "notes", was.get("notes"), now.get("notes"))
                 )
+            if was.get("refs") != now.get("refs"):
+                (deciding if refs_deciding else shown).append(
+                    Difference(
+                        where,
+                        "refs" if refs_deciding else EVIDENCE_FIELD,
+                        was.get("refs"),
+                        now.get("refs"),
+                    )
+                )
     summary = json.loads(files["summary.json"])
     deciding += [
         Difference("summary", name, loaded.summary.get(name), summary.get(name))
@@ -545,32 +566,104 @@ def _compare_results(
         for name in ("checker_id", "policy_id", "notes")
         if policy_was.get(name) != policy_now.get(name)
     ]
-    deciding += _compare_controls(
+    control_deciding, control_shown = _compare_controls(
         (loaded.controls or {}).get("controls") or [],
         json.loads(files[CONTROLS_FILENAME])["controls"],
+        refs_deciding,
     )
+    deciding += control_deciding
+    shown += control_shown
     return tuple(deciding), tuple(shown)
 
 
+def _verdict_parts(verdicts: Any) -> tuple[Any, Any]:
+    """A control's verdicts without their refs, and the refs alone: the
+    refs are its evaluations' refs, evidence since R42 (ADR-0008 R3)."""
+    if not isinstance(verdicts, list):
+        return verdicts, None
+    rest = [
+        {k: v for k, v in item.items() if k != "refs"}
+        if isinstance(item, dict)
+        else item
+        for item in verdicts
+    ]
+    refs = [item.get("refs") if isinstance(item, dict) else None for item in verdicts]
+    return rest, refs
+
+
+def refs_decide(
+    metadata: ResultBundleMetadata, provenance: Sequence[ProvenanceItem]
+) -> bool:
+    """Whether a bundle's refs -- its evaluations' and its control
+    verdicts' -- decide its rescore (R42; ADR-0008 R3, as amended): they do
+    for a bundle that records ``refs_version`` at or after
+    ``REFS_DECIDE_FROM``, written under the citation norm the running code
+    keeps, and for any bundle the running code wrote (no provenance item
+    differs), so stripping the marker does not turn a forged ref into
+    evidence. An older bundle's refs are evidence, shown."""
+    return refs_era(metadata, provenance)[0]
+
+
+def refs_era(
+    metadata: ResultBundleMetadata, provenance: Sequence[ProvenanceItem]
+) -> tuple[bool, str]:
+    """``refs_decide``, and the era line rescore prints: the marker's era,
+    or -- for a bundle whose marker is missing or unrecognised but which
+    the running code wrote, by R2's items all reading the same -- that
+    claim and why the refs decide anyway. The running code always writes
+    the marker, so that line marks a bundle someone edited."""
+    marked, era = recorded_refs_era(metadata.refs_version)
+    if marked or any(item.status == "differs" for item in provenance):
+        return marked, era
+    marker = metadata.refs_version
+    claim = (
+        "no refs_version"
+        if marker is None
+        else f"unrecognised refs_version {marker!r}"
+    )
+    return True, f"deciding ({claim}, but the running code wrote this bundle)"
+
+
 def _compare_controls(
-    recorded: list[dict[str, Any]], derived: list[dict[str, Any]]
-) -> list[Difference]:
-    """R3: every control's state and verdicts."""
+    recorded: list[dict[str, Any]],
+    derived: list[dict[str, Any]],
+    refs_deciding: bool,
+) -> tuple[list[Difference], list[Difference]]:
+    """R3: every control's state and verdicts, which decide. With
+    *refs_deciding* the verdicts are compared whole; without it -- an older
+    bundle -- the refs inside them are shown as evidence, as an
+    evaluation's are, and the rest decides."""
     old = {c.get("id"): c for c in recorded}
     new = {c.get("id"): c for c in derived}
-    found = []
+    deciding: list[Difference] = []
+    shown: list[Difference] = []
     for control_id in sorted(set(old) | set(new), key=str):
         was, now = old.get(control_id), new.get(control_id)
         where = f"control {control_id}"
         if was is None or now is None:
-            found.append(Difference(where, "present", was is not None, now is not None))
+            deciding.append(
+                Difference(where, "present", was is not None, now is not None)
+            )
             continue
-        found += [
-            Difference(where, name, was.get(name), now.get(name))
-            for name in ("state", "verdicts")
-            if was.get(name) != now.get(name)
-        ]
-    return found
+        if was.get("state") != now.get("state"):
+            deciding.append(
+                Difference(where, "state", was.get("state"), now.get("state"))
+            )
+        if refs_deciding:
+            if was.get("verdicts") != now.get("verdicts"):
+                deciding.append(
+                    Difference(
+                        where, "verdicts", was.get("verdicts"), now.get("verdicts")
+                    )
+                )
+            continue
+        was_rest, was_refs = _verdict_parts(was.get("verdicts"))
+        now_rest, now_refs = _verdict_parts(now.get("verdicts"))
+        if was_rest != now_rest:
+            deciding.append(Difference(where, "verdicts", was_rest, now_rest))
+        if was_refs != now_refs:
+            shown.append(Difference(where, EVIDENCE_FIELD, was_refs, now_refs))
+    return deciding, shown
 
 
 def _first_line_difference(name: str, path: Path, data: bytes) -> Difference | None:
@@ -792,6 +885,7 @@ def render_text(result: Rescore) -> str:
                 f"  {item.name:22s} differs: recorded {_show(item.recorded)}, "
                 f"running {_show(item.running)}"
             )
+    lines.append(f"Refs:    {_plain(result.refs_era)}")
     lines.append(verdict_line(result))
     lines += [
         f"  ! {_plain(d.where)}: {d.field} recorded {_show(d.recorded)}, "
@@ -858,6 +952,7 @@ def to_json(result: Rescore) -> dict[str, Any]:
             }
             for i in result.provenance
         ],
+        "refs": {"deciding": result.refs_deciding, "era": result.refs_era},
         "verdicts_reproduce": result.verdicts_reproduce,
         "task_runs": result.task_runs,
         "evaluations": result.evaluations,

@@ -681,6 +681,15 @@ known-good preflight.**
 - Two tasks calling a denied tool at their own step 1 now cite two
   different refs, instead of `[1, 1]`.
 
+**Implementation note — 2026-11-09 (R42 slice 1).** From R42 a judged
+failure cites what it judged, and a pass or a not-applicable result cites
+nothing: `state_based` cites the run's `agent.terminal` trace event
+(`evaluators/state_based.py`). The two evaluators that cite a terminal
+differ on purpose: `deterministic` cites every terminal because its verdict
+rests on all of them; `state_based` cites the last because that is where
+the end state is observed. A writer records the norm as `refs_version` in
+`metadata.json` (ADR-0008 R3, as amended).
+
 **D18. The orchestrator owns repetitions.**
 - `RunConfig` (`core/schemas.py:100-133`) gains `repetitions: int = 1` and
   `seed: int = 0` (D6). `TaskRunResult` gains `repetition: int = 0`.

@@ -300,8 +300,10 @@ def test_a_finish_without_calls_follows_parse() -> None:
 
 
 def test_a_failed_run_citing_nothing_is_unattributed_never_dropped() -> None:
-    """state_based cites no record: the run counts, in the unattributed
-    column, on the row of the last stage it completed."""
+    """A failing evaluation that cites no record (here a hand-built
+    state_based result with no refs; since R42 the real one cites the
+    terminal): the run counts, in the unattributed column, on the row of the
+    last stage it completed."""
     run = _run(_eval("state_based"))
     assert _only(transition_matrix([run], [_call(0)], _trace())) == (
         "finish",
