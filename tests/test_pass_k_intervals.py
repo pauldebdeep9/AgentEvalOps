@@ -307,17 +307,12 @@ def test_each_interval_names_its_denominator_in_report_md_and_the_cli(
     overall = (
         "pass^1 2/5 scenarios (2/2 decided), 95% CI [1.00, 1.00] over 2 decided"
     )
-    assert (
-        f"- Overall: {overall} (B=10000); "
-        "95% one-sided lower bound ~ 0.00 (rule of three)"
-    ) in report
-    assert (
-        f"Pass^k  : {overall}, 95% one-sided lower bound ~ 0.00 (rule of three)"
-    ) in output
+    # Two decided: below three, no rule-of-three bound (R37 step 0).
+    assert f"- Overall: {overall} (B=10000)\n" in report
+    assert f"Pass^k  : {overall}\n" in output
     assert (
         "- task_execution: 2/2 scenarios passed all 1 repetitions; "
-        "95% CI [1.00, 1.00] over 2 decided (B=10000); "
-        "95% one-sided lower bound ~ 0.00 (rule of three)"
+        "95% CI [1.00, 1.00] over 2 decided (B=10000)\n"
     ) in report
     assert (
         "- tool_calling: 0/1 scenarios passed all 1 repetitions; 1 not evaluated "
@@ -405,16 +400,48 @@ def test_no_rule_of_three_bound_between_the_extremes() -> None:
     assert not any("rule of three" in line for line in lines)
 
 
-def test_the_rule_of_three_bound_is_display_only_and_clamped() -> None:
-    """All of two passed: 1 - 3/2 is below zero, so the bound reads 0.00."""
+def test_the_rule_of_three_bound_is_left_out_below_three_decided() -> None:
+    """R37 step 0: below three decided scenarios the bound would read 0.00
+    or 1.00 and say nothing, so it is left out; the interval stays.
+    Fail-first: two of two passed printed "lower bound ~ 0.00"."""
     assert pass_k_phrase(_roll_up(2, 0, 1.0, 1.0)) == (
-        "; pass^1 2/2 scenarios, 95% CI [1.00, 1.00] over 2 decided, "
+        "; pass^1 2/2 scenarios, 95% CI [1.00, 1.00] over 2 decided"
+    )
+    assert pass_k_phrase(_roll_up(0, 2, 0.0, 0.0)) == (
+        "; pass^1 0/2 scenarios, 95% CI [0.00, 0.00] over 2 decided"
+    )
+    assert pass_k_phrase(_roll_up(3, 0, 1.0, 1.0)) == (
+        "; pass^1 3/3 scenarios, 95% CI [1.00, 1.00] over 3 decided, "
         "95% one-sided lower bound ~ 0.00 (rule of three)"
+    )
+    assert pass_k_phrase(_roll_up(4, 0, 1.0, 1.0)) == (
+        "; pass^1 4/4 scenarios, 95% CI [1.00, 1.00] over 4 decided, "
+        "95% one-sided lower bound ~ 0.25 (rule of three)"
     )
     assert pass_k_phrase(_roll_up(0, 40, 0.0, 0.0)) == (
         "; pass^1 0/40 scenarios, 95% CI [0.00, 0.00] over 40 decided, "
         "95% one-sided upper bound ~ 0.07 (rule of three)"
     )
+
+
+def test_report_md_leaves_the_bound_out_below_three_decided() -> None:
+    """The same rule in report.md's roll-up and overall lines."""
+    roll_up = _roll_up(2, 0, 1.0, 1.0)
+    summary = RunSummary(
+        run_id=RunId("two"),
+        pass_k=[PassKResult(f"S{n}", 1, 1, 0, 0, True) for n in range(2)],
+        pass_k_by_category=[roll_up],
+        overall_pass_k_interval=roll_up.interval,
+    )
+    lines = repeatability_section(summary, {}, 1000)
+    assert (
+        "- task_execution: 2/2 scenarios passed all 1 repetitions; "
+        "95% CI [1.00, 1.00] over 2 decided (B=1000)"
+    ) in lines
+    assert (
+        "- Overall: pass^1 2/2 scenarios (2/2 decided), 95% CI [1.00, 1.00] "
+        "over 2 decided (B=1000)"
+    ) in lines
 
 
 def test_report_md_omits_the_interval_of_a_single_scenario(tmp_path: Path) -> None:
